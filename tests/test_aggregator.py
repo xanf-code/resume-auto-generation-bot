@@ -1,0 +1,211 @@
+"""Tests for src.agents.aggregator — pure-code scoring + plausibility floor.
+
+The scoring math is pure and needs NO mocks. The single LLM call
+(``distill_revision_notes``) is mocked to return a canned ``RevisionNotes``;
+NO live API calls (ANTHROPIC_API_KEY is intentionally unset).
+
+Key guarantees pinned here:
+- weighted-mean composite math is exact on a hand-computed example;
+- ``aggregate`` is the exact mean of the four persona composites;
+- the plausibility FLOOR forces a FAIL even when ``aggregate`` >= 88
+  (the fabrication guard);
+- PASS requires BOTH ``aggregate`` >= 88 AND skeptic plausibility >= 70;
+- the aggregator node calls the LLM ONLY on the fail path (never on pass) and
+  never mutates input state.
+"""
+import pytest
+
+from src.agents import aggregator
+from src.pipeline.schemas import PanelScore, RevisionNotes
+
+
+def _score(persona: str, *, km, iq, coh, plaus, fmt, notes="note") -> PanelScore:
+    return PanelScore(
+        persona=persona,
+        keyword_match=km,
+        impact_quality=iq,
+        coherence=coh,
+        plausibility=plaus,
+        formatting=fmt,
+        notes=notes,
+    )
+
+
+# --- persona_composite: exact weighted-mean math ------------------------------
+
+
+def test_persona_composite_exact_weighted_mean():
+    """Weights: plaus .30, km .20, iq .20, coh .15, fmt .15 — hand-computed."""
+    s = _score("ATS Matcher", km=80, iq=70, coh=60, plaus=90, fmt=100)
+    # 0.30*90 + 0.20*80 + 0.20*70 + 0.15*60 + 0.15*100
+    # = 27 + 16 + 14 + 9 + 15 = 81.0
+    assert aggregator.persona_composite(s) == pytest.approx(81.0)
+
+
+def test_persona_composite_all_equal_returns_that_value():
+    """When every dimension equals v, the weighted mean is v (weights sum to 1)."""
+    s = _score("Hiring Manager", km=88, iq=88, coh=88, plaus=88, fmt=88)
+    assert aggregator.persona_composite(s) == pytest.approx(88.0)
+
+
+# --- aggregate: exact mean of four composites ---------------------------------
+
+
+def test_aggregate_is_mean_of_four_composites():
+    scores = [
+        _score("ATS Matcher", km=90, iq=90, coh=90, plaus=90, fmt=90),  # 90
+        _score("Hiring Manager", km=80, iq=80, coh=80, plaus=80, fmt=80),  # 80
+        _score("Technical Screener", km=70, iq=70, coh=70, plaus=70, fmt=70),  # 70
+        _score("Skeptic", km=100, iq=100, coh=100, plaus=100, fmt=100),  # 100
+    ]
+    # mean(90, 80, 70, 100) = 85.0
+    assert aggregator.aggregate(scores) == pytest.approx(85.0)
+
+
+def test_skeptic_plausibility_reads_the_skeptic():
+    scores = [
+        _score("ATS Matcher", km=90, iq=90, coh=90, plaus=95, fmt=90),
+        _score("Hiring Manager", km=90, iq=90, coh=90, plaus=95, fmt=90),
+        _score("Technical Screener", km=90, iq=90, coh=90, plaus=95, fmt=90),
+        _score("Skeptic", km=90, iq=90, coh=90, plaus=42, fmt=90),
+    ]
+    assert aggregator.skeptic_plausibility(scores) == 42
+
+
+# --- decide: plausibility floor is the fabrication guard ----------------------
+
+
+def test_plausibility_floor_forces_fail_even_when_aggregate_high():
+    """Aggregate >= 88 but skeptic plausibility < 70 => FAIL. Fabrication guard."""
+    # Every persona scores high on everything, so aggregate is well above 88,
+    # EXCEPT the skeptic's plausibility, which sits below the floor of 70.
+    scores = [
+        _score("ATS Matcher", km=95, iq=95, coh=95, plaus=95, fmt=95),
+        _score("Hiring Manager", km=95, iq=95, coh=95, plaus=95, fmt=95),
+        _score("Technical Screener", km=95, iq=95, coh=95, plaus=95, fmt=95),
+        # Skeptic: everything high but plausibility 60 (< floor 70).
+        _score("Skeptic", km=95, iq=95, coh=95, plaus=60, fmt=95),
+    ]
+    passed, agg = aggregator.decide(scores)
+
+    assert agg >= 88, "sanity: aggregate must be >= threshold for this guard test"
+    assert passed is False, "floor must veto a high aggregate when plausibility < 70"
+
+
+def test_pass_requires_both_aggregate_and_floor():
+    """PASS only when aggregate >= 88 AND skeptic plausibility >= 70."""
+    scores = [
+        _score("ATS Matcher", km=90, iq=90, coh=90, plaus=90, fmt=90),
+        _score("Hiring Manager", km=90, iq=90, coh=90, plaus=90, fmt=90),
+        _score("Technical Screener", km=90, iq=90, coh=90, plaus=90, fmt=90),
+        _score("Skeptic", km=90, iq=90, coh=90, plaus=90, fmt=90),
+    ]
+    passed, agg = aggregator.decide(scores)
+    assert agg >= 88
+    assert passed is True
+
+
+def test_fail_when_aggregate_below_threshold_even_if_floor_holds():
+    """Low aggregate fails even though skeptic plausibility clears the floor."""
+    scores = [
+        _score("ATS Matcher", km=70, iq=70, coh=70, plaus=75, fmt=70),
+        _score("Hiring Manager", km=70, iq=70, coh=70, plaus=75, fmt=70),
+        _score("Technical Screener", km=70, iq=70, coh=70, plaus=75, fmt=70),
+        _score("Skeptic", km=70, iq=70, coh=70, plaus=75, fmt=70),
+    ]
+    passed, agg = aggregator.decide(scores)
+    assert agg < 88
+    assert passed is False
+
+
+# --- distill_revision_notes + aggregator node ---------------------------------
+
+
+def _failing_scores() -> list[PanelScore]:
+    return [
+        _score("ATS Matcher", km=60, iq=60, coh=60, plaus=65, fmt=60,
+               notes="Missing keyword: Kubernetes."),
+        _score("Hiring Manager", km=60, iq=60, coh=60, plaus=65, fmt=60,
+               notes="Impact bullets lack outcomes."),
+        _score("Technical Screener", km=60, iq=60, coh=60, plaus=65, fmt=60,
+               notes="Stack depth unclear."),
+        _score("Skeptic", km=60, iq=60, coh=60, plaus=50, fmt=60,
+               notes="Bullet 2 overstates scope; no source for 'Salesforce'."),
+    ]
+
+
+def _passing_scores() -> list[PanelScore]:
+    return [
+        _score("ATS Matcher", km=92, iq=92, coh=92, plaus=92, fmt=92),
+        _score("Hiring Manager", km=92, iq=92, coh=92, plaus=92, fmt=92),
+        _score("Technical Screener", km=92, iq=92, coh=92, plaus=92, fmt=92),
+        _score("Skeptic", km=90, iq=90, coh=90, plaus=90, fmt=90),
+    ]
+
+
+def test_distill_revision_notes_mocks_llm_and_returns_list(monkeypatch):
+    canned = RevisionNotes(notes=["1. Add Kubernetes.", "2. Quantify impact."])
+    captured = {}
+
+    def fake_parse_strong(system, user, schema, **kwargs):
+        captured["schema"] = schema
+        captured["user"] = user
+        return canned
+
+    monkeypatch.setattr(aggregator, "parse_strong", fake_parse_strong)
+
+    notes = aggregator.distill_revision_notes(_failing_scores())
+
+    assert captured["schema"] is RevisionNotes
+    assert notes == ["1. Add Kubernetes.", "2. Quantify impact."]
+    # The persona notes are fed into the distillation prompt.
+    assert "Salesforce" in captured["user"]
+
+
+def test_aggregator_fail_path_writes_revision_notes(monkeypatch):
+    canned = RevisionNotes(notes=["1. Source or remove the Salesforce claim."])
+    called = {"n": 0}
+
+    def fake_parse_strong(system, user, schema, **kwargs):
+        called["n"] += 1
+        return canned
+
+    monkeypatch.setattr(aggregator, "parse_strong", fake_parse_strong)
+
+    state = {"panel_scores": _failing_scores()}
+    out = aggregator.aggregator(state)
+
+    assert out["passed"] is False
+    assert out["revision_notes"] == ["1. Source or remove the Salesforce claim."]
+    assert "aggregate_score" in out and "panel_scores" in out
+    assert called["n"] == 1, "the distillation LLM call must fire exactly once on fail"
+
+
+def test_aggregator_pass_path_never_calls_llm(monkeypatch):
+    called = {"n": 0}
+
+    def fake_parse_strong(*a, **k):
+        called["n"] += 1
+        raise AssertionError("LLM must NOT be called on the pass path")
+
+    monkeypatch.setattr(aggregator, "parse_strong", fake_parse_strong)
+
+    state = {"panel_scores": _passing_scores()}
+    out = aggregator.aggregator(state)
+
+    assert out["passed"] is True
+    assert called["n"] == 0
+    assert "revision_notes" not in out
+    assert out["aggregate_score"] >= 88
+
+
+def test_aggregator_does_not_mutate_input_state(monkeypatch):
+    monkeypatch.setattr(
+        aggregator, "parse_strong",
+        lambda *a, **k: RevisionNotes(notes=["x"]),
+    )
+    state = {"panel_scores": _failing_scores()}
+    snapshot_keys = set(state.keys())
+    aggregator.aggregator(state)
+    assert set(state.keys()) == snapshot_keys
+    assert "passed" not in state

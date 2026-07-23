@@ -1,0 +1,54 @@
+About the job
+Our Team
+
+We are evolving our Reliability Engineering team to move beyond support and operations. As a Senior Engineer in Site Reliability, you will be part of a diverse and inclusive organization that has full ownership of the availability, performance, and scalability of one of the most critical shared services at LSEG.
+
+We are looking for people with a passion to learn, and who bring a continuous improvement mentality to our team!
+
+Main Responsibilities
+
+Maintain Service Level Objectives (SLOs) for cloud-hosted systems, continuously measuring and improving availability, latency, and overall system health.
+
+Design and implement automation for AWS and Azure environments to scale systems sustainably, prevent service issues, and enable rapid recovery.
+
+Partner with development teams to improve reliability, observability, and release velocity using cloud-native tools and guidelines.
+
+Participate in on-call rotations, incident response, postmortems, and root cause analysis.
+
+Advocate for strong engineering practices for building, deploying, and running scalable, reliable services across AWS and Azure.
+
+Enable cloud migration by performing architectural reviews, operational readiness testing, and configuring observability dashboards (e.g., Datadog integrated with AWS CloudWatch and Azure Monitor).
+
+Drive continuous learning and development in multi-cloud technologies.
+
+Minimum Qualifications
+
+Bachelor's degree or equivalent experience in Computer Science or related technical field.
+
+Proficiency in scripting languages (Shell, Python).
+
+Experience maintaining Infrastructure as Code (IaC) using Terraform (or AWS CloudFormation, Azure ARM templates).
+
+Hands-on experience with AWS services (EC2, S3, RDS, IAM, VPC, Lambda) and familiarity with Azure equivalents.
+
+Knowledge of Docker and Kubernetes (EKS or AKS preferred).
+
+Familiarity with observability tools like Datadog, AWS CloudWatch, or Azure Monitor.
+
+Implement and maintain CI/CD pipelines (AWS CodePipeline, Azure DevOps, or similar).
+
+Incident response and blameless postmortems.
+
+Proficient in Git workflows.
+
+Preferred Qualifications
+
+2-5 years of proven experience.
+
+Strong understanding of AWS Well-Architected Framework and Azure Architecture Center.
+
+Experience with cloud security guidelines (IAM, KMS, Secrets Manager).
+
+Familiarity with cloud-native databases (AWS RDS/DynamoDB, Azure SQL).
+
+Knowledge of DevOps concepts and modern cloud-native architectures.
