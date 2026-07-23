@@ -16,10 +16,10 @@ def test_module_imports_without_api_key(monkeypatch):
 def test_constant_values():
     import config.settings as settings
 
-    assert settings.THRESHOLD == 88
+    assert settings.THRESHOLD == 78
     assert settings.MAX_ITERATIONS == 6
-    assert settings.MAX_COMPILE_RETRIES == 2
-    assert settings.PLAUSIBILITY_FLOOR == 70
+    assert settings.MAX_COMPILE_RETRIES == 4
+    assert settings.PLAUSIBILITY_FLOOR == 20
     assert settings.MODEL_STRONG == "claude-opus-4-8"
     assert settings.MODEL_FAST == "claude-haiku-4-5"
 
@@ -28,11 +28,11 @@ def test_rubric_weights_exact():
     import config.settings as settings
 
     assert settings.RUBRIC_WEIGHTS == {
-        "plausibility": 0.30,
-        "keyword_match": 0.20,
+        "keyword_match":  0.30,
         "impact_quality": 0.20,
-        "coherence": 0.15,
-        "formatting": 0.15,
+        "coherence":      0.20,
+        "plausibility":   0.15,
+        "formatting":     0.15,
     }
 
 

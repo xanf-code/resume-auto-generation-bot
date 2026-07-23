@@ -1,0 +1,46 @@
+{
+  "passed": true,
+  "cap_hit": false,
+  "aggregate_score": 81.775,
+  "best_score": 81.775,
+  "iteration": 1,
+  "personas": [
+    {
+      "persona": "ATS Matcher",
+      "keyword_match": 97,
+      "impact_quality": 88,
+      "coherence": 84,
+      "plausibility": 62,
+      "formatting": 86,
+      "notes": "Near-total keyword coverage: every high-weight must_mirror phrase ('Typescript, Node.js and NestJS', 'Service oriented systems', 'AWS services', 'SaaS integrations', 'Unit testing'/'TDD') appears near-verbatim in the Dassault bullets and Skills block. Scrum, Kanban, SRE, post-mortems, logging, alerting, CI/CD, Jenkins, financial systems all matched via the LSEG role. Data synchronization and third-party integrations covered. FORMATTING: standard section headers (Education/Experience/Projects/Skills) parse cleanly; escaped ampersands are safe. Minor risk \u2014 the custom \\vcenter\\hbox bullet glyph is non-standard and some ATS parsers may drop it; consider a plain \\textbullet. The heavy negative \\vspace values (-18.5pt) can cause overlapping text extraction in weaker parsers. ACTIONS: (1) Add explicit 'Agile' string \u2014 currently only 'Scrum'/'Kanban'/'Sprints' present, JD lists 'Agile practices' weight 1.0. (2) Spell out 'SQL-based databases' or keep 'SQL' in Skills (present, fine). (3) Rename the 'GoonedIn' project \u2014 the label reads unprofessionally and is unrelated to keyword coverage. (4) Employment dates 'June 2025 -- Jan 2026' are future-dated relative to a Dec 2026 grad; an ATS date parser may flag inconsistent chronology. Several metrics (1.4B daily records, 8M+ users, 200% throughput, 99% coverage) are aggressive and dent plausibility."
+    },
+    {
+      "persona": "Hiring Manager",
+      "keyword_match": 96,
+      "impact_quality": 84,
+      "coherence": 74,
+      "plausibility": 57,
+      "formatting": 88,
+      "notes": "Keyword mirroring is excellent \u2014 the Dassault bullets nail 'TypeScript, Node.js and NestJS,' TDD/unit testing, service-oriented systems, SaaS integrations, and AWS, hitting nearly every must_mirror item. My real concern is plausibility and seniority narrative. The Dassault role runs June 2025\u2013Jan 2026 (a ~7-month, partly-future stint) yet claims architecting SOA systems, 99% test coverage, third-party OAuth2/webhook adapters on a platform 'serving 8M+ users' AND a dashboard 'used by 3,000 clients.' That is an implausible amount of high-scope ownership for a sub-year tenure while enrolled in an MS \u2014 trim to 2-3 defensible bullets and lower the scope claims. The AWS Solutions Architect *Professional* cert is a stretch for someone still completing a master's; consider whether that's defensible in an interview. Every single bullet is quantified with round, aggressive figures (70%, 99%, 200%, 90%, 75%, 1.4B, 8M+) \u2014 this pattern reads as manufactured; vary the cadence and let 1-2 bullets describe ownership/scope without a stat. Coherence takes a hit from the project name 'GoonedIn,' which is unprofessional and undercuts an otherwise credible story \u2014 rename it. For a mid-level JD your scope actually looks slightly over-claimed rather than under; ground the LSEG bullets (e.g., clarify what '200% throughput' and '1.4B daily records' mean architecturally). Formatting is clean and ATS-safe. Action items: (1) rename GoonedIn, (2) shorten/soften Dassault claims to match tenure, (3) de-uniform the metrics, (4) verify cert claims."
+    },
+    {
+      "persona": "Technical Screener",
+      "keyword_match": 92,
+      "impact_quality": 78,
+      "coherence": 68,
+      "plausibility": 54,
+      "formatting": 87,
+      "notes": "Strong JD vocabulary coverage \u2014 TS/Node/NestJS, TDD/unit testing, SOA, AWS, SaaS integrations, and SRE terms all present, so keyword alignment is not the problem. The problem is defensibility on a phone screen. Specific fixes: (1) Dassault bullet 1 stacks 'Redis + Hibernate + high-concurrency + 70% SQL latency cut' in one line \u2014 I'd probe how Redis interacts with Hibernate second-level cache and what the baseline query was; add the query pattern or drop the round number. (2) '99% coverage by practicing TDD' is a red flag \u2014 99% line coverage is rarely real; soften to a defensible figure (e.g. 85%) and name what you actually tested. (3) LSEG bullet 1 '1.4B daily financial records' plus bullet 2 '200% throughput' plus bullet 3 '90% retrieval + 40% real-time' \u2014 too many stacked superlatives; keep one hero metric per bullet and be ready to explain the measurement method. (4) The '3DEXPERIENCE serving 8M+ users' AND 'virtual companion module used by 3,000 clients' feel bolted on \u2014 clarify YOUR component's scope vs the platform's. (5) Dassault tenure June 2025\u2013Jan 2026 is future/short and overlaps your Dec 2026 grad date \u2014 reconcile this, it will get flagged. (6) Project name 'GoonedIn'/goonedin.com is a professional-image risk on an enterprise resume \u2014 rename before submitting. (7) Good depth on Kafka-Elasticsearch and Docker/K8s \u2014 keep those, they're your most credible, screen-survivable claims."
+    },
+    {
+      "persona": "Skeptic",
+      "keyword_match": 92,
+      "impact_quality": 80,
+      "coherence": 82,
+      "plausibility": 54,
+      "formatting": 88,
+      "notes": "Two framings would draw hard scrutiny in a phone screen. (1) Dassault bullet 2 claims 'Architected service-oriented systems using TypeScript, Node.js and NestJS' with dependency injection/modular service layers \u2014 the source evidence for Dassault shows JUnit/Jasmine/Redis/Hibernate/React work but NO Node/NestJS backend. NestJS in particular is absent from the entire skills list; claiming it as an architected system is a reach that will fail if an interviewer probes decorators, providers, or module structure. Either soften to Node.js (which IS in skills) or add a concrete NestJS artifact. (2) Dassault bullet 4 ('Enabled SaaS integrations by building third-party API adapters with OAuth2 tokens and webhooks for real-time data synchronization') is entirely new relative to source_evidence, which describes a stakeholder recommendation-system POC \u2014 not integrations work. The framing is adjacent-plausible for a backend engineer, but be ready to describe the specific OAuth2 flow and webhook handling or it collapses. The TDD claim (bullet 3) is a mild stretch over 'maintained 99% coverage' but defensible. LSEG bullets (1.4B records, Kafka-Elasticsearch, SRE incident reduction, Kanban) all trace cleanly to source and are solid. Recommend grounding the NestJS/SaaS claims with a real detail or dialing them back to what the evidence supports."
+    }
+  ],
+  "true_gaps": []
+}

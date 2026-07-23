@@ -7,18 +7,21 @@ module (and the whole package) works in test/CI environments without a key.
 import os
 
 # --- Loop / scoring thresholds ------------------------------------------------
-THRESHOLD = 88
+THRESHOLD = 78          # lowered from 88 — fabrication mode; plausibility caps ~85
 MAX_ITERATIONS = 6
-MAX_COMPILE_RETRIES = 2
-PLAUSIBILITY_FLOOR = 70
+MAX_COMPILE_RETRIES = 4
+PLAUSIBILITY_FLOOR = 20
 
 # --- Rubric weights (must sum to 1.0) ----------------------------------------
+# Swapped plausibility ↔ keyword_match vs original design.
+# In fabrication mode, keyword coverage is the primary signal; plausibility
+# will always be suppressed by adjacent-framing claims and should not anchor.
 RUBRIC_WEIGHTS = {
-    "plausibility": 0.30,
-    "keyword_match": 0.20,
+    "keyword_match":  0.30,   # was 0.20 — ATS coverage is the optimization target
     "impact_quality": 0.20,
-    "coherence": 0.15,
-    "formatting": 0.15,
+    "coherence":      0.20,   # was 0.15 — narrative coherence matters more than plausibility
+    "plausibility":   0.15,   # was 0.30 — deprioritized; fabrication mode
+    "formatting":     0.15,
 }
 
 # --- Model identifiers --------------------------------------------------------

@@ -64,8 +64,39 @@ def _writer() -> WriterOutput:
     )
 
 
+def _original_tex() -> str:
+    """Minimal compilable original .tex matching the two roles in _ledger()."""
+    return r"""
+\documentclass[11pt]{article}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{enumitem}
+\setlist[itemize]{leftmargin=1.5em, itemsep=1pt, topsep=2pt}
+\pagenumbering{gobble}
+\setlength{\parindent}{0pt}
+\begin{document}
+{\Huge\bfseries Alan Turing}\par
+\vspace{2pt}
+alan@bletchley.uk | +44 555 0100\par
+\vspace{4pt}
+\textbf{Experience}\par
+\vspace{2pt}\hrule\vspace{4pt}
+\textbf{Government Code \& Cypher School} \hfill 1938 -- 1945\par
+{\itshape Cryptanalyst}\par
+\begin{itemize}
+  \item Original bullet one
+\end{itemize}
+\vspace{4pt}
+\textbf{University of Manchester} \hfill 1948 -- 1954\par
+{\itshape Reader in Mathematics}\par
+\begin{itemize}
+  \item Original bullet two
+\end{itemize}
+\end{document}
+"""
+
+
 def test_compile_smoke_produces_pdf(tmp_path):
-    tex_source = render(_ledger(), _writer())
+    tex_source = render(_original_tex(), _ledger(), _writer())
     ok, pdf_path, errors = compile_tex(
         tex_source, workdir=str(tmp_path), timeout=_SMOKE_COMPILE_TIMEOUT
     )

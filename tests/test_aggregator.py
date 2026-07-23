@@ -35,11 +35,11 @@ def _score(persona: str, *, km, iq, coh, plaus, fmt, notes="note") -> PanelScore
 
 
 def test_persona_composite_exact_weighted_mean():
-    """Weights: plaus .30, km .20, iq .20, coh .15, fmt .15 — hand-computed."""
+    """Weights: km .30, iq .20, coh .20, plaus .15, fmt .15 — hand-computed."""
     s = _score("ATS Matcher", km=80, iq=70, coh=60, plaus=90, fmt=100)
-    # 0.30*90 + 0.20*80 + 0.20*70 + 0.15*60 + 0.15*100
-    # = 27 + 16 + 14 + 9 + 15 = 81.0
-    assert aggregator.persona_composite(s) == pytest.approx(81.0)
+    # 0.30*80 + 0.20*70 + 0.20*60 + 0.15*90 + 0.15*100
+    # = 24 + 14 + 12 + 13.5 + 15 = 78.5
+    assert aggregator.persona_composite(s) == pytest.approx(78.5)
 
 
 def test_persona_composite_all_equal_returns_that_value():
@@ -76,20 +76,20 @@ def test_skeptic_plausibility_reads_the_skeptic():
 
 
 def test_plausibility_floor_forces_fail_even_when_aggregate_high():
-    """Aggregate >= 88 but skeptic plausibility < 70 => FAIL. Fabrication guard."""
+    """Aggregate >= 88 but skeptic plausibility < 20 => FAIL. Fabrication guard."""
     # Every persona scores high on everything, so aggregate is well above 88,
-    # EXCEPT the skeptic's plausibility, which sits below the floor of 70.
+    # EXCEPT the skeptic's plausibility, which sits below the floor of 20.
     scores = [
         _score("ATS Matcher", km=95, iq=95, coh=95, plaus=95, fmt=95),
         _score("Hiring Manager", km=95, iq=95, coh=95, plaus=95, fmt=95),
         _score("Technical Screener", km=95, iq=95, coh=95, plaus=95, fmt=95),
-        # Skeptic: everything high but plausibility 60 (< floor 70).
-        _score("Skeptic", km=95, iq=95, coh=95, plaus=60, fmt=95),
+        # Skeptic: everything high but plausibility 10 (< floor 20).
+        _score("Skeptic", km=95, iq=95, coh=95, plaus=10, fmt=95),
     ]
     passed, agg = aggregator.decide(scores)
 
     assert agg >= 88, "sanity: aggregate must be >= threshold for this guard test"
-    assert passed is False, "floor must veto a high aggregate when plausibility < 70"
+    assert passed is False, "floor must veto a high aggregate when plausibility < 20"
 
 
 def test_pass_requires_both_aggregate_and_floor():

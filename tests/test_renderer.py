@@ -1,7 +1,8 @@
 """Tests for the LaTeX renderer — integrity guarantee #1 (structural).
 
-Identity fields come exclusively from the ledger; bullets/skills/summary come
-exclusively from the writer output. Every injected string is LaTeX-escaped.
+The renderer patches the original .tex in-place: only the itemize bullet
+blocks are replaced; everything else (fonts, formatting, sections) is preserved.
+Every injected bullet string is LaTeX-escaped.
 """
 from src.compiler.renderer import latex_escape, render
 from src.pipeline.schemas import (
@@ -44,6 +45,28 @@ def _writer() -> WriterOutput:
     )
 
 
+def _original_tex() -> str:
+    """Minimal original .tex matching the two roles in _ledger()."""
+    return r"""
+\documentclass{article}
+\begin{document}
+{\Huge Ada Lovelace}\par
+ada@example.com | 555-0100\par
+\section*{Experience}
+\textbf{Analytical Engines Inc} \hfill Jan 2020 -- Present\par
+{\itshape Lead Engineer}\par
+\begin{itemize}
+  \item Original bullet 1
+\end{itemize}
+\textbf{Babbage \& Co} \hfill Jun 2016 -- Dec 2019\par
+{\itshape Research Fellow}\par
+\begin{itemize}
+  \item Original bullet A
+\end{itemize}
+\end{document}
+"""
+
+
 # --- latex_escape ------------------------------------------------------------
 
 
@@ -75,9 +98,10 @@ def test_latex_escape_plain_text_unchanged():
 
 
 def test_render_injects_locked_identity_fields_verbatim():
-    out = render(_ledger(), _writer())
+    # Identity fields come from original_tex verbatim — patch leaves them untouched.
+    out = render(_original_tex(), _ledger(), _writer())
     assert "Ada Lovelace" in out
-    assert "ada@example.com | 555-0100" in out  # contact verbatim from ledger
+    assert "ada@example.com | 555-0100" in out
     assert "ada@example.com" in out
     for company in ("Analytical Engines Inc", "Babbage \\& Co"):
         assert company in out
@@ -87,18 +111,20 @@ def test_render_injects_locked_identity_fields_verbatim():
         assert date in out
 
 
-def test_render_injects_writer_content():
-    out = render(_ledger(), _writer())
+def test_render_injects_writer_bullets():
+    # Only bullets are patched; skills/summary stay from the original .tex.
+    out = render(_original_tex(), _ledger(), _writer())
     assert "Led a team of 5 engineers" in out
     assert "Published 3 papers" in out
-    assert "Python" in out
-    assert "Pioneering engineer with decades of impact." in out
+    # Original bullets are gone.
+    assert "Original bullet 1" not in out
+    assert "Original bullet A" not in out
 
 
 # --- render: escaping of writer content --------------------------------------
 
 
-def test_render_escapes_special_chars_in_bullets_and_skills():
+def test_render_escapes_special_chars_in_bullets():
     ledger = _ledger()
     writer = WriterOutput(
         roles=[
@@ -108,26 +134,22 @@ def test_render_escapes_special_chars_in_bullets_and_skills():
         skills=["C++ & Rust", "50%_uptime"],
         summary="Delivered value$ across teams.",
     )
-    out = render(ledger, writer)
-    # Raw specials must NOT appear unescaped in the rendered output.
+    out = render(_original_tex(), ledger, writer)
+    # Raw specials in bullets must NOT appear unescaped.
     assert "30% &" not in out
     assert r"30\% \& boosted C\_speed" in out
     assert r"\$1M on \#infra" in out
-    assert r"C++ \& Rust" in out
-    assert r"50\%\_uptime" in out
-    assert r"value\$" in out
 
 
 # --- render: writer content NEVER leaks into an identity slot ----------------
 
 
 def test_writer_output_never_reaches_identity_slot():
-    """The renderer must ignore any identity-looking data a writer could craft.
+    """Writer bullets cannot overwrite or inject company/title/date slots.
 
-    WriterOutput has no identity fields by construction, but even the strings
-    it DOES carry (bullets/skills/summary) must never be used as a company,
-    title, or date. We craft a writer whose bullet text impersonates a company
-    and confirm the identity slots still come from the ledger.
+    The patch approach replaces only itemize blocks; role headers in the
+    original .tex are untouched. Even if a bullet text impersonates a company
+    name it can only appear inside an itemize block, never as a role header.
     """
     ledger = _ledger()
     malicious = WriterOutput(
@@ -138,24 +160,17 @@ def test_writer_output_never_reaches_identity_slot():
         skills=["Impersonation"],
         summary="I worked at Totally Real Bank.",
     )
-    out = render(ledger, malicious)
-    # Ledger identity survives.
+    out = render(_original_tex(), ledger, malicious)
+    # Ledger identity from original .tex is preserved.
     assert "Analytical Engines Inc" in out
     assert "Lead Engineer" in out
-    # The writer's impersonation strings appear ONLY as bullet/summary content,
-    # never as a structural identity value. There is no way for the writer to
-    # inject a new company header — the roles are keyed by the ledger.
-    # Count of company headers equals the number of ledger roles.
-    assert out.count("Analytical Engines Inc") >= 1
-    # Writer text is present (as a bullet) but not promoted to an identity slot;
-    # confirm the header line for role 0 uses the ledger company, not the writer.
+    # The malicious bullet appears only AFTER the real company header, never before.
     assert "FAKE COMPANY LLC" not in out.split("Analytical Engines Inc")[0]
 
 
 def test_render_matches_bullets_by_role_index():
     """Bullets are matched to ledger roles by RoleBullets.index, order-independent."""
     ledger = _ledger()
-    # Deliberately reverse the writer roles order; matching is by index.
     writer = WriterOutput(
         roles=[
             RoleBullets(index=1, bullets=["SECOND ROLE BULLET"]),
@@ -164,7 +179,7 @@ def test_render_matches_bullets_by_role_index():
         skills=["S"],
         summary="sum",
     )
-    out = render(ledger, writer)
+    out = render(_original_tex(), ledger, writer)
     # Role 0 (Analytical Engines) must be paired with FIRST ROLE BULLET.
     first_role_block = out.split("Babbage \\& Co")[0]
     assert "FIRST ROLE BULLET" in first_role_block

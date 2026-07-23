@@ -1,54 +1,42 @@
 About the job
-Our Team
+Vestwell is the financial technology company powering the new savings economy. Our platform redefines how people save for the critical aspects of life across retirement, education, and healthcare savings needs. Today, Vestwell enables over 350,000 businesses and over 2M active savers, with over $50B in assets saved across all 50 states. Vestwell's platform serves a diverse clientele, including financial advisers, employers, third-party administrators, financial institutions, payroll providers, government agencies, and individual savers.
 
-We are evolving our Reliability Engineering team to move beyond support and operations. As a Senior Engineer in Site Reliability, you will be part of a diverse and inclusive organization that has full ownership of the availability, performance, and scalability of one of the most critical shared services at LSEG.
+To learn more, visit vestwell.com
 
-We are looking for people with a passion to learn, and who bring a continuous improvement mentality to our team!
+Who Are We Looking For?
 
-Main Responsibilities
+The Engineering team is seeking a passionate technologist who is looking to grow their career in Technology and Engineering.
 
-Maintain Service Level Objectives (SLOs) for cloud-hosted systems, continuously measuring and improving availability, latency, and overall system health.
+You’re a great fit for our team if you can balance detail-oriented tasks with long term strategy, if you are adaptable and willing to take ownership over a vertical slice of a product, partner with non-technical operational teams to understand and solve their problems, and if you are looking to contribute to the culture of a high growth startup.
 
-Design and implement automation for AWS and Azure environments to scale systems sustainably, prevent service issues, and enable rapid recovery.
+Day To Day, You May Also Be Expected To
 
-Partner with development teams to improve reliability, observability, and release velocity using cloud-native tools and guidelines.
+Work with Engineering and Product teams to integrate Vestwell’s systems with third party data and services.
+Collaborate closely with other Engineers and the rest of the Vestwell team to determine architecture and design for SaaS integrations.
+Orchestration of data transfers and synchronization across multiple internal and external systems.
+Monitor and support our third-party system integrations.
 
-Participate in on-call rotations, incident response, postmortems, and root cause analysis.
+Requirements
 
-Advocate for strong engineering practices for building, deploying, and running scalable, reliable services across AWS and Azure.
+The Necessities
 
-Enable cloud migration by performing architectural reviews, operational readiness testing, and configuring observability dashboards (e.g., Datadog integrated with AWS CloudWatch and Azure Monitor).
+Experience with Typescript, Node.js and NestJS.
+Experience with SQL-based databases
+Unit testing experience and knowledge of TDD
+Experience implementing service oriented systems
+Expertise with Git
+Knowledge of AWS services.
+Understanding of Agile practices such as Scrum and Kanban
+2+ years of experience as a Software Engineer
 
-Drive continuous learning and development in multi-cloud technologies.
+The Extras
 
-Minimum Qualifications
+Experience using the React framework, HTML, and CSS
+An understanding of SRE best practices, such as post-mortems, logging, and alerting
+Experience with CI/CD and automation pipelines using Jenkins
+Knowledge of financial systems
+CS Degree
 
-Bachelor's degree or equivalent experience in Computer Science or related technical field.
+This role will be based in either the New York City or Austin office, and will be part of Vestwell's hybrid in-office operation.
 
-Proficiency in scripting languages (Shell, Python).
-
-Experience maintaining Infrastructure as Code (IaC) using Terraform (or AWS CloudFormation, Azure ARM templates).
-
-Hands-on experience with AWS services (EC2, S3, RDS, IAM, VPC, Lambda) and familiarity with Azure equivalents.
-
-Knowledge of Docker and Kubernetes (EKS or AKS preferred).
-
-Familiarity with observability tools like Datadog, AWS CloudWatch, or Azure Monitor.
-
-Implement and maintain CI/CD pipelines (AWS CodePipeline, Azure DevOps, or similar).
-
-Incident response and blameless postmortems.
-
-Proficient in Git workflows.
-
-Preferred Qualifications
-
-2-5 years of proven experience.
-
-Strong understanding of AWS Well-Architected Framework and Azure Architecture Center.
-
-Experience with cloud security guidelines (IAM, KMS, Secrets Manager).
-
-Familiarity with cloud-native databases (AWS RDS/DynamoDB, Azure SQL).
-
-Knowledge of DevOps concepts and modern cloud-native architectures.
+The expected base salary range for this position is $140K - $155K base. This position is eligible to participate in the Company Bonus Pool and is eligible to receive new hire equity in the Company. Please note that salary bands are based on NY and other similar metro areas and may differ based on where the role is ultimately hired.

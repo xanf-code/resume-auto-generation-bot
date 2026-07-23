@@ -6,9 +6,12 @@ identity string (company / title / start / end) still appears verbatim in the
 source .tex. Any drift means the model paraphrased an identity field, which the
 guard rejects loudly.
 """
+import logging
 import re
 
 from src.pipeline.llm import parse_fast
+
+log = logging.getLogger(__name__)
 from src.pipeline.schemas import IdentityLedger, ResumeStruct, Role
 from src.pipeline.state import PipelineState
 from src.prompts.extraction import PARSER_SYSTEM
@@ -96,16 +99,15 @@ def assert_ledger_matches_source(
 
 
 def parse_resume(state: PipelineState) -> dict:
-    """Node: parse the raw resume and derive its identity ledger.
-
-    Reads ``resume_tex_raw``; returns a NEW dict with ``resume_struct`` and
-    ``identity_ledger`` (never mutates the incoming state).
-    """
+    """Node: parse the raw resume and derive its identity ledger."""
     resume_tex_raw = state["resume_tex_raw"]
+    log.info("parse_resume | sending %d chars to Haiku", len(resume_tex_raw))
     struct = parse_fast(PARSER_SYSTEM, resume_tex_raw, ResumeStruct)
-    ledger = derive_ledger(
-        struct,
-        name=extract_name(resume_tex_raw),
-        contact=extract_contact(resume_tex_raw),
+    name = extract_name(resume_tex_raw)
+    contact = extract_contact(resume_tex_raw)
+    ledger = derive_ledger(struct, name=name, contact=contact)
+    log.info(
+        "parse_resume | done — candidate=%r, %d roles, %d skills, ledger locked",
+        name, len(struct.roles), len(struct.skills),
     )
     return {"resume_struct": struct, "identity_ledger": ledger}

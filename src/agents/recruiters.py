@@ -11,8 +11,11 @@ call is offloaded to a worker thread via ``asyncio.to_thread`` and awaited
 together with ``asyncio.gather``.
 """
 import asyncio
+import logging
 
 from src.pipeline.llm import parse_strong
+
+log = logging.getLogger(__name__)
 from src.pipeline.schemas import JDVector, PanelScore, ResumeStruct
 from src.pipeline.state import PipelineState
 from src.prompts.recruiters import (
@@ -91,9 +94,13 @@ async def run_panel(state: PipelineState) -> list[PanelScore]:
 
 
 def recruiter_panel(state: PipelineState) -> dict:
-    """Node: run the four-persona panel and return their scores.
-
-    Returns a NEW dict with ``panel_scores`` (never mutates input state).
-    """
+    """Node: run the four-persona panel and return their scores."""
+    log.info("recruiter    | spawning 4 Opus personas concurrently…")
     scores = asyncio.run(run_panel(state))
+    for s in scores:
+        log.info(
+            "recruiter    | %-22s km=%3d iq=%3d coh=%3d plaus=%3d fmt=%3d",
+            s.persona, s.keyword_match, s.impact_quality,
+            s.coherence, s.plausibility, s.formatting,
+        )
     return {"panel_scores": scores}

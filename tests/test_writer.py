@@ -216,3 +216,14 @@ def test_write_resume_does_not_mutate_input_state(monkeypatch):
 
     assert set(state.keys()) == snapshot_keys
     assert "writer_output" not in state
+
+
+def test_writer_system_enforces_keyword_coverage_cap():
+    """WRITER_SYSTEM must cap keyword coverage at 80-85% to prevent stuffing signals."""
+    from src.prompts.writer import WRITER_SYSTEM
+
+    assert "80-85" in WRITER_SYSTEM, "Missing 80-85% keyword coverage cap"
+    assert "stuffing" in WRITER_SYSTEM.lower(), "Missing stuffing-signal warning"
+    # Must still require 100% coverage of must_mirror and high-weight skills
+    assert "must_mirror" in WRITER_SYSTEM
+    assert "0.8" in WRITER_SYSTEM

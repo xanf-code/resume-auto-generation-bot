@@ -15,8 +15,11 @@ Pure I/O: no LLM, no network. The node reads state and writes files; it returns
 a NEW dict with the paths it wrote (never mutates input state).
 """
 import json
+import logging
 import shutil
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 from src.pipeline.schemas import PanelScore, ReframingTarget
 
@@ -107,10 +110,10 @@ def emit(state: dict, out_dir: str = "out") -> dict:
 
 
 def emit_node(state: dict) -> dict:
-    """Graph-node wrapper: emit to the ``out_dir`` carried on the state.
-
-    The CLI seeds ``out_dir`` into the initial state; defaults to ``out/``.
-    Adds ``emitted=True`` as the terminal completion signal.
-    """
-    result = emit(state, out_dir=state.get("out_dir", "out"))
+    """Graph-node wrapper: emit to the ``out_dir`` carried on the state."""
+    out_dir = state.get("out_dir", "out")
+    log.info("emit         | writing outputs → %s/", out_dir)
+    result = emit(state, out_dir=out_dir)
+    log.info("emit         | PDF    → %s", result.get("output_pdf") or "(none — compile never succeeded)")
+    log.info("emit         | report → %s", result.get("output_report"))
     return {**result, "emitted": True}

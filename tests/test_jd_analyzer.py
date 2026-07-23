@@ -2,6 +2,8 @@
 
 `parse_fast` is mocked to return a fixed ``JDVector``; NO live API calls.
 """
+import logging
+
 from src.agents import jd_analyzer
 from src.pipeline.schemas import JDVector, SkillWeight
 
@@ -51,3 +53,20 @@ def test_analyze_jd_does_not_mutate_input_state(monkeypatch):
     state = {"jd_raw": SAMPLE_JD}
     jd_analyzer.analyze_jd(state)
     assert state == {"jd_raw": SAMPLE_JD}
+
+
+def test_analyze_jd_logs_extracted_keywords(monkeypatch, caplog):
+    """Extracted ATS keywords, weighted skills, and must-mirror phrases appear in logs."""
+    monkeypatch.setattr(jd_analyzer, "parse_fast", lambda *a, **k: _fixed_vector())
+    with caplog.at_level(logging.INFO, logger="src.agents.jd_analyzer"):
+        jd_analyzer.analyze_jd({"jd_raw": SAMPLE_JD})
+    log_text = " ".join(caplog.messages)
+    # ATS keywords logged
+    assert "Salesforce" in log_text
+    assert "REST APIs" in log_text
+    assert "ETL pipelines" in log_text
+    # weighted skills logged with weights
+    assert "0.95" in log_text
+    assert "0.90" in log_text or "0.9" in log_text
+    # must-mirror surfaced
+    assert "Salesforce/CRM data sync" in log_text

@@ -8,10 +8,14 @@ to the user later, never fabricated over).
 ``messages.parse`` needs a single top-level model, so the model fills a
 ``GapTargets`` wrapper; this node unwraps it to the plain list in state.
 """
+import logging
+
 from src.pipeline.llm import parse_fast
 from src.pipeline.schemas import GapTargets, JDVector, ResumeStruct
 from src.pipeline.state import PipelineState
 from src.prompts.extraction import GAP_SYSTEM
+
+log = logging.getLogger(__name__)
 
 
 def build_user_message(struct: ResumeStruct, vector: JDVector) -> str:
@@ -25,13 +29,33 @@ def build_user_message(struct: ResumeStruct, vector: JDVector) -> str:
 
 
 def gap_analysis(state: PipelineState) -> dict:
-    """Node: derive reframing targets from the resume + JD.
-
-    Reads ``resume_struct`` and ``jd_vector``; returns a NEW dict with
-    ``gap_targets`` as a plain list of ReframingTarget (never mutates state).
-    """
+    """Node: derive reframing targets from the resume + JD."""
     struct = state["resume_struct"]
     vector = state["jd_vector"]
+    log.info(
+        "gap_analysis | %d roles vs %d JD skills → sending to Haiku",
+        len(struct.roles),
+        len(vector.weighted_skills),
+    )
     user_msg = build_user_message(struct, vector)
     wrapper = parse_fast(GAP_SYSTEM, user_msg, GapTargets)
-    return {"gap_targets": list(wrapper.targets)}
+    targets = list(wrapper.targets)
+    no_ev = sum(1 for t in targets if t.no_evidence)
+    active = [t for t in targets if not t.no_evidence]
+    log.info(
+        "gap_analysis | %d reframe targets (%d no_evidence, %d active)",
+        len(targets), no_ev, len(active),
+    )
+    log.info(
+        "gap_analysis | fabricating %d competencies: %s",
+        len(active),
+        ", ".join(t.competency for t in active) or "(none)",
+    )
+    if no_ev:
+        skipped = [t.competency for t in targets if t.no_evidence]
+        log.info(
+            "gap_analysis | %d competency gap(s) NOT fabricated (no evidence): %s",
+            len(skipped),
+            ", ".join(skipped),
+        )
+    return {"gap_targets": targets}

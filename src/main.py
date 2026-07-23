@@ -10,11 +10,28 @@ resume/JD files into the initial state, invokes the compiled graph, streams
 per-iteration progress to stdout, and writes outputs via the emit node.
 """
 import argparse
+import logging
 import sys
 from pathlib import Path
 
 from config.settings import MAX_ITERATIONS, require_api_key
 from src.pipeline.graph import build_graph
+
+# ---------------------------------------------------------------------------
+# Logging — configured once here; every module uses getLogger(__name__)
+# ---------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s  %(levelname)-5s  %(message)s",
+    datefmt="%H:%M:%S",
+    stream=sys.stdout,
+    force=True,
+)
+log = logging.getLogger(__name__)
+
+# Silence noisy third-party loggers.
+for _noisy in ("httpx", "httpcore", "anthropic", "langgraph"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 # LangGraph recursion budget: each revision iteration traverses several nodes
 # (writer → render → identity → compile → panel → aggregator → bookkeep), and
@@ -22,6 +39,23 @@ from src.pipeline.graph import build_graph
 _RECURSION_LIMIT = MAX_ITERATIONS * 12 + 20
 
 _PERSONA_ORDER = ("ATS Matcher", "Hiring Manager", "Technical Screener", "Skeptic")
+
+# Maps a distinctive state key to the node that wrote it — used to label
+# stream steps when printing per-node progress to stdout.
+_KEY_TO_NODE: dict[str, str] = {
+    "identity_ledger":    "parse_resume",
+    "jd_vector":          "analyze_jd",
+    "gap_targets":        "gap_analysis",
+    "writer_output":      "writer",
+    "latex_rendered":     "render",
+    "identity_violations":"identity_check",
+    "compile_ok":         "compile",
+    "panel_scores":       "recruiter_panel",
+    "aggregate_score":    "aggregator",
+    "best_score":         "bookkeep",
+    "cap_hit":            "bookkeep",
+    "output_pdf":         "emit",
+}
 
 
 def _read_text(path: str) -> str:
@@ -90,14 +124,24 @@ def run(resume_path: str, jd_path: str, out_dir: str) -> dict:
     config = {"recursion_limit": _RECURSION_LIMIT}
 
     final_state: dict = {}
-    last_printed_agg: float | None = None  # deduplicate: only print on fresh aggregate
+    last_printed_agg: float | None = None
+    log.info("main         | pipeline starting — max_iterations=%d", MAX_ITERATIONS)
     print("Running resume-bot pipeline…")
     for step in graph.stream(initial_state, config, stream_mode="updates"):
-        # stream_mode="updates" gives only the dict of changed keys per node.
-        # Merge into final_state manually so we always have the full picture.
-        final_state.update(step)
-        # Only print when the aggregator just wrote a new aggregate_score.
-        if "aggregate_score" in step:
+        # stream_mode="updates" yields {node_name: {state_updates}} — flatten one level.
+        flat: dict = {}
+        for node_updates in step.values():
+            if isinstance(node_updates, dict):
+                flat.update(node_updates)
+        final_state.update(flat)
+        # Identify which node just ran by matching a known state key.
+        node_name = next(
+            (v for k, v in _KEY_TO_NODE.items() if k in flat), None
+        )
+        if node_name:
+            log.info("─── node: %-18s keys=%s", node_name, list(flat.keys()))
+        # Print the full scoreboard only when a fresh aggregate arrives.
+        if "aggregate_score" in flat:
             agg = final_state.get("aggregate_score")
             if agg != last_printed_agg:
                 last_printed_agg = agg

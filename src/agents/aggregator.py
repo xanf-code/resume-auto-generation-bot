@@ -13,7 +13,11 @@ The ONLY LLM call in this module is ``distill_revision_notes``, and it fires
 ONLY on the fail path — collapsing the four personas' free-text notes into a
 ranked, deduplicated directive list for the Writer's next iteration.
 """
+import logging
+
 from config.settings import PLAUSIBILITY_FLOOR, RUBRIC_WEIGHTS, THRESHOLD
+
+log = logging.getLogger(__name__)
 from src.pipeline.llm import parse_strong
 from src.pipeline.schemas import PanelScore, RevisionNotes
 from src.pipeline.state import PipelineState
@@ -86,14 +90,19 @@ def distill_revision_notes(scores: list[PanelScore]) -> list[str]:
 
 
 def aggregator(state: PipelineState) -> dict:
-    """Node: score the panel, decide pass/fail, distill notes only on fail.
-
-    Reads ``panel_scores``. Returns a NEW dict (never mutates input state) with
-    ``panel_scores``, ``aggregate_score``, and ``passed``; on failure it also
-    adds ``revision_notes`` from the single distillation LLM call.
-    """
+    """Node: score the panel, decide pass/fail, distill notes only on fail."""
     scores = state["panel_scores"]
+    for s in scores:
+        comp = persona_composite(s)
+        log.info("aggregator   | %-22s composite=%.2f", s.persona, comp)
     passed, agg = decide(scores)
+    sp = skeptic_plausibility(scores)
+    log.info(
+        "aggregator   | aggregate=%.2f  skeptic_plausibility=%d  "
+        "threshold=%d  floor=%d  → %s",
+        agg, sp, THRESHOLD, PLAUSIBILITY_FLOOR,
+        "PASS ✓" if passed else "FAIL ✗",
+    )
 
     result = {
         "panel_scores": scores,
@@ -101,5 +110,7 @@ def aggregator(state: PipelineState) -> dict:
         "passed": passed,
     }
     if not passed:
+        log.info("aggregator   | distilling revision notes via Opus…")
         result["revision_notes"] = distill_revision_notes(scores)
+        log.info("aggregator   | %d revision directives ready", len(result["revision_notes"]))
     return result

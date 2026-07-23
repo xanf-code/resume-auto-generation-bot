@@ -24,7 +24,11 @@ The three conditional-edge functions are pure and independently unit-tested.
 Node wrappers around the plain compiler functions (``render``, ``check_identity``,
 ``compile_tex``) adapt them to the state-in/state-out node contract.
 """
+import logging
+
 from langgraph.graph import END, START, StateGraph
+
+log = logging.getLogger(__name__)
 
 from config.settings import MAX_COMPILE_RETRIES, MAX_ITERATIONS
 from src.agents.aggregator import aggregator
@@ -35,7 +39,7 @@ from src.agents.recruiters import recruiter_panel
 from src.agents.writer import write_resume
 from src.compiler.identity_check import check_identity
 from src.compiler.renderer import render
-from src.compiler.tectonic import compile_tex
+from src.compiler.tectonic import compile_tex, count_pdf_pages
 from src.pipeline.emit import emit_node
 from src.pipeline.state import PipelineState
 
@@ -44,43 +48,68 @@ from src.pipeline.state import PipelineState
 
 
 def render_node(state: PipelineState) -> dict:
-    """Node: render the locked ledger + writer output into LaTeX."""
-    latex = render(state["identity_ledger"], state["writer_output"])
+    """Node: patch the original .tex with the writer's bullets."""
+    log.info("render       | patching bullet blocks in original .tex")
+    latex = render(state["resume_tex_raw"], state["identity_ledger"], state["writer_output"])
+    log.info("render       | LaTeX ready — %d chars", len(latex))
     return {"latex_rendered": latex}
 
 
 def identity_check_node(state: PipelineState) -> dict:
-    """Node: mechanical identity tripwire over the rendered LaTeX.
-
-    Records ``identity_violations`` (empty when clean). A non-empty list routes
-    back to the writer via ``route_after_identity``.
-    """
+    """Node: mechanical identity tripwire over the rendered LaTeX."""
+    log.info("identity_chk | diffing rendered LaTeX against ledger…")
     _ok, violations = check_identity(
         state["latex_rendered"], state["identity_ledger"]
     )
+    if violations:
+        log.warning("identity_chk | VIOLATIONS DETECTED (%d) → bouncing to writer", len(violations))
+        for v in violations:
+            log.warning("identity_chk |   %s", v)
+    else:
+        log.info("identity_chk | CLEAN ✓ — all identity fields verified verbatim")
     return {"identity_violations": list(violations)}
 
 
 def compile_node(state: PipelineState) -> dict:
-    """Node: compile the rendered LaTeX to PDF.
-
-    On failure, increments the per-iteration ``compile_retries`` counter (kept
-    separate from the main ``iteration`` counter so a compile bounce never
-    consumes a revision iteration). On success, resets it to 0.
-    """
+    """Node: compile the rendered LaTeX to PDF, then enforce the 1-page hard cap."""
+    retries = state.get("compile_retries", 0)
+    log.info("compile      | running tectonic (compile_retries=%d)…", retries)
     ok, pdf_path, errors = compile_tex(state["latex_rendered"])
     if ok:
+        pages = count_pdf_pages(pdf_path)
+        if pages > 1:
+            log.warning(
+                "compile      | PAGE OVERFLOW — %d pages → bouncing to writer", pages
+            )
+            return {
+                "compile_ok": False,
+                "compile_errors": (
+                    f"PAGE OVERFLOW: the resume compiled to {pages} pages but MUST fit "
+                    f"exactly 1 page. Shorten bullets NOW — this is a hard constraint. "
+                    f"ACTION: reduce every LONG bullet (>140 chars) to MEDIUM or SHORT. "
+                    f"Cut words from the 'by' details clause first; preserve the outcome "
+                    f"and the word 'by'. "
+                    f"Target per role: 1-2 SHORT (≤90 chars), 2-3 MEDIUM (91-140 chars), "
+                    f"0-1 LONG (141-180 chars). Do NOT add new content — only remove."
+                ),
+                "pdf_path": "",
+                "compile_retries": retries + 1,
+            }
+        log.info("compile      | OK ✓ → %s  (pages=%d)", pdf_path, pages)
         return {
             "compile_ok": True,
             "compile_errors": "",
             "pdf_path": pdf_path or "",
             "compile_retries": 0,
         }
+    log.warning("compile      | FAILED — %d error(s)", len(errors))
+    for e in errors:
+        log.warning("compile      |   %s", e)
     return {
         "compile_ok": False,
         "compile_errors": "\n".join(errors),
         "pdf_path": "",
-        "compile_retries": state.get("compile_retries", 0) + 1,
+        "compile_retries": retries + 1,
     }
 
 
@@ -105,22 +134,26 @@ def update_best(state: PipelineState) -> dict:
 
 
 def bookkeep_node(state: PipelineState) -> dict:
-    """Node: update best-scoring draft, then route on pass/fail/cap.
-
-    On a fail that will loop, advances the ``iteration`` counter and resets the
-    compile-retry counter here (so the writer sees a fresh compile budget). The
-    ``cap_hit`` flag is set when the loop terminates on the iteration cap.
-    """
+    """Node: update best-scoring draft, then route on pass/fail/cap."""
     best = update_best(state)
-
     passed = bool(state.get("passed", False))
     iteration = state.get("iteration", 1)
+    agg = state.get("aggregate_score", 0.0)
+    best_so_far = best.get("best_score", agg)
 
     if passed:
+        log.info("bookkeep     | PASSED — aggregate=%.2f, emitting", agg)
         return {**best, "cap_hit": False}
     if iteration >= MAX_ITERATIONS:
+        log.warning(
+            "bookkeep     | CAP HIT (iteration=%d/%d) — emitting best=%.2f",
+            iteration, MAX_ITERATIONS, best_so_far,
+        )
         return {**best, "cap_hit": True}
-    # Fail and will loop: consume one revision iteration, reset compile budget.
+    log.info(
+        "bookkeep     | fail — iteration %d→%d, best_score=%.2f → looping to writer",
+        iteration, iteration + 1, best_so_far,
+    )
     return {**best, "iteration": iteration + 1, "compile_retries": 0}
 
 

@@ -1,39 +1,24 @@
 """Deterministic LaTeX renderer — integrity guarantee #1 (structural).
 
-Identity fields (name, contact, company, title, start, end) are sourced
-*exclusively* from the ``IdentityLedger``. Bullets, skills, and the summary are
-sourced *exclusively* from the ``WriterOutput``. The writer's output can never
-reach an identity slot: the template only receives ledger values in identity
-positions, and writer values in content positions.
+Patches the user's original ``.tex`` file in-place: only the
+``\\begin{itemize}...\\end{itemize}`` block immediately following each role's
+company-name anchor is replaced with the writer's new bullets. Every other
+byte — packages, fonts, section formatting, summary, skills, education — is
+preserved verbatim from the original file.
 
-Every injected string is LaTeX-escaped (backslash first) before templating.
-The renderer owns the Jinja2 ``Environment`` configuration, remapping the
-delimiters to ``\\VAR{ }`` / ``\\BLOCK{ }`` so they never collide with LaTeX
-braces.
+A ``%% ROLE-HEADER %%`` comment is injected before each role's anchor line so
+the identity tripwire can count roles without relying on Jinja template markers.
+Every injected bullet string is LaTeX-escaped (backslash first).
 """
-from pathlib import Path
-
-from jinja2 import Environment, FileSystemLoader, StrictUndefined
-
 from src.pipeline.schemas import IdentityLedger, WriterOutput
 
-# Directory holding ``resume.tex.j2``.
-_TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
-_TEMPLATE_NAME = "resume.tex.j2"
-
-# Marker emitted as a LaTeX comment before each experience role header. The
-# identity check counts these markers to detect smuggled-in extra roles.
+# LaTeX comment injected before each role header so identity_check can count
+# roles correctly. Must start with % to be a valid LaTeX comment.
 ROLE_HEADER_MARKER = "%% ROLE-HEADER %%"
-
-# Placeholder rendered when there is no education content, keeping the template
-# output valid and terminal-authentic rather than an empty section.
-_NO_EDUCATION_PLACEHOLDER = "See attached transcript."
 
 # LaTeX special character → replacement map. Applied in a SINGLE left-to-right
 # pass (character by character) so replacement sequences that themselves
-# contain braces (e.g. ``\textbackslash{}``) are never re-escaped. Backslash is
-# handled here like any other character; the single-pass guarantee removes the
-# ordering hazard that a multi-``replace`` approach would have.
+# contain braces (e.g. ``\textbackslash{}``) are never re-escaped.
 _LATEX_ESCAPE_MAP: dict[str, str] = {
     "\\": r"\textbackslash{}",
     "&": r"\&",
@@ -51,86 +36,137 @@ _LATEX_ESCAPE_MAP: dict[str, str] = {
 def latex_escape(s: str) -> str:
     """Escape LaTeX special characters in ``s``.
 
-    Handles ``& % # _ $ { } ~ ^ \\``. Implemented as a single character-by-
-    character pass so the braces introduced by replacements (like
-    ``\\textbackslash{}``) are never re-escaped — this is the "backslash first"
-    correctness guarantee expressed structurally rather than by ordering.
+    Handles ``& % # _ $ { } ~ ^ \\``. Single character-by-character pass so
+    the braces introduced by replacements are never re-escaped.
     """
     return "".join(_LATEX_ESCAPE_MAP.get(ch, ch) for ch in s)
 
 
-def _build_environment() -> Environment:
-    """Create the LaTeX-aware Jinja2 environment (delimiters remapped)."""
-    return Environment(
-        loader=FileSystemLoader(str(_TEMPLATE_DIR)),
-        variable_start_string=r"\VAR{",
-        variable_end_string="}",
-        block_start_string=r"\BLOCK{",
-        block_end_string="}",
-        comment_start_string=r"\#{",
-        comment_end_string="}",
-        trim_blocks=True,
-        lstrip_blocks=True,
-        autoescape=False,
-        undefined=StrictUndefined,
-    )
+def _find_next_itemize(tex: str, after: int) -> tuple[int, int] | None:
+    """Return ``(block_start, block_end)`` of the next itemize after ``after``.
+
+    ``block_end`` points one past the closing ``\\end{itemize}``. Returns
+    ``None`` if no complete itemize block is found.
+    """
+    begin = tex.find(r"\begin{itemize}", after)
+    if begin == -1:
+        return None
+    end_tag = tex.find(r"\end{itemize}", begin)
+    if end_tag == -1:
+        return None
+    return begin, end_tag + len(r"\end{itemize}")
 
 
-def _escaped_experience(
-    ledger: IdentityLedger, writer_output: WriterOutput
-) -> list[dict[str, object]]:
-    """Zip ledger roles with writer bullets, escaping every string.
+def _build_itemize_block(bullets: list[str]) -> str:
+    """Build an escaped ``\\begin{itemize}...\\end{itemize}`` block."""
+    items = "\n".join(f"  \\item {latex_escape(b)}" for b in bullets)
+    return f"\\begin{{itemize}}\n{items}\n\\end{{itemize}}"
 
-    Identity fields come ONLY from ``ledger``; bullets come ONLY from
-    ``writer_output``, matched to the role by ``RoleBullets.index``.
+
+def patch_bullets(
+    original_tex: str,
+    identity_ledger: IdentityLedger,
+    writer_output: WriterOutput,
+) -> str:
+    """Surgically replace only the bullet ``\\item`` blocks in ``original_tex``.
+
+    For each ledger role (in order) the function:
+
+    1. Locates the role's company name in the source (tries the raw string
+       first; falls back to the LaTeX-escaped form for names containing ``&``
+       etc.).
+    2. Injects a ``%% ROLE-HEADER %%`` comment before the role's line so the
+       identity tripwire can count roles without Jinja markers.
+    3. Finds the next ``\\begin{itemize}...\\end{itemize}`` block after the
+       anchor and replaces it with the writer's bullets for that role.
+
+    Roles for which the writer produced no bullets are left unchanged.
+    All patches are collected first then applied back-to-front so earlier
+    byte offsets stay valid.
     """
     bullets_by_index: dict[int, list[str]] = {
         rb.index: list(rb.bullets) for rb in writer_output.roles
     }
-    experience: list[dict[str, object]] = []
-    for idx, role in enumerate(ledger.roles):
-        raw_bullets = bullets_by_index.get(idx, [])
-        experience.append(
-            {
-                "company": latex_escape(role.company),
-                "title": latex_escape(role.title),
-                "start": latex_escape(role.start),
-                "end": latex_escape(role.end),
-                "bullets": [latex_escape(b) for b in raw_bullets],
-            }
-        )
-    return experience
+
+    patches: list[tuple[int, int, str]] = []
+    search_from = 0
+
+    for idx, role in enumerate(identity_ledger.roles):
+        new_bullets = bullets_by_index.get(idx)
+
+        # Locate role anchor: raw string first, latex-escaped fallback.
+        anchor = original_tex.find(role.company, search_from)
+        if anchor == -1:
+            anchor = original_tex.find(latex_escape(role.company), search_from)
+        if anchor == -1:
+            anchor = original_tex.find(role.title, search_from)
+        if anchor == -1:
+            anchor = original_tex.find(latex_escape(role.title), search_from)
+        if anchor == -1:
+            continue
+
+        # Inject ROLE_HEADER_MARKER as a LaTeX comment before this role's line.
+        line_start = original_tex.rfind("\n", 0, anchor) + 1
+        if not original_tex[line_start:].startswith(ROLE_HEADER_MARKER):
+            patches.append((line_start, line_start, f"{ROLE_HEADER_MARKER}\n"))
+
+        # Find the next itemize block after the anchor.
+        block = _find_next_itemize(original_tex, anchor)
+        if block is None:
+            search_from = anchor + 1
+            continue
+
+        block_start, block_end = block
+        search_from = block_end
+
+        # Only replace the block when the writer produced bullets for this role.
+        if new_bullets:
+            patches.append((block_start, block_end, _build_itemize_block(new_bullets)))
+
+    # Apply back-to-front so earlier offsets stay valid.
+    result = original_tex
+    for start, end, replacement in sorted(patches, key=lambda p: p[0], reverse=True):
+        result = result[:start] + replacement + result[end:]
+
+    return result
 
 
-def render(identity_ledger: IdentityLedger, writer_output: WriterOutput) -> str:
-    """Render the resume LaTeX from a locked ledger + writer output.
+# pdfTeX-only directives that tectonic's XeTeX engine cannot handle.
+_TECTONIC_STRIP = (
+    r"\input{glyphtounicode}",
+    r"\pdfgentounicode=1",
+)
 
-    Args:
-        identity_ledger: The immutable source of truth for identity fields.
-        writer_output: The writer's bullets/skills/summary — never identity.
 
-    Returns:
-        The rendered LaTeX document as a string.
+def _strip_tectonic_incompatible(tex: str) -> str:
+    """Remove pdfTeX-only directives that break tectonic compilation.
+
+    ``\\input{glyphtounicode}`` and ``\\pdfgentounicode=1`` are pdfTeX
+    primitives that tectonic's XeTeX engine cannot process. They exist only
+    to make PDF output machine-readable; tectonic already produces
+    Unicode-tagged output without them.
     """
-    env = _build_environment()
-    template = env.get_template(_TEMPLATE_NAME)
+    lines = []
+    for line in tex.splitlines(keepends=True):
+        stripped = line.strip()
+        if any(stripped.startswith(directive) for directive in _TECTONIC_STRIP):
+            continue
+        lines.append(line)
+    return "".join(lines)
 
-    context = {
-        # Identity slots — ledger ONLY.
-        "name": latex_escape(identity_ledger.name),
-        "contact": latex_escape(identity_ledger.contact),
-        "experience": _escaped_experience(identity_ledger, writer_output),
-        # Content slots — writer ONLY.
-        "summary": latex_escape(writer_output.summary),
-        "skills": [latex_escape(s) for s in writer_output.skills],
-        # Education is not part of the writer/ledger split in Phase 3; render a
-        # deterministic placeholder so the section is well-formed.
-        "education": [],
-        "no_education_placeholder": _NO_EDUCATION_PLACEHOLDER,
-        # Structural marker — a valid LaTeX comment (starts with %) emitted
-        # verbatim before each role header so the identity check can count
-        # roles independently of any escaping.
-        "role_header_marker": ROLE_HEADER_MARKER,
-    }
 
-    return template.render(**context)
+def render(
+    original_tex: str,
+    identity_ledger: IdentityLedger,
+    writer_output: WriterOutput,
+) -> str:
+    """Patch ``original_tex`` in-place: replace bullet blocks per role.
+
+    The original document's packages, fonts, formatting, summary, skills, and
+    education sections are left verbatim. Only the ``\\begin{itemize}...
+    \\end{itemize}`` block immediately following each role's anchor is replaced
+    with the writer's optimised bullets. pdfTeX-only directives that break
+    tectonic are stripped before returning.
+    """
+    patched = patch_bullets(original_tex, identity_ledger, writer_output)
+    return _strip_tectonic_incompatible(patched)

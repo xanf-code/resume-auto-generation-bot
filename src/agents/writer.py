@@ -8,7 +8,11 @@ Assembles the user prompt from the extraction artifacts (``resume_struct``,
 The user-message builder is a pure function so the deterministic "what does the
 next draft see" behaviour is directly testable without any API call.
 """
+import logging
+
 from src.pipeline.llm import parse_strong
+
+log = logging.getLogger(__name__)
 from src.pipeline.schemas import WriterOutput
 from src.pipeline.state import PipelineState
 from src.prompts.writer import WRITER_SYSTEM
@@ -86,11 +90,23 @@ def build_writer_user_message(state: PipelineState) -> str:
 
 
 def write_resume(state: PipelineState) -> dict:
-    """Node: generate the tailored ``WriterOutput`` from the current state.
-
-    Builds the user message, calls the strong (Opus) model with high effort, and
-    returns a NEW dict with ``writer_output`` (never mutates input state).
-    """
+    """Node: generate the tailored ``WriterOutput`` from the current state."""
+    iteration = state.get("iteration", 1)
+    has_revision = bool(state.get("revision_notes"))
+    has_compile_err = bool(state.get("compile_errors"))
+    log.info(
+        "writer       | iteration=%d  revision_notes=%s  compile_errors=%s  "
+        "→ sending to Opus (effort=high)",
+        iteration,
+        "yes" if has_revision else "no",
+        "yes" if has_compile_err else "no",
+    )
     user_msg = build_writer_user_message(state)
     output = parse_strong(WRITER_SYSTEM, user_msg, WriterOutput, effort="high")
+    total_bullets = sum(len(r.bullets) for r in output.roles)
+    log.info(
+        "writer       | done — %d roles, %d total bullets, %d skills, "
+        "summary=%d chars",
+        len(output.roles), total_bullets, len(output.skills), len(output.summary),
+    )
     return {"writer_output": output}

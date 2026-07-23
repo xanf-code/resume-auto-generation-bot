@@ -5,6 +5,8 @@ reframable target (real evidence) and a no-evidence target. NO live API calls.
 The node must unwrap the wrapper into a plain list under ``gap_targets`` and
 must PRESERVE the no_evidence target (it is reported later, not dropped).
 """
+import logging
+
 from src.agents import gap_analyzer
 from src.pipeline.schemas import (
     GapTargets,
@@ -136,3 +138,19 @@ def test_gap_analysis_does_not_mutate_input_state(monkeypatch):
     snapshot_keys = set(state.keys())
     gap_analyzer.gap_analysis(state)
     assert set(state.keys()) == snapshot_keys
+
+
+def test_gap_analysis_logs_fabrication_targets(monkeypatch, caplog):
+    """Active fabrication targets and skipped no-evidence gaps both appear in logs."""
+    monkeypatch.setattr(gap_analyzer, "parse_fast", lambda *a, **k: _wrapper())
+    with caplog.at_level(logging.INFO, logger="src.agents.gap_analyzer"):
+        gap_analyzer.gap_analysis(
+            {"resume_struct": _resume_struct(), "jd_vector": _jd_vector()}
+        )
+    log_text = " ".join(caplog.messages)
+    # Active fabrication target is named
+    assert "Salesforce" in log_text
+    assert "fabricat" in log_text.lower()
+    # No-evidence gap is called out as skipped
+    assert "Kubernetes" in log_text
+    assert "no evidence" in log_text.lower() or "not fabricated" in log_text.lower()

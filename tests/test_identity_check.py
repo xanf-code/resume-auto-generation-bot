@@ -45,9 +45,31 @@ def _writer() -> WriterOutput:
     )
 
 
+def _original_tex() -> str:
+    """Minimal original .tex matching the two roles in _ledger()."""
+    return r"""
+\documentclass{article}
+\begin{document}
+{\Huge Grace Hopper}\par
+grace@navy.mil\par
+\section*{Experience}
+\textbf{US Navy} \hfill 1943 -- 1986\par
+{\itshape Rear Admiral}\par
+\begin{itemize}
+  \item Old bullet
+\end{itemize}
+\textbf{Remington Rand} \hfill 1949 -- 1959\par
+{\itshape Senior Programmer}\par
+\begin{itemize}
+  \item Old bullet B
+\end{itemize}
+\end{document}
+"""
+
+
 def test_check_identity_passes_for_faithful_render():
     ledger = _ledger()
-    rendered = render(ledger, _writer())
+    rendered = render(_original_tex(), ledger, _writer())
     ok, violations = check_identity(rendered, ledger)
     assert ok is True
     assert violations == []
@@ -58,8 +80,7 @@ def test_check_identity_passes_for_faithful_render():
 
 def test_tamper_changed_date_fails():
     ledger = _ledger()
-    rendered = render(ledger, _writer())
-    # Tamper: rewrite the Navy end date 1986 -> 1999.
+    rendered = render(_original_tex(), ledger, _writer())
     tampered = rendered.replace("1986", "1999")
     ok, violations = check_identity(tampered, ledger)
     assert ok is False
@@ -69,8 +90,7 @@ def test_tamper_changed_date_fails():
 
 def test_tamper_renamed_company_fails():
     ledger = _ledger()
-    rendered = render(ledger, _writer())
-    # Tamper: rename 'US Navy' to 'US Marines'.
+    rendered = render(_original_tex(), ledger, _writer())
     tampered = rendered.replace("US Navy", "US Marines")
     ok, violations = check_identity(tampered, ledger)
     assert ok is False
@@ -80,8 +100,7 @@ def test_tamper_renamed_company_fails():
 
 def test_tamper_altered_title_fails():
     ledger = _ledger()
-    rendered = render(ledger, _writer())
-    # Tamper: alter 'Rear Admiral' to 'Fleet Admiral'.
+    rendered = render(_original_tex(), ledger, _writer())
     tampered = rendered.replace("Rear Admiral", "Fleet Admiral")
     ok, violations = check_identity(tampered, ledger)
     assert ok is False
@@ -90,13 +109,11 @@ def test_tamper_altered_title_fails():
 
 
 def test_tamper_injected_extra_role_fails():
-    ledger = _ledger()
-    rendered = render(ledger, _writer())
-    # Tamper: smuggle in an EXTRA role header beyond the ledger's two roles.
-    # We duplicate an existing role-header marker block so the header count
-    # exceeds len(ledger.roles).
     from src.compiler.renderer import ROLE_HEADER_MARKER
 
+    ledger = _ledger()
+    rendered = render(_original_tex(), ledger, _writer())
+    # Smuggle in an EXTRA role-header marker so the count exceeds the ledger.
     injected = rendered + (
         "\n" + ROLE_HEADER_MARKER + "\n"
         r"\textbf{Fake Startup} \hfill CTO \\" + "\n"

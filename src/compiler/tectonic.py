@@ -7,6 +7,7 @@ parsed out of tectonic's stderr for the writer bounce. ``FileNotFoundError``
 errors list rather than raised.
 """
 import os
+import re
 import subprocess  # nosec B404 - fixed argv, no shell, controlled inputs
 import tempfile
 
@@ -16,6 +17,32 @@ DEFAULT_TIMEOUT = 60
 
 _TEX_FILENAME = "resume.tex"
 _PDF_FILENAME = "resume.pdf"
+
+
+def count_pdf_pages(pdf_path: str) -> int:
+    """Return the number of pages in the compiled PDF.
+
+    Tries ``pdfinfo`` (poppler-utils) first; falls back to scanning the PDF
+    binary for the ``/Count`` entry in the Pages tree, which is reliable for
+    the simple single/two-page PDFs that tectonic produces.
+    """
+    try:
+        result = subprocess.run(  # nosec B603
+            ["pdfinfo", pdf_path],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        for line in result.stdout.splitlines():
+            if line.strip().startswith("Pages:"):
+                return int(line.split()[-1])
+    except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
+        pass
+    # Fallback: /Count N in the Pages dictionary (always present in LaTeX PDFs).
+    with open(pdf_path, "rb") as fh:
+        data = fh.read()
+    m = re.search(rb"/Count\s+(\d+)", data)
+    return int(m.group(1)) if m else 1
 
 
 def _parse_errors(stderr: str) -> list[str]:
