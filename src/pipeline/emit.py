@@ -104,7 +104,10 @@ def emit(state: dict, out_dir: str = "out") -> dict:
     report_path = out / _REPORT_NAME
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
-    output_pdf = _copy_pdf(state.get("pdf_path", ""), out / _PDF_NAME)
+    # Prefer the best-scoring PDF over the last-compiled PDF.
+    # Fallback chain: best_pdf_path → pdf_path → None (no PDF copied).
+    effective_pdf_path = state.get("best_pdf_path") or state.get("pdf_path", "")
+    output_pdf = _copy_pdf(effective_pdf_path, out / _PDF_NAME)
 
     return {"output_pdf": output_pdf, "output_report": str(report_path)}
 

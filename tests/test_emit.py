@@ -142,3 +142,67 @@ def test_emit_handles_missing_pdf_gracefully(tmp_path):
 
     assert (out_dir / "score_report.json").is_file()
     assert result.get("output_pdf") is None
+
+
+# --- best_pdf_path fallback chain (Gap 2 fix) ----------------------------------
+
+
+def test_emit_uses_best_pdf_path_when_available(tmp_path):
+    """best_pdf_path is used when pdf_path is empty (compile-exhaustion case)."""
+    best_pdf = tmp_path / "best.pdf"
+    best_pdf.write_bytes(b"%PDF best")
+    out_dir = tmp_path / "out"
+
+    state = _make_state(tmp_path, passed=False, hit_cap=True)
+    state["pdf_path"] = ""
+    state["best_pdf_path"] = str(best_pdf)
+
+    result = emit_mod.emit(state, out_dir=str(out_dir))
+
+    out_pdf = out_dir / "resume_optimized.pdf"
+    assert out_pdf.is_file()
+    assert out_pdf.read_bytes() == b"%PDF best"
+    assert result.get("output_pdf") == str(out_pdf)
+
+
+def test_emit_uses_best_pdf_path_over_pdf_path_when_both_present(tmp_path):
+    """best_pdf_path wins over pdf_path when both are present."""
+    best_pdf = tmp_path / "best.pdf"
+    last_pdf = tmp_path / "last.pdf"
+    best_pdf.write_bytes(b"%PDF best")
+    last_pdf.write_bytes(b"%PDF last")
+    out_dir = tmp_path / "out"
+
+    state = _make_state(tmp_path)
+    state["pdf_path"] = str(last_pdf)
+    state["best_pdf_path"] = str(best_pdf)
+
+    result = emit_mod.emit(state, out_dir=str(out_dir))
+
+    assert (out_dir / "resume_optimized.pdf").read_bytes() == b"%PDF best"
+
+
+def test_emit_falls_back_to_pdf_path(tmp_path):
+    """When best_pdf_path is absent, pdf_path is used as fallback."""
+    out_dir = tmp_path / "out"
+    state = _make_state(tmp_path)
+    # state has pdf_path pointing to a real file; best_pdf_path not set
+    state.pop("best_pdf_path", None)
+
+    result = emit_mod.emit(state, out_dir=str(out_dir))
+
+    assert (out_dir / "resume_optimized.pdf").is_file()
+    assert result.get("output_pdf") is not None
+
+
+def test_emit_falls_back_gracefully_when_both_absent(tmp_path):
+    """No PDF in state → no crash, output_pdf is None, report still written."""
+    out_dir = tmp_path / "out"
+    state = _make_state(tmp_path, passed=False)
+    state["pdf_path"] = ""
+    state.pop("best_pdf_path", None)
+
+    result = emit_mod.emit(state, out_dir=str(out_dir))
+
+    assert (out_dir / "score_report.json").is_file()
+    assert result.get("output_pdf") is None

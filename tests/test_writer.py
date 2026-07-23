@@ -177,6 +177,37 @@ def test_compile_errors_include_compile_section():
     assert "Undefined control sequence" in msg
 
 
+# --- build_writer_user_message: identity violations ----------------------------
+
+
+def test_build_writer_user_message_includes_violations():
+    """identity_violations present => IDENTITY VIOLATIONS section appears."""
+    state = _first_iteration_state()
+    state["identity_violations"] = [
+        "role[0].company = 'Acme Corp' not found verbatim in rendered LaTeX.",
+    ]
+    msg = writer.build_writer_user_message(state)
+
+    assert "IDENTITY VIOLATIONS" in msg
+    assert "Acme Corp" in msg
+
+
+def test_build_writer_user_message_no_violations_section_when_empty():
+    """Empty identity_violations list → no IDENTITY VIOLATIONS section."""
+    state = _first_iteration_state()
+    state["identity_violations"] = []
+    msg = writer.build_writer_user_message(state)
+
+    assert "IDENTITY VIOLATIONS" not in msg
+
+
+def test_build_writer_user_message_no_violations_section_when_absent():
+    """Absent identity_violations key → no IDENTITY VIOLATIONS section."""
+    msg = writer.build_writer_user_message(_first_iteration_state())
+
+    assert "IDENTITY VIOLATIONS" not in msg
+
+
 # --- write_resume node ---------------------------------------------------------
 
 

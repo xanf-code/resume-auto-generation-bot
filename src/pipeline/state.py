@@ -52,11 +52,18 @@ class PipelineState(TypedDict, total=False):
     # Per-iteration compile-retry counter, separate from ``iteration`` so a
     # compile bounce never consumes a revision iteration.
     compile_retries: int
+    # Global identity-retry counter. Incremented each time identity_check_node
+    # detects violations; NOT reset on clean passes (global budget, not per-iter).
+    identity_retries: int
 
     # --- bookkeeping ----------------------------------------------------------
     iteration: int
     best_score: float
     best_latex: str
+    # PDF path corresponding to the best-scoring draft. Tracked alongside
+    # best_latex so emit can copy the correct file even after later iterations
+    # overwrite pdf_path.
+    best_pdf_path: str
     pdf_path: str
 
     # --- emit -----------------------------------------------------------------

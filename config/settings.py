@@ -10,6 +10,7 @@ import os
 THRESHOLD = 78          # lowered from 88 — fabrication mode; plausibility caps ~85
 MAX_ITERATIONS = 6
 MAX_COMPILE_RETRIES = 4
+MAX_IDENTITY_RETRIES = 4
 PLAUSIBILITY_FLOOR = 20
 
 # --- Rubric weights (must sum to 1.0) ----------------------------------------

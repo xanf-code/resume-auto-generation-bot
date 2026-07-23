@@ -11,7 +11,7 @@ unset). These tests pin:
 """
 import pytest
 
-from config.settings import MAX_COMPILE_RETRIES, MAX_ITERATIONS
+from config.settings import MAX_COMPILE_RETRIES, MAX_IDENTITY_RETRIES, MAX_ITERATIONS
 from src.pipeline import graph as graph_mod
 
 
@@ -43,6 +43,64 @@ def test_route_after_identity_violations_go_to_writer():
     assert graph_mod.route_after_identity(state) == "writer"
 
 
+def test_route_after_identity_bounces_within_budget():
+    """Violations with retries still under budget → writer, not emit."""
+    state = {
+        "identity_violations": ["role[0].company altered"],
+        "identity_retries": MAX_IDENTITY_RETRIES - 1,
+    }
+    assert graph_mod.route_after_identity(state) == "writer"
+
+
+def test_route_after_identity_exhausted_routes_to_emit():
+    """Budget exhausted → emit (fail gracefully) instead of looping forever."""
+    state = {
+        "identity_violations": ["role[0].company altered"],
+        "identity_retries": MAX_IDENTITY_RETRIES,
+    }
+    assert graph_mod.route_after_identity(state) == "emit"
+
+
+def test_route_after_identity_exhausted_over_cap_routes_to_emit():
+    state = {
+        "identity_violations": ["x"],
+        "identity_retries": MAX_IDENTITY_RETRIES + 2,
+    }
+    assert graph_mod.route_after_identity(state) == "emit"
+
+
+def test_identity_check_node_increments_retries(monkeypatch):
+    """identity_check_node increments identity_retries when violations are found."""
+    monkeypatch.setattr(
+        graph_mod, "check_identity",
+        lambda latex, ledger: (False, ["role[0].company missing"]),
+    )
+    state = {
+        "latex_rendered": "LATEX",
+        "identity_ledger": object(),
+        "identity_retries": 2,
+    }
+    result = graph_mod.identity_check_node(state)
+    assert result["identity_retries"] == 3
+    assert result["identity_violations"] == ["role[0].company missing"]
+
+
+def test_identity_check_node_clean_does_not_include_retries(monkeypatch):
+    """Clean pass must NOT include identity_retries so the global budget is preserved."""
+    monkeypatch.setattr(
+        graph_mod, "check_identity",
+        lambda latex, ledger: (True, []),
+    )
+    state = {
+        "latex_rendered": "LATEX",
+        "identity_ledger": object(),
+        "identity_retries": 3,
+    }
+    result = graph_mod.identity_check_node(state)
+    assert "identity_retries" not in result
+    assert result["identity_violations"] == []
+
+
 # --- route_after_compile ------------------------------------------------------
 
 
@@ -57,12 +115,15 @@ def test_route_after_compile_fail_with_retries_left_goes_to_writer():
 
 
 def test_route_after_compile_fail_retries_exhausted_goes_to_emit():
-    state = {"compile_ok": False, "compile_retries": MAX_COMPILE_RETRIES}
+    # After the Issue 4 fix (<= boundary), compile_retries==MAX_COMPILE_RETRIES
+    # still routes to "writer" (one more bounce is allowed at exactly MAX).
+    # compile_retries==MAX+1 is the true exhaustion point that routes to emit.
+    state = {"compile_ok": False, "compile_retries": MAX_COMPILE_RETRIES + 1}
     assert graph_mod.route_after_compile(state) == "emit"
 
 
 def test_route_after_compile_fail_retries_over_cap_goes_to_emit():
-    state = {"compile_ok": False, "compile_retries": MAX_COMPILE_RETRIES + 1}
+    state = {"compile_ok": False, "compile_retries": MAX_COMPILE_RETRIES + 2}
     assert graph_mod.route_after_compile(state) == "emit"
 
 
@@ -98,10 +159,32 @@ def test_route_after_aggregator_fail_over_cap_goes_to_emit():
 
 
 def test_update_best_first_iteration_sets_best():
-    state = {"aggregate_score": 70.0, "latex_rendered": "DRAFT-A"}
+    state = {"aggregate_score": 70.0, "latex_rendered": "DRAFT-A", "pdf_path": "/tmp/a.pdf"}
     out = graph_mod.update_best(state)
     assert out["best_score"] == 70.0
     assert out["best_latex"] == "DRAFT-A"
+    assert out["best_pdf_path"] == "/tmp/a.pdf"
+
+
+def test_update_best_captures_pdf_path():
+    """When a new best score is set, best_pdf_path is captured alongside best_latex."""
+    state = {"aggregate_score": 85.0, "latex_rendered": "DRAFT-X", "pdf_path": "/tmp/x.pdf"}
+    out = graph_mod.update_best(state)
+    assert out["best_pdf_path"] == "/tmp/x.pdf"
+
+
+def test_update_best_does_not_capture_pdf_path_when_score_not_higher():
+    """When score doesn't beat best, old best_pdf_path is preserved, not replaced."""
+    state = {
+        "aggregate_score": 65.0,
+        "latex_rendered": "DRAFT-B",
+        "pdf_path": "/tmp/worse.pdf",
+        "best_score": 80.0,
+        "best_latex": "DRAFT-A",
+        "best_pdf_path": "/tmp/best.pdf",
+    }
+    out = graph_mod.update_best(state)
+    assert out["best_pdf_path"] == "/tmp/best.pdf"
 
 
 def test_update_best_keeps_higher_of_two():
@@ -110,6 +193,7 @@ def test_update_best_keeps_higher_of_two():
         "latex_rendered": "DRAFT-B",
         "best_score": 80.0,
         "best_latex": "DRAFT-A",
+        "best_pdf_path": "/tmp/best.pdf",
     }
     out = graph_mod.update_best(state)
     # Lower current score must NOT displace the recorded best.
@@ -261,3 +345,73 @@ def test_end_to_end_compile_fail_exhausts_retries_and_emits(monkeypatch):
     assert result.get("emitted") is True
     # Hard-fail path: never passed, no pdf produced.
     assert result.get("passed") is not True
+
+
+# --- Issue 4: compile retry off-by-one (route_after_compile) ------------------
+
+
+def test_route_after_compile_allows_retry_at_max():
+    """compile_ok=False, compile_retries==MAX_COMPILE_RETRIES -> writer (not emit).
+
+    Before the fix: `retries < MAX` evaluated False when retries==MAX, so it
+    incorrectly returned 'emit' and consumed only 3 writer retries instead of 4.
+    After the fix: `retries <= MAX` lets the Nth writer bounce happen.
+    """
+    state = {"compile_ok": False, "compile_retries": MAX_COMPILE_RETRIES}
+    assert graph_mod.route_after_compile(state) == "writer"
+
+
+def test_route_after_compile_emits_when_over_max():
+    """compile_ok=False, compile_retries==MAX+1 -> emit (budget truly exhausted)."""
+    state = {"compile_ok": False, "compile_retries": MAX_COMPILE_RETRIES + 1}
+    assert graph_mod.route_after_compile(state) == "emit"
+
+
+def test_route_after_compile_emits_at_exactly_max_plus_one():
+    """Alias for clarity: compile_retries==MAX+1 -> emit."""
+    state = {"compile_ok": False, "compile_retries": MAX_COMPILE_RETRIES + 1}
+    assert graph_mod.route_after_compile(state) == "emit"
+
+
+# --- Issue 6: identity_retries reset on clean (identity_check_node) -----------
+
+
+def test_identity_check_node_clean_preserves_existing_retries(monkeypatch):
+    """Clean pass with identity_retries=2 -> returned dict must NOT contain identity_retries.
+
+    LangGraph only updates keys that are present in the returned dict.
+    Omitting the key preserves the existing global budget (2 stays 2).
+    """
+    monkeypatch.setattr(
+        graph_mod,
+        "check_identity",
+        lambda latex, ledger: (True, []),
+    )
+    state = {
+        "latex_rendered": "LATEX",
+        "identity_ledger": "LEDGER",
+        "identity_retries": 2,
+    }
+    result = graph_mod.identity_check_node(state)
+    assert "identity_retries" not in result, (
+        "identity_retries must be absent from the returned dict on a clean pass "
+        "so LangGraph does not overwrite the global budget counter"
+    )
+    assert result["identity_violations"] == []
+
+
+def test_identity_check_node_clean_preserves_zero_retries(monkeypatch):
+    """Clean pass with identity_retries=0 -> returned dict must NOT contain identity_retries."""
+    monkeypatch.setattr(
+        graph_mod,
+        "check_identity",
+        lambda latex, ledger: (True, []),
+    )
+    state = {
+        "latex_rendered": "LATEX",
+        "identity_ledger": "LEDGER",
+        "identity_retries": 0,
+    }
+    result = graph_mod.identity_check_node(state)
+    assert "identity_retries" not in result
+    assert result["identity_violations"] == []

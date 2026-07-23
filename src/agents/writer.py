@@ -78,6 +78,15 @@ def build_writer_user_message(state: PipelineState) -> str:
             render_revision_notes(revision_notes),
         ]
 
+    identity_violations = state.get("identity_violations")
+    if identity_violations:
+        violations_text = "\n".join(f"- {v}" for v in identity_violations)
+        sections += [
+            "",
+            "## IDENTITY VIOLATIONS (DO NOT change these identity fields — they are locked)",
+            violations_text,
+        ]
+
     compile_errors = state.get("compile_errors")
     if compile_errors:
         sections += [

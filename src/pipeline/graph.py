@@ -30,7 +30,7 @@ from langgraph.graph import END, START, StateGraph
 
 log = logging.getLogger(__name__)
 
-from config.settings import MAX_COMPILE_RETRIES, MAX_ITERATIONS
+from config.settings import MAX_COMPILE_RETRIES, MAX_IDENTITY_RETRIES, MAX_ITERATIONS
 from src.agents.aggregator import aggregator
 from src.agents.gap_analyzer import gap_analysis
 from src.agents.jd_analyzer import analyze_jd
@@ -61,13 +61,21 @@ def identity_check_node(state: PipelineState) -> dict:
     _ok, violations = check_identity(
         state["latex_rendered"], state["identity_ledger"]
     )
+    current_retries = state.get("identity_retries", 0)
     if violations:
-        log.warning("identity_chk | VIOLATIONS DETECTED (%d) → bouncing to writer", len(violations))
+        new_retries = current_retries + 1
+        log.warning(
+            "identity_chk | VIOLATIONS DETECTED (%d) — identity_retries %d→%d",
+            len(violations), current_retries, new_retries,
+        )
         for v in violations:
             log.warning("identity_chk |   %s", v)
-    else:
-        log.info("identity_chk | CLEAN ✓ — all identity fields verified verbatim")
-    return {"identity_violations": list(violations)}
+        return {"identity_violations": list(violations), "identity_retries": new_retries}
+    log.info("identity_chk | CLEAN ✓ — all identity fields verified verbatim")
+    # Do NOT include identity_retries in the returned dict on a clean pass.
+    # LangGraph only overwrites keys present in the return value; omitting the
+    # key preserves the global budget counter across iterations (Issue 6 fix).
+    return {"identity_violations": []}
 
 
 def compile_node(state: PipelineState) -> dict:
@@ -117,20 +125,21 @@ def compile_node(state: PipelineState) -> dict:
 
 
 def update_best(state: PipelineState) -> dict:
-    """Pure helper: keep the running max of (aggregate_score, latex_rendered).
+    """Pure helper: keep the running max of (aggregate_score, latex_rendered, pdf_path).
 
-    Returns a NEW dict with ``best_score`` / ``best_latex`` reflecting the
-    highest score seen so far. Never mutates ``state``.
+    Returns a NEW dict with ``best_score`` / ``best_latex`` / ``best_pdf_path``
+    reflecting the highest score seen so far. Never mutates ``state``.
     """
     current_score = state.get("aggregate_score")
     current_latex = state.get("latex_rendered", "")
+    current_pdf = state.get("pdf_path", "")
     best_score = state.get("best_score")
 
     if current_score is None:
         return {}
     if best_score is None or current_score > best_score:
-        return {"best_score": current_score, "best_latex": current_latex}
-    return {"best_score": best_score, "best_latex": state.get("best_latex", "")}
+        return {"best_score": current_score, "best_latex": current_latex, "best_pdf_path": current_pdf}
+    return {"best_score": best_score, "best_latex": state.get("best_latex", ""), "best_pdf_path": state.get("best_pdf_path", "")}
 
 
 def bookkeep_node(state: PipelineState) -> dict:
@@ -161,10 +170,21 @@ def bookkeep_node(state: PipelineState) -> dict:
 
 
 def route_after_identity(state: PipelineState) -> str:
-    """violations → ``writer``; clean → ``compile_node``."""
-    if state.get("identity_violations"):
+    """Route based on violations and retry budget.
+
+    - No violations → ``compile_node``
+    - Violations AND budget remains → ``writer`` (violations injected into prompt)
+    - Violations AND budget exhausted → ``emit`` (fail gracefully with best draft)
+    """
+    if not state.get("identity_violations"):
+        return "compile_node"
+    if state.get("identity_retries", 0) < MAX_IDENTITY_RETRIES:
         return "writer"
-    return "compile_node"
+    log.warning(
+        "identity_chk | identity_retries budget exhausted (%d) — routing to emit",
+        state.get("identity_retries", 0),
+    )
+    return "emit"
 
 
 def route_after_compile(state: PipelineState) -> str:
@@ -175,7 +195,7 @@ def route_after_compile(state: PipelineState) -> str:
     """
     if state.get("compile_ok"):
         return "recruiter_panel"
-    if state.get("compile_retries", 0) < MAX_COMPILE_RETRIES:
+    if state.get("compile_retries", 0) <= MAX_COMPILE_RETRIES:
         return "writer"
     return "emit"
 
@@ -225,11 +245,11 @@ def build_graph():
     builder.add_edge("writer", "render_node")
     builder.add_edge("render_node", "identity_check_node")
 
-    # identity: violations → writer; clean → compile.
+    # identity: violations (within budget) → writer; exhausted → emit; clean → compile.
     builder.add_conditional_edges(
         "identity_check_node",
         route_after_identity,
-        {"writer": "writer", "compile_node": "compile_node"},
+        {"writer": "writer", "compile_node": "compile_node", "emit": "emit"},
     )
 
     # compile: ok → panel; fail (retries left) → writer; exhausted → emit.

@@ -117,6 +117,7 @@ def run(resume_path: str, jd_path: str, out_dir: str) -> dict:
         "jd_raw": jd_raw,
         "iteration": 1,
         "compile_retries": 0,
+        "identity_retries": 0,
         "out_dir": out_dir,
     }
 
@@ -170,17 +171,40 @@ def _print_summary(state: dict) -> None:
     print("=" * 52)
 
 
+try:
+    from langgraph.errors import GraphRecursionError as _GraphRecursionError
+except ImportError:
+    _GraphRecursionError = None
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI main. Returns a process exit code."""
     args = build_parser().parse_args(argv)
     try:
         state = run(args.resume, args.jd, args.out)
-    except RuntimeError as exc:  # missing API key — clear, fail-fast message.
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
-    except FileNotFoundError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
+    except Exception as exc:
+        # GraphRecursionError subclasses RuntimeError — check it first.
+        if _GraphRecursionError is not None and isinstance(exc, _GraphRecursionError):
+            print(
+                "error: pipeline recursion limit exceeded — the identity or compile "
+                "loop ran without converging. Check your resume for unusual LaTeX "
+                "formatting.",
+                file=sys.stderr,
+            )
+            log.error("unhandled exception in pipeline", exc_info=True)
+            return 1
+        if isinstance(exc, RuntimeError):  # missing API key — clear, fail-fast message.
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if isinstance(exc, FileNotFoundError):
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        log.error("unhandled exception in pipeline", exc_info=True)
+        print(
+            f"error: unexpected failure — {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        return 1
     # Exit non-zero when no acceptable draft was produced.
     return 0 if state.get("passed") or state.get("output_pdf") else 1
 
