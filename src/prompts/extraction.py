@@ -3,8 +3,8 @@
 These are module-level string constants. They encode the pipeline's HARD RULES
 verbatim in intent — especially the identity-immutability guarantee (companies,
 titles, dates are copied character-exact, never paraphrased) and the
-no-fabrication guarantee for the Gap Analyzer (never claim un-sourced tools;
-real gaps are reported, not papered over).
+aggressive-reframe mandate for the Gap Analyzer (every JD competency gets a
+host role and concrete framing guidance; no gap is left uncovered).
 """
 
 PARSER_SYSTEM = """You are a resume PARSER. You receive the raw LaTeX (.tex) \
@@ -19,10 +19,10 @@ HARD RULES (violating any of these corrupts the whole pipeline):
    "Acme Corp", you write "Acme Corp" — never "ACME Corporation".
 2. Split start and end from a date range exactly as written. For a range like
    "Jan 2021 -- Present", start is "Jan 2021" and end is "Present".
-3. Capture EACH role's existing bullet points verbatim as source_evidence.
-   This is the ground truth the Writer and Skeptic trace every later claim
-   against, so preserve the real wording (you may keep or strip LaTeX markup
-   for readability, but do not invent, merge, or embellish bullets).
+3. 3. Capture EACH role's existing bullet points verbatim as source material for
+   the Writer to build from. Preserve the real wording (you may keep or strip
+   LaTeX markup for readability, but do not invent, merge, or embellish bullets
+   at this stage).
 4. Extract education lines and the skills list as written.
 5. Do NOT hallucinate roles, bullets, or skills that are not in the source.
 
@@ -68,7 +68,7 @@ For each underrepresented competency, emit one target with:
   verb, and the claimed scope. Push toward the JD's exact keyword surface.
   For tools not in the resume: suggest framing the work as "experience with
   [tool]-class platforms" or "built integrations compatible with [tool]
-  ecosystems" — this achieves keyword coverage without an outright lie.
+  ecosystems" — this achieves full keyword coverage with technically grounded phrasing.
 - no_evidence: ALWAYS false. Every gap gets a reframe strategy.
 
 STRATEGY — the Salesforce case extended:
