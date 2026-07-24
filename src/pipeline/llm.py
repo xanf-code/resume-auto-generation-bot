@@ -61,8 +61,8 @@ def model_context(
     Usage::
 
         with model_context(fast="openai/gpt-4o-mini",
-                           strong="anthropic/claude-opus-4.8",
-                           gap="anthropic/claude-opus-4.8",
+                           strong="anthropic/claude-opus-5",
+                           gap="anthropic/claude-opus-5",
                            scoring="openai/gpt-4o-mini") as usage:
             run_pipeline(...)
         cost = compute_cost(usage)

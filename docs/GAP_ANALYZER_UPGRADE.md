@@ -37,7 +37,7 @@ Opus 4.8 is Anthropic's strongest reasoning model:
 # Added MODEL_GAP constant
 MODEL_STRONG = "anthropic/claude-sonnet-5"  # Writer
 MODEL_FAST = "openai/gpt-4o-mini"           # Parser + JD Analyzer
-MODEL_GAP = "anthropic/claude-opus-4.8"     # Gap Analyzer (new!)
+MODEL_GAP = "anthropic/claude-opus-5"     # Gap Analyzer (new!)
 MODEL_SCORING = "openai/gpt-4o-mini"        # Scoring panel
 ```
 

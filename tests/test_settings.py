@@ -27,10 +27,10 @@ def test_constant_values():
     assert settings.PLAUSIBILITY_FLOOR == 20
     assert settings.MODEL_STRONG == "anthropic/claude-sonnet-5"
     assert settings.MODEL_FAST == "openai/gpt-4o-mini"
-    assert settings.MODEL_GAP == "anthropic/claude-opus-4.8"
+    assert settings.MODEL_GAP == "anthropic/claude-opus-5"
     assert settings.MODEL_SCORING == "openai/gpt-4o-mini"
-    assert settings.EFFORT_STRONG == "high"
-    assert settings.EFFORT_GAP == "high"
+    assert settings.EFFORT_STRONG == "medium"
+    assert settings.EFFORT_GAP == "medium"
 
 
 def test_rubric_weights_exact():

@@ -47,7 +47,7 @@ Now:
 ```python
 MODEL_STRONG = "anthropic/claude-sonnet-5"  # Writer
 MODEL_FAST = "openai/gpt-4o-mini"           # Parser + JD Analyzer
-MODEL_GAP = "anthropic/claude-opus-4.8"     # Gap Analyzer
+MODEL_GAP = "anthropic/claude-opus-5"     # Gap Analyzer
 MODEL_SCORING = "openai/gpt-4o-mini"        # Scoring panel
 ```
 
