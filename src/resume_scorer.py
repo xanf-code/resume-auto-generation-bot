@@ -14,7 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from src.pipeline.llm import parse_strong
+from src.pipeline.llm import parse_scoring
 from config.settings import require_api_key
 
 
@@ -326,11 +326,10 @@ def score_resume(resume_text: str) -> ScoringResult:
 
     # Call the LLM with structured output
     print(f"[DEBUG] Calling LLM with resume text ({len(resume_text)} chars)", file=sys.stderr)
-    parsed_score = parse_strong(
+    parsed_score = parse_scoring(
         system=SYSTEM_PROMPT,
         user=criteria_user,
         schema=ResumeScore,
-        effort="high",
         max_tokens=16000,
     )
     print(f"[DEBUG] Got parsed score: {parsed_score}", file=sys.stderr)

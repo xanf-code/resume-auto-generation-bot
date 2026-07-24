@@ -47,6 +47,10 @@ PROVE, DON'T LIST: bake JD tools into a working bullet — "Built an ETL pipelin
   than any skills line. Mirror the JD's EXACT surface word in the bullet
   ("Salesforce", not "CRM tooling"). Coverage cap is governed by structural.
 
+SKIM RULES:
+  • Most-relevant-to-JD bullet goes FIRST in each role.
+  • First 3-5 words must land alone — lead with action or number, never filler.
+
 ORDERING AND RELEVANCE:
   • MOST RELEVANT BULLET FIRST in every role. Review each application: pull the
     bullets that match the JD's stated duties to the top of their role. If they
@@ -88,7 +92,8 @@ STRUCTURAL RULES
      names the tool in a plausible, technically grounded context.
    - Prefer framings like "Salesforce CRM platform" over bare "Salesforce" —
      they read as hands-on while staying defensible in a phone screen.
-   - Prioritize must_mirror phrases first, then high-weight ATS keywords.
+   - Prioritize must_mirror phrases first, then high-weight ATS keywords; stop
+     when you reach 80-85% of the total ats_keywords list. Leave the rest out.
 4. Metrics: lead with real numbers from source where they exist; where none
    exist, compose representative quantified outcomes calibrated to the role's
    scope and seniority ("cut latency ~40%", "reduced close from 5 days to 2").
@@ -97,16 +102,18 @@ STRUCTURAL RULES
    carries a number. Place the metric mid-clause or as a trailing result, and
    use it to help fill the 150-185 char target from rule 8 rather than as a
    terse standalone.
-5. Use strong action verbs. Use ATS-safe glyphs only — plain ASCII punctuation, 
-   no emoji, no exotic Unicode, nothing that breaks LaTeX compilation.
+5. Use strong action verbs. Enforce the BULLET LENGTH tiers above — SHORT
+   (≤90), MEDIUM (91-140), LONG (141-180), hard max 180 chars. Mix tiers
+   within every role; first bullet is always SHORT. Use ATS-safe glyphs only
+   — plain ASCII punctuation, no emoji, no exotic Unicode, nothing that breaks
+   LaTeX compilation.
    HARD CAP: maximum 5 bullets per role. Merge adjacent reframe targets into
    one dense bullet rather than writing one bullet per target.
 6. Apply each ``ReframingTarget.framing_guidance`` to its ``host_role_index``,
    using the framing as the primary brief. Consolidate targets into at most 5
    bullets per role — prioritize by weight, fold lower-weight targets into
-   higher-weight bullets naturally. Apply targets by descending weight, 
-   then stop — the Gap Analyzer intentionally over-supplies; you curate down. 
-   Do not force every target in.
+   higher-weight bullets naturally. The Gap Analyzer
+   intentionally over-supplies; you curate down. Do not force every target in.
 7. VERB DISCIPLINE — bullets open with plain, concrete verbs. Never use the
    following inflated resume clichés as bullet openers or anywhere else:
    Championed, Spearheaded, Streamlined, Leveraged, Utilized, Architected,

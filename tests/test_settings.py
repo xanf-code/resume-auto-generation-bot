@@ -20,8 +20,10 @@ def test_constant_values():
     assert settings.MAX_ITERATIONS == 6
     assert settings.MAX_COMPILE_RETRIES == 4
     assert settings.PLAUSIBILITY_FLOOR == 20
-    assert settings.MODEL_STRONG == "anthropic/claude-opus-4-8"
-    assert settings.MODEL_FAST == "google/gemini-2.5-flash"
+    assert settings.MODEL_STRONG == "anthropic/claude-sonnet-5"
+    assert settings.MODEL_FAST == "openai/gpt-4o-mini"
+    assert settings.MODEL_GAP == "anthropic/claude-opus-4.8"
+    assert settings.MODEL_SCORING == "openai/gpt-4o-mini"
 
 
 def test_rubric_weights_exact():

@@ -1,6 +1,6 @@
 """Tests for src.agents.gap_analyzer — reframing-target extraction node.
 
-`parse_fast` is mocked to return a ``GapTargets`` wrapper holding a mix of a
+`parse_gap` is mocked to return a ``GapTargets`` wrapper holding a mix of a
 reframable target (real evidence) and a no-evidence target. NO live API calls.
 The node must unwrap the wrapper into a plain list under ``gap_targets`` and
 must PRESERVE the no_evidence target (it is reported later, not dropped).
@@ -78,18 +78,18 @@ def test_gap_analysis_writes_unwrapped_list(monkeypatch):
     wrapper = _wrapper()
     captured = {}
 
-    def fake_parse_fast(system, user, schema, **kwargs):
+    def fake_parse_gap(system, user, schema, **kwargs):
         captured["system"] = system
         captured["user"] = user
         captured["schema"] = schema
         return wrapper
 
-    monkeypatch.setattr(gap_analyzer, "parse_fast", fake_parse_fast)
+    monkeypatch.setattr(gap_analyzer, "parse_gap", fake_parse_gap)
 
     state = {"resume_struct": _resume_struct(), "jd_vector": _jd_vector()}
     out = gap_analyzer.gap_analysis(state)
 
-    # parse_fast was asked to fill the wrapper model, not a bare list.
+    # parse_gap was asked to fill the wrapper model, not a bare list.
     assert captured["schema"] is GapTargets
     assert isinstance(captured["system"], str) and captured["system"]
     # The user message combines both resume + JD context.
@@ -106,7 +106,7 @@ def test_gap_analysis_writes_unwrapped_list(monkeypatch):
 
 def test_gap_analysis_preserves_no_evidence_target(monkeypatch):
     """The no_evidence target must survive to state (reported later, not dropped)."""
-    monkeypatch.setattr(gap_analyzer, "parse_fast", lambda *a, **k: _wrapper())
+    monkeypatch.setattr(gap_analyzer, "parse_gap", lambda *a, **k: _wrapper())
     out = gap_analyzer.gap_analysis(
         {"resume_struct": _resume_struct(), "jd_vector": _jd_vector()}
     )
@@ -119,7 +119,7 @@ def test_gap_analysis_preserves_no_evidence_target(monkeypatch):
 
 def test_gap_analysis_reframable_target_has_real_evidence(monkeypatch):
     """The reframable target cites non-empty real evidence strings."""
-    monkeypatch.setattr(gap_analyzer, "parse_fast", lambda *a, **k: _wrapper())
+    monkeypatch.setattr(gap_analyzer, "parse_gap", lambda *a, **k: _wrapper())
     out = gap_analyzer.gap_analysis(
         {"resume_struct": _resume_struct(), "jd_vector": _jd_vector()}
     )
@@ -133,7 +133,7 @@ def test_gap_analysis_reframable_target_has_real_evidence(monkeypatch):
 
 
 def test_gap_analysis_does_not_mutate_input_state(monkeypatch):
-    monkeypatch.setattr(gap_analyzer, "parse_fast", lambda *a, **k: _wrapper())
+    monkeypatch.setattr(gap_analyzer, "parse_gap", lambda *a, **k: _wrapper())
     state = {"resume_struct": _resume_struct(), "jd_vector": _jd_vector()}
     snapshot_keys = set(state.keys())
     gap_analyzer.gap_analysis(state)
@@ -142,7 +142,7 @@ def test_gap_analysis_does_not_mutate_input_state(monkeypatch):
 
 def test_gap_analysis_logs_fabrication_targets(monkeypatch, caplog):
     """Active fabrication targets and skipped no-evidence gaps both appear in logs."""
-    monkeypatch.setattr(gap_analyzer, "parse_fast", lambda *a, **k: _wrapper())
+    monkeypatch.setattr(gap_analyzer, "parse_gap", lambda *a, **k: _wrapper())
     with caplog.at_level(logging.INFO, logger="src.agents.gap_analyzer"):
         gap_analyzer.gap_analysis(
             {"resume_struct": _resume_struct(), "jd_vector": _jd_vector()}

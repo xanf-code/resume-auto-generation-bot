@@ -30,12 +30,15 @@ RUBRIC_WEIGHTS = {
 }
 
 # --- Model identifiers --------------------------------------------------------
-# OpenRouter-namespaced slugs (provider/model). MODEL_STRONG drives the writer,
-# recruiter panel, and aggregator; MODEL_FAST drives extraction (parser, JD
-# analyzer, gap analyzer). Both must be valid OpenRouter slugs — see the pricing
-# table in src/benchmark.py for the supported set.
+# OpenRouter-namespaced slugs (provider/model).
+# - MODEL_STRONG: Writer (creative optimization, keyword balancing)
+# - MODEL_FAST: Parser + JD Analyzer (fast structured extraction)
+# - MODEL_GAP: Gap Analyzer (creative reframing strategy, needs strong reasoning)
+# - MODEL_SCORING: Scoring panel (independent evaluation, eliminates writer bias)
 MODEL_STRONG = "anthropic/claude-sonnet-5"
 MODEL_FAST = "openai/gpt-4o-mini"
+MODEL_GAP = "anthropic/claude-opus-4.8"
+MODEL_SCORING = "openai/gpt-4o-mini"
 
 _API_KEY_ENV = "OPENROUTER_API_KEY"
 

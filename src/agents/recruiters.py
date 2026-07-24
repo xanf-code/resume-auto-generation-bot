@@ -13,8 +13,8 @@ together with ``asyncio.gather``.
 import asyncio
 import logging
 
-from config.settings import MODEL_STRONG
-from src.pipeline.llm import parse_strong
+from config.settings import MODEL_SCORING
+from src.pipeline.llm import parse_scoring
 
 log = logging.getLogger(__name__)
 from src.pipeline.schemas import JDVector, PanelScore, ResumeStruct
@@ -65,16 +65,16 @@ def build_user_message(
 
 
 async def score_one(persona_name: str, system: str, user: str) -> PanelScore:
-    """Score one persona, running the sync ``parse_strong`` off the event loop.
+    """Score one persona, running the sync ``parse_scoring`` off the event loop.
 
     Offloaded via ``asyncio.to_thread`` so a ``gather`` over the four personas
-    executes their Opus calls concurrently rather than serially.
+    executes their scoring model calls concurrently rather than serially.
 
     The ``persona`` field is OVERRIDDEN with the canonical ``persona_name`` after
     the call — the model may return a paraphrase, but the display/aggregator rely
     on exact string matching against ``PERSONAS`` keys.
     """
-    score = await asyncio.to_thread(parse_strong, system, user, PanelScore)
+    score = await asyncio.to_thread(parse_scoring, system, user, PanelScore)
     return score.model_copy(update={"persona": persona_name})
 
 
@@ -96,7 +96,7 @@ async def run_panel(state: PipelineState) -> list[PanelScore]:
 
 def recruiter_panel(state: PipelineState) -> dict:
     """Node: run the four-persona panel and return their scores."""
-    log.info("recruiter    | spawning 4 %s personas concurrently…", MODEL_STRONG)
+    log.info("recruiter    | spawning 4 %s personas concurrently…", MODEL_SCORING)
     scores = asyncio.run(run_panel(state))
     for s in scores:
         log.info(

@@ -119,15 +119,15 @@ def test_skeptic_sees_source_evidence_but_ats_does_not(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_score_one_wraps_parse_strong_in_thread(monkeypatch):
-    """score_one returns the PanelScore from parse_strong, run off-thread."""
+async def test_score_one_wraps_parse_scoring_in_thread(monkeypatch):
+    """score_one returns the PanelScore from parse_scoring, run off-thread."""
     canned = _canned("ATS Matcher")
 
-    def fake_parse_strong(system, user, schema, **kwargs):
+    def fake_parse_scoring(system, user, schema, **kwargs):
         assert schema is PanelScore
         return canned
 
-    monkeypatch.setattr(recruiters, "parse_strong", fake_parse_strong)
+    monkeypatch.setattr(recruiters, "parse_scoring", fake_parse_scoring)
 
     result = await recruiters.score_one("ATS Matcher", "sys", "user")
     # model_copy returns a new object; check equality and that persona is canonical.

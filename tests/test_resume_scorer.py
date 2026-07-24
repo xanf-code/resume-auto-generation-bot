@@ -89,9 +89,9 @@ def test_scoring_result_to_dict_preserves_evidence():
 # --- score_resume() -----------------------------------------------------------
 
 
-@patch("src.resume_scorer.parse_strong")
+@patch("src.resume_scorer.parse_scoring")
 def test_score_resume_calls_llm_with_correct_prompts(mock_parse):
-    """score_resume() calls parse_strong with system + criteria prompts."""
+    """score_resume() calls parse_scoring with system + criteria prompts."""
     mock_parse.return_value = ResumeScore(
         scores=Scores(
             self_projects=CategoryScore(score=30, max=35, evidence="E1"),
@@ -107,7 +107,7 @@ def test_score_resume_calls_llm_with_correct_prompts(mock_parse):
 
     result = score_resume("RESUME TEXT HERE")
 
-    # Verify parse_strong was called
+    # Verify parse_scoring was called
     mock_parse.assert_called_once()
     call_kwargs = mock_parse.call_args.kwargs
     assert "system" in call_kwargs
@@ -121,7 +121,7 @@ def test_score_resume_calls_llm_with_correct_prompts(mock_parse):
     assert result.final_score == 87 + 15 - 5
 
 
-@patch("src.resume_scorer.parse_strong")
+@patch("src.resume_scorer.parse_scoring")
 def test_score_resume_enforces_120_cap(mock_parse):
     """score_resume() caps final_score at 120."""
     mock_parse.return_value = ResumeScore(
@@ -145,7 +145,7 @@ def test_score_resume_enforces_120_cap(mock_parse):
     assert result.final_score == 120
 
 
-@patch("src.resume_scorer.parse_strong")
+@patch("src.resume_scorer.parse_scoring")
 def test_score_resume_handles_deductions_exceeding_score(mock_parse):
     """score_resume() allows negative final_score if deductions > score."""
     mock_parse.return_value = ResumeScore(

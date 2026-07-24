@@ -15,10 +15,10 @@ ranked, deduplicated directive list for the Writer's next iteration.
 """
 import logging
 
-from config.settings import MODEL_STRONG, PLAUSIBILITY_FLOOR, RUBRIC_WEIGHTS, THRESHOLD
+from config.settings import MODEL_SCORING, PLAUSIBILITY_FLOOR, RUBRIC_WEIGHTS, THRESHOLD
 
 log = logging.getLogger(__name__)
-from src.pipeline.llm import parse_strong
+from src.pipeline.llm import parse_scoring
 from src.pipeline.schemas import PanelScore, RevisionNotes
 from src.pipeline.state import PipelineState
 from src.prompts.recruiters import DISTILL_NOTES_SYSTEM
@@ -85,7 +85,7 @@ def distill_revision_notes(scores: list[PanelScore]) -> list[str]:
     unwrapped from the ``RevisionNotes`` model.
     """
     user_msg = _build_distill_user_message(scores)
-    wrapper = parse_strong(DISTILL_NOTES_SYSTEM, user_msg, RevisionNotes)
+    wrapper = parse_scoring(DISTILL_NOTES_SYSTEM, user_msg, RevisionNotes)
     return list(wrapper.notes)
 
 
@@ -110,7 +110,7 @@ def aggregator(state: PipelineState) -> dict:
         "passed": passed,
     }
     if not passed:
-        log.info("aggregator   | distilling revision notes via %s…", MODEL_STRONG)
+        log.info("aggregator   | distilling revision notes via %s…", MODEL_SCORING)
         result["revision_notes"] = distill_revision_notes(scores)
         log.info("aggregator   | %d revision directives ready", len(result["revision_notes"]))
     return result

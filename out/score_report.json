@@ -1,45 +1,45 @@
 {
-  "passed": false,
+  "passed": true,
   "cap_hit": false,
-  "aggregate_score": 69.9,
-  "best_score": 72.4625,
-  "iteration": 6,
+  "aggregate_score": 86.4375,
+  "best_score": 86.4375,
+  "iteration": 1,
   "personas": [
     {
       "persona": "ATS Matcher",
-      "keyword_match": 58,
-      "impact_quality": 70,
-      "coherence": 65,
-      "plausibility": 60,
-      "formatting": 78,
-      "notes": "Missing NestJS entirely (weight 1.0) - critical gap, must add explicitly if any truth exists. TypeScript is only listed in Skills as 'TypeScript' but JD uses 'Typescript' casing and it's absent from bullet narrative - add a bullet mirroring 'Experience with Typescript, Node.js and NestJS' verbatim-ish. SQL-based databases appears in bullet 2 (Dassault) - good direct match, keep phrase intact. TDD and JUnit both appear explicitly (Dassault bullet 2) - strong match. Unit testing appears via 'unit testing with JUnit and Jasmine' - good but add literal phrase 'Unit testing' near TDD for parser clarity. 'service oriented systems' not mirrored - resume says 'microservices-based' which is adjacent but not exact; add literal phrase once. Git is only in Skills list, not in experience bullets - add to a CI/CD bullet for redundancy. AWS services: only in Certifications and Skills, not in experience bullets - add explicit AWS usage bullet since JD lists at 0.8 weight. Agile practices: 'Agile/Scrum sprint ceremonies' covers Agile+Scrum but 'Kanban' missing - low priority. React present in Skills and GoonedIn/dashboard bullets - covered. HTML and CSS are completely absent from both Skills and bullets - add to Skills line explicitly since they're 0.5-weight ATS keywords. SRE best practices explicitly stated in LSEG bullet 4 - excellent exact match. CI/CD and Jenkins both explicitly named - strong match. automation pipelines phrase appears in LSEG bullet 2 verbatim - good. financial systems phrase appears in LSEG bullet 1 verbatim - good. CS Degree not stated - add 'BS/MS Computer Science' phrasing if applicable, currently only 'MS in Computer Software Engineering' which may not parse as CS Degree keyword; consider adding 'Computer Science' variant. Formatting: uses \\textbf and \\hfill which are ATS-safe; \\vcenter\\hbox bullet symbol is a minor risk for some parsers - swap to standard itemize bullet. No exotic glyphs otherwise. Overall: add a dedicated bullet mirroring must_mirror phrases 1:1 (NestJS, AWS services, service-oriented) to close weighted gaps."
+      "keyword_match": 95,
+      "impact_quality": 90,
+      "coherence": 90,
+      "plausibility": 90,
+      "formatting": 80,
+      "notes": "Your resume does a great job reflecting the key skills from the job description, especially around Typescript, Node.js, and SQL-based databases. However, ensure 'NestJS' is clearly highlighted in your Skills section since it's a critical requirement. Consider listing specific frameworks in your experience, like 'NestJS,' along with your work with Node.js. Also, be explicit about your experience with unit testing and TDD in your bullet points under experience to align directly with those must-mirror phrases. The formatting is clean, but avoid using exotic glyphs for bullets to maintain better ATS compatibility."
     },
     {
       "persona": "Hiring Manager",
-      "keyword_match": 68,
-      "impact_quality": 78,
-      "coherence": 75,
-      "plausibility": 62,
-      "formatting": 82,
-      "notes": "Strong quantified impact overall but several numbers strain credibility for a co-op/2-3 YOE profile: '99% test coverage across microservices,' 'Cut analyst data retrieval time 90% for 500+ analysts... solo,' and 'lifting transaction throughput 200%' read as inflated given team size and tenure \u2014 tighten these or add context (e.g., baseline, scope) so they're defensible in an interview. NestJS is never mentioned despite being a top must-mirror skill with weight 1.0 \u2014 if any project used Node/Express, reframe with NestJS specifics or drop the exaggeration risk. TypeScript appears only in skills list, not woven into bullets \u2014 add a bullet showing TS usage in a real feature (e.g., in GoonedIn or LSE work) to satisfy 'Experience with Typescript, Node.js and NestJS' must-mirror line directly. 'SQL-based databases' phrase is mirrored well in the Dassault bullet \u2014 good, keep that exact phrasing pattern elsewhere. Agile/Scrum is only referenced once ('Agile/Scrum sprint ceremonies') \u2014 good, but Kanban is absent; not critical but could be added if genuinely used. SRE best practices bullet is solid and directly mirrors JD language \u2014 keep. Career narrative shows growth (LSE fraud/financial systems -> Dassault distributed systems -> co-op), which supports mid-level fit, but the co-op title dated June 2025\u2013Jan 2026 (future/current) next to a full SWE role at LSE creates a slight seniority/timeline ambiguity \u2014 clarify if this is a co-op vs full role, since JD wants 2+ years as a Software Engineer with full ownership, not co-op scope. Consider trimming project section slightly to give more room to reinforce NestJS/TypeScript keyword coverage in experience bullets, since ATS scoring weights those at 1.0."
+      "keyword_match": 100,
+      "impact_quality": 90,
+      "coherence": 85,
+      "plausibility": 80,
+      "formatting": 95,
+      "notes": "1. Your experience section is strong, particularly the quantifiable outcomes in your bullet points, such as \"cutting data delivery 25%\" and \"cutting query latency 70%\". However, consider adding even more details on individual contributions or impacts where possible for clarity. \n2. Ensure to highlight specific 'service-oriented systems' implementations more explicitly, as per the JD. You include related experience, but directly stating it would enhance alignment. \n3. The skills section provides good coverage of the required technologies, but ensure you emphasize experience with NestJS more prominently if you've utilized it in recent projects. \n4. Structure is clean and ATS-friendly. Keep this format, but ensure consistency in spacing and bullet points throughout.\n5. Coherence is slightly affected by the transition between roles; consider a brief summary statement that aligns each role's growth with your ambition for the target position."
     },
     {
       "persona": "Technical Screener",
-      "keyword_match": 62,
-      "impact_quality": 68,
-      "coherence": 58,
-      "plausibility": 48,
-      "formatting": 78,
-      "notes": "NestJS is not mentioned anywhere despite being a top-weighted must_mirror item -- candidate lists Node.js/Express-adjacent stacks (Spring Boot, FastAPI, Next.js) but no NestJS, which will be an instant gap in phone screen if interviewer probes framework specifics. HTML/CSS are absent from skills section entirely -- easy fix, add them even if implicit in frontend work. On plausibility: the co-op timeline at Dassault (June 2025-Jan 2026) is only ~7 months long yet claims ownership of a full recommendation system with two-tower embeddings, a Redis caching layer, Hibernate tuning, 99% test coverage across microservices, AND a WebSocket/GraphQL virtual companion module -- that's 4 substantial owned initiatives for a co-op in under 8 months, which reads as scope-inflation and will not survive 'walk me through how you built the two-tower embedding model' questioning. The LSEG bullet claiming solo build of Kafka-Elasticsearch pipelines processing 1.4B daily records for a 4-person team, while simultaneously citing joint ownership with two backend engineers in the bullet above, is an internal inconsistency in team size/ownership that a screener will flag -- clarify team boundaries per bullet. 'Cut SQL-based databases latency 70%' is awkward mirrored phrasing that reads as keyword-stuffing rather than a natural claim -- rewrite as 'Cut database query latency 70% via Redis caching and Hibernate tuning on SQL-based (PostgreSQL) systems' to keep the keyword but sound engineer-authored. No mention of Scrum/Kanban explicitly (only 'Agile/Scrum sprint ceremonies' buried in a bullet) -- surface it in skills. Overall stack breadth (Java, Python, TS, Angular, Next.js, LangChain, Terraform) across 2.5 years of experience is very wide; interviewer will likely drill into 2-3 claims only, so candidate must be ready to defend Redis+Hibernate tuning and Kafka+ES pipeline specifics in detail since those are the most checkable claims."
+      "keyword_match": 90,
+      "impact_quality": 85,
+      "coherence": 80,
+      "plausibility": 75,
+      "formatting": 90,
+      "notes": "1. **Experience Section:** Ensure detailed outcomes are always present (e.g., 'cutting data delivery 25%...'). Consider using more distinguishing action verbs instead of defaulting to 'built' or 'developed'.\n2. **GoonedIn Project:** Expand on how 'AI-driven match scoring' works as this could raise questions. Ensure clarity on technologies; specify any machine learning frameworks if used.\n3. **Skills Section:** Make sure 'NestJS' aligns well with 'Node.js' experience. It would be useful for the candidate to discuss experience depth with this framework during the call.\n4. **Coherence:** Ensure all technologies mentioned (e.g., LangChain, Playwright) have relatable descriptions/implications. They should be able to elaborate on context and implementation details without seeming disconnected from depicted experience.\n5. **Depth:** Avoid mixing technologies in ways that may seem plausibly ambiguous (e.g., FastAPI with a specific focus on AI). The candidate should explicate anything that could enforce suspicion of buzzword usage."
     },
     {
       "persona": "Skeptic",
-      "keyword_match": 78,
+      "keyword_match": 85,
       "impact_quality": 80,
-      "coherence": 82,
-      "plausibility": 66,
+      "coherence": 75,
+      "plausibility": 65,
       "formatting": 90,
-      "notes": "Team-scoping is the main red flag: original source says 'Developed a...POC' (implying solo/small effort) but rendered resume adds 'as a co-op engineer' framing that's fine, though the '4-person team' and 'jointly with two backend engineers' at LSEG are new specifics not in source_evidence \u2014 these should be verifiable in interview since they add precision not present in ground truth. The 'Cut SQL-based databases latency 70%' bullet directly mirrors JD's 'SQL-based databases' keyword \u2014 plausible since Hibernate/Redis work supports it, but interviewer will probe exact DB engine (Postgres vs MSSQL vs Oracle) which resume never specifies. TDD/JUnit claim in bullet 2 is plausible given regression suite work but candidate should be ready to describe actual TDD workflow (test-first) vs. just using JUnit for regression, as these are technically distinct practices. No NestJS or TypeScript backend experience is evidenced anywhere in source (TypeScript only listed as skill, not demonstrated in bullets) \u2014 this is the biggest plausibility gap against the JD's top-weighted 'NestJS' and 'Typescript' requirements; recommend not implying backend TS/NestJS depth beyond what's listed in skills section, since no bullet demonstrates it and a technical screen will expose this. 'Service oriented systems' and 'financial systems' are well-supported by LSEG bullets. Overall claims are aggressive but mostly traceable to source evidence; the main exposure is on TypeScript/NestJS specificity and the added team-size details."
+      "notes": "The resume effectively uses job description keywords, particularly in technologies like TypeScript, Node.js, and SQL, aligning well with the JD's expectations. However, some framing raises questions. For example, the claim of 'resolving 20+ incidents via root cause analysis' in the second bullet under London Stock Exchange Group may need more context to show direct contribution. Similarly, while the impact metrics are strong overall, the precision regarding performance improvements (e.g., 'boosting data retrieval 90%') could benefit from additional detail on methodology. Additionally, the mention of 'TDD with JUnit and Mockito' suggests a direct connection to the required unit testing experience, but further details about scope or project specifics would enhance defensibility. Ensure every bullet maintains clear, quantified achievements that can be explained in an interview."
     }
   ],
   "true_gaps": []

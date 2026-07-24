@@ -147,12 +147,12 @@ def test_distill_revision_notes_mocks_llm_and_returns_list(monkeypatch):
     canned = RevisionNotes(notes=["1. Add Kubernetes.", "2. Quantify impact."])
     captured = {}
 
-    def fake_parse_strong(system, user, schema, **kwargs):
+    def fake_parse_scoring(system, user, schema, **kwargs):
         captured["schema"] = schema
         captured["user"] = user
         return canned
 
-    monkeypatch.setattr(aggregator, "parse_strong", fake_parse_strong)
+    monkeypatch.setattr(aggregator, "parse_scoring", fake_parse_scoring)
 
     notes = aggregator.distill_revision_notes(_failing_scores())
 
@@ -166,11 +166,11 @@ def test_aggregator_fail_path_writes_revision_notes(monkeypatch):
     canned = RevisionNotes(notes=["1. Source or remove the Salesforce claim."])
     called = {"n": 0}
 
-    def fake_parse_strong(system, user, schema, **kwargs):
+    def fake_parse_scoring(system, user, schema, **kwargs):
         called["n"] += 1
         return canned
 
-    monkeypatch.setattr(aggregator, "parse_strong", fake_parse_strong)
+    monkeypatch.setattr(aggregator, "parse_scoring", fake_parse_scoring)
 
     state = {"panel_scores": _failing_scores()}
     out = aggregator.aggregator(state)
@@ -184,11 +184,11 @@ def test_aggregator_fail_path_writes_revision_notes(monkeypatch):
 def test_aggregator_pass_path_never_calls_llm(monkeypatch):
     called = {"n": 0}
 
-    def fake_parse_strong(*a, **k):
+    def fake_parse_scoring(*a, **k):
         called["n"] += 1
         raise AssertionError("LLM must NOT be called on the pass path")
 
-    monkeypatch.setattr(aggregator, "parse_strong", fake_parse_strong)
+    monkeypatch.setattr(aggregator, "parse_scoring", fake_parse_scoring)
 
     state = {"panel_scores": _passing_scores()}
     out = aggregator.aggregator(state)
@@ -201,7 +201,7 @@ def test_aggregator_pass_path_never_calls_llm(monkeypatch):
 
 def test_aggregator_does_not_mutate_input_state(monkeypatch):
     monkeypatch.setattr(
-        aggregator, "parse_strong",
+        aggregator, "parse_scoring",
         lambda *a, **k: RevisionNotes(notes=["x"]),
     )
     state = {"panel_scores": _failing_scores()}
