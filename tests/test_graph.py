@@ -11,8 +11,14 @@ unset). These tests pin:
 """
 import pytest
 
-from config.settings import MAX_COMPILE_RETRIES, MAX_IDENTITY_RETRIES, MAX_ITERATIONS
+from config.settings import (
+    MAX_COMPILE_RETRIES,
+    MAX_IDENTITY_RETRIES,
+    MAX_ITERATIONS,
+    MAX_LENGTH_RETRIES,
+)
 from src.pipeline import graph as graph_mod
+from src.pipeline.schemas import RoleBullets, WriterOutput
 
 
 # --- build_graph: compiles ----------------------------------------------------
@@ -118,6 +124,33 @@ def test_route_after_bullet_check_multiple_violations_go_to_writer():
     assert graph_mod.route_after_bullet_check(state) == "writer"
 
 
+def test_route_after_bullet_check_retries_within_budget_go_to_writer():
+    """Violations with retries still under budget → writer (keep fixing)."""
+    state = {
+        "length_violations": ["Role 0 bullet 0: 180 chars"],
+        "length_retries": MAX_LENGTH_RETRIES - 1,
+    }
+    assert graph_mod.route_after_bullet_check(state) == "writer"
+
+
+def test_route_after_bullet_check_at_budget_still_retries():
+    """length_retries == MAX still allows one more writer bounce (<= boundary)."""
+    state = {
+        "length_violations": ["Role 0 bullet 0: 180 chars"],
+        "length_retries": MAX_LENGTH_RETRIES,
+    }
+    assert graph_mod.route_after_bullet_check(state) == "writer"
+
+
+def test_route_after_bullet_check_budget_exhausted_ships_best_effort():
+    """Violations but budget exhausted → render_node (option A: ship, never loop)."""
+    state = {
+        "length_violations": ["Role 0 bullet 0: 180 chars"],
+        "length_retries": MAX_LENGTH_RETRIES + 1,
+    }
+    assert graph_mod.route_after_bullet_check(state) == "render_node"
+
+
 # --- route_after_identity -----------------------------------------------------
 
 
@@ -218,6 +251,45 @@ def test_route_after_compile_fail_retries_exhausted_goes_to_emit():
 def test_route_after_compile_fail_retries_over_cap_goes_to_emit():
     state = {"compile_ok": False, "compile_retries": MAX_COMPILE_RETRIES + 2}
     assert graph_mod.route_after_compile(state) == "emit"
+
+
+# --- compile_node: page-overflow message (Step 5) ----------------------------
+
+
+def test_compile_node_single_page_passes(monkeypatch):
+    """1-page compile → compile_ok=True, pdf_path surfaced, retries reset."""
+    monkeypatch.setattr(graph_mod, "compile_tex", lambda latex: (True, "/tmp/x.pdf", []))
+    monkeypatch.setattr(graph_mod, "count_pdf_pages", lambda p: 1)
+
+    result = graph_mod.compile_node({"latex_rendered": "LATEX", "compile_retries": 0})
+
+    assert result["compile_ok"] is True
+    assert result["pdf_path"] == "/tmp/x.pdf"
+    assert result["compile_retries"] == 0
+
+
+def test_compile_node_page_overflow_bounces_with_count_remedy(monkeypatch):
+    """2-page compile bounces to writer with the count-based remedy.
+
+    Bullets are locked to 195-210 and cannot be shortened below 195, so the
+    overflow remedy must target bullet COUNT, not bullet length — and must not
+    reference a summary (there is none anymore).
+    """
+    monkeypatch.setattr(graph_mod, "compile_tex", lambda latex: (True, "/tmp/x.pdf", []))
+    monkeypatch.setattr(graph_mod, "count_pdf_pages", lambda p: 2)
+
+    result = graph_mod.compile_node({"latex_rendered": "LATEX", "compile_retries": 1})
+
+    assert result["compile_ok"] is False
+    msg = result["compile_errors"]
+    # No summary concept remains.
+    assert "summary" not in msg.lower()
+    # The remedy is count-based and cites the 195-210 band.
+    assert "COUNT" in msg
+    assert "195-210" in msg
+    # Retry counter advanced; no pdf surfaced for an overflowing draft.
+    assert result["compile_retries"] == 2
+    assert result["pdf_path"] == ""
 
 
 # --- route_after_aggregator ---------------------------------------------------
@@ -512,3 +584,134 @@ def test_identity_check_node_clean_preserves_zero_retries(monkeypatch):
     result = graph_mod.identity_check_node(state)
     assert "identity_retries" not in result
     assert result["identity_violations"] == []
+
+
+# --- length gate fires through the COMPILED graph -----------------------------
+#
+# The prior bug: `length_violations` was never declared on PipelineState, so
+# LangGraph silently dropped check_bullet_lengths' update and the gate was a
+# no-op. The router unit tests missed it (they hand-build the state key) and the
+# hermetic e2e stubbed the node out. These tests run the REAL check_bullet_lengths
+# node inside the compiled graph so the channel plumbing is actually exercised.
+
+
+def _bullets(n: int) -> WriterOutput:
+    """A one-role WriterOutput whose single bullet is exactly ``n`` chars."""
+    return WriterOutput(roles=[RoleBullets(index=0, bullets=["x" * n])], skills=["s"])
+
+
+def _install_fake_nodes_keep_length_gate(monkeypatch, *, writer_behaviour):
+    """Like _install_fake_nodes but leaves the REAL check_bullet_lengths wired."""
+    monkeypatch.setattr(
+        graph_mod, "parse_resume", lambda s: {"resume_struct": "RS", "identity_ledger": "LEDGER"}
+    )
+    monkeypatch.setattr(graph_mod, "analyze_jd", lambda s: {"jd_vector": "JD"})
+    monkeypatch.setattr(graph_mod, "gap_analysis", lambda s: {"gap_targets": []})
+    monkeypatch.setattr(graph_mod, "write_resume", writer_behaviour)
+    # check_bullet_lengths is intentionally NOT stubbed — it is the unit under test.
+    monkeypatch.setattr(graph_mod, "render_node", lambda s: {"latex_rendered": "LATEX"})
+    monkeypatch.setattr(
+        graph_mod, "identity_check_node", lambda s: {"identity_violations": []}
+    )
+    monkeypatch.setattr(
+        graph_mod,
+        "compile_node",
+        lambda s: {"compile_ok": True, "compile_errors": "", "pdf_path": "/tmp/x.pdf", "compile_retries": 0},
+    )
+    monkeypatch.setattr(graph_mod, "recruiter_panel", lambda s: {"panel_scores": []})
+    monkeypatch.setattr(
+        graph_mod, "aggregator",
+        lambda s: {"passed": True, "aggregate_score": 95.0, "panel_scores": []},
+    )
+    monkeypatch.setattr(graph_mod, "emit_node", lambda s: {"emitted": True})
+
+
+def test_length_gate_loops_back_then_proceeds(monkeypatch):
+    """Underbuilt first draft loops back to writer; a fixed draft then renders.
+
+    This FAILS if length_violations is not a live state channel (the old bug):
+    the gate would render the first underbuilt draft and the writer would run
+    exactly once.
+    """
+    calls = {"writer": 0}
+
+    def writer_behaviour(state):
+        calls["writer"] += 1
+        # First draft is underbuilt (100 < 195); the retry lands in-band (200).
+        return {"writer_output": _bullets(100 if calls["writer"] == 1 else 200)}
+
+    _install_fake_nodes_keep_length_gate(monkeypatch, writer_behaviour=writer_behaviour)
+
+    compiled = graph_mod.build_graph(enable_scoring=False)
+    result = compiled.invoke(
+        {"resume_tex_raw": "R", "jd_raw": "J", "iteration": 1, "compile_retries": 0, "length_retries": 0},
+        {"recursion_limit": 100},
+    )
+
+    assert result.get("emitted") is True
+    assert calls["writer"] >= 2, (
+        "length gate must route the underbuilt draft back to the writer — "
+        "if this is 1, length_violations is being dropped again"
+    )
+
+
+def test_length_gate_exhausts_budget_and_still_emits(monkeypatch):
+    """Writer that NEVER converges: the loop is bounded and ships best-effort (option A)."""
+    calls = {"writer": 0}
+
+    def writer_behaviour(state):
+        calls["writer"] += 1
+        return {"writer_output": _bullets(100)}  # always underbuilt
+
+    _install_fake_nodes_keep_length_gate(monkeypatch, writer_behaviour=writer_behaviour)
+
+    compiled = graph_mod.build_graph(enable_scoring=False)
+    result = compiled.invoke(
+        {"resume_tex_raw": "R", "jd_raw": "J", "iteration": 1, "compile_retries": 0, "length_retries": 0},
+        {"recursion_limit": 100},
+    )
+
+    # Never crashes on recursion — it ships the best-effort draft.
+    assert result.get("emitted") is True
+    # Bounded: initial draft + exactly MAX_LENGTH_RETRIES retry bounces.
+    assert calls["writer"] == MAX_LENGTH_RETRIES + 1
+
+
+def test_length_gate_clean_first_draft_does_not_loop(monkeypatch):
+    """An in-band first draft renders immediately — writer runs once."""
+    calls = {"writer": 0}
+
+    def writer_behaviour(state):
+        calls["writer"] += 1
+        return {"writer_output": _bullets(200)}  # in-band
+
+    _install_fake_nodes_keep_length_gate(monkeypatch, writer_behaviour=writer_behaviour)
+
+    compiled = graph_mod.build_graph(enable_scoring=False)
+    result = compiled.invoke(
+        {"resume_tex_raw": "R", "jd_raw": "J", "iteration": 1, "compile_retries": 0, "length_retries": 0},
+        {"recursion_limit": 100},
+    )
+
+    assert result.get("emitted") is True
+    assert calls["writer"] == 1
+
+
+# --- bookkeep resets the per-iteration length budget --------------------------
+
+
+def test_bookkeep_resets_length_counters_on_loop():
+    """A fail-and-loop bookkeep pass clears length_retries + length_violations."""
+    state = {
+        "passed": False,
+        "iteration": 1,
+        "aggregate_score": 60.0,
+        "latex_rendered": "L",
+        "length_retries": 3,
+        "length_violations": ["stale"],
+    }
+    out = graph_mod.bookkeep_node(state)
+
+    assert out["iteration"] == 2
+    assert out["length_retries"] == 0
+    assert out["length_violations"] is None

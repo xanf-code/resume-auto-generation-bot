@@ -41,7 +41,6 @@ def _writer() -> WriterOutput:
             RoleBullets(index=1, bullets=["Developed FLOW-MATIC"]),
         ],
         skills=["COBOL", "Leadership"],
-        summary="Computing pioneer.",
     )
 
 

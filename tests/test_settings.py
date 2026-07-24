@@ -19,6 +19,8 @@ def test_constant_values():
     assert settings.THRESHOLD == 78
     assert settings.MAX_ITERATIONS == 6
     assert settings.MAX_COMPILE_RETRIES == 4
+    assert settings.MAX_IDENTITY_RETRIES == 4
+    assert settings.MAX_LENGTH_RETRIES == 3
     assert settings.PLAUSIBILITY_FLOOR == 20
     assert settings.MODEL_STRONG == "anthropic/claude-sonnet-5"
     assert settings.MODEL_FAST == "openai/gpt-4o-mini"

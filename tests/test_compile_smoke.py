@@ -64,7 +64,6 @@ def _writer() -> WriterOutput:
             ),
         ],
         skills=["Cryptanalysis", "Computability Theory", "C++ & Assembly"],
-        summary="Mathematician & founder of theoretical computer science.",
     )
 
 
@@ -147,7 +146,7 @@ def _xcharter_ledger() -> IdentityLedger:
 def _xcharter_writer() -> WriterOutput:
     return WriterOutput(
         roles=[RoleBullets(index=0, bullets=["Designed the Bombe under budget"])],
-        skills=["Cryptanalysis"], summary="Founder of theoretical CS.",
+        skills=["Cryptanalysis"],
     )
 
 

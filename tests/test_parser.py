@@ -135,3 +135,53 @@ def test_assert_ledger_matches_source_raises_on_date_drift():
     with pytest.raises(ValueError) as exc:
         parser.assert_ledger_matches_source(ledger, SAMPLE_TEX)
     assert "start" in str(exc.value)
+
+
+# --- extract_name: preamble must not poison the identity (Step 1 fix) ----------
+
+# A realistic resume whose preamble binds a font named "XCharter". The OLD
+# extract_name grabbed the FIRST \command{...} anywhere in the raw tex, so it
+# returned "XCharter" (or "article" from \documentclass) instead of the human
+# name. The name lives in the \begin{document} body, wrapped in formatting.
+PREAMBLE_TEX = r"""
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage{XCharter}
+\setmainfont{XCharter}
+\newcommand{\name}[1]{\textbf{#1}}
+\definecolor{accent}{HTML}{1A1A1A}
+\begin{document}
+\begin{center}
+{\Large \textbf{Grace Hopper}} \\
+grace.hopper@example.com $\cdot$ (555) 000-1111
+\end{center}
+
+\section*{Experience}
+\textbf{US Navy} \hfill 1944 -- 1966 \\
+\textit{Rear Admiral}
+\end{document}
+"""
+
+
+def test_extract_name_ignores_preamble_font_package():
+    """The name comes from the document body, NOT a \\usepackage/font argument."""
+    name = parser.extract_name(PREAMBLE_TEX)
+    assert name == "Grace Hopper"
+    assert name != "XCharter"
+
+
+def test_extract_name_ignores_documentclass_argument():
+    """\\documentclass{article} must never be mistaken for the candidate name."""
+    assert parser.extract_name(SAMPLE_TEX) == "Jane Doe"
+
+
+def test_extract_name_skips_structural_begin_center():
+    """A leading \\begin{center} wrapper must be skipped, not read as 'center'."""
+    name = parser.extract_name(PREAMBLE_TEX)
+    assert name != "center"
+
+
+def test_extract_name_strips_preamble_without_document_env():
+    """No \\begin{document}: preamble command lines are stripped before search."""
+    tex = "\\usepackage{XCharter}\n\\textbf{Ada Lovelace}\nada@example.com"
+    assert parser.extract_name(tex) == "Ada Lovelace"

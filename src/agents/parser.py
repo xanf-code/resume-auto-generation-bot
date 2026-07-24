@@ -21,8 +21,33 @@ _IDENTITY_FIELDS = ("company", "title", "start", "end")
 
 # A LaTeX command wrapper like \textbf{Jane Doe} -> "Jane Doe".
 _TEX_COMMAND = re.compile(r"\\[a-zA-Z]+\*?\{([^{}]*)\}")
+# Same, but capturing the command name too, so we can skip structural commands.
+_TEX_COMMAND_NAMED = re.compile(r"\\([a-zA-Z]+)\*?\{([^{}]*)\}")
 # A plausible email address.
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+
+# Lines that can only be preamble — dropped before name extraction when there
+# is no explicit ``\begin{document}`` to slice on.
+_PREAMBLE_LINE_PREFIXES = (
+    "\\documentclass", "\\usepackage", "\\RequirePackage", "\\newcommand",
+    "\\renewcommand", "\\providecommand", "\\setmainfont", "\\setsansfont",
+    "\\newfontfamily", "\\definecolor", "\\geometry", "\\pagestyle",
+    "\\setlength", "\\input", "\\include", "\\DeclareUnicodeCharacter",
+)
+
+# Command names whose braced argument is NEVER a person's name — structural,
+# environment, or resource commands. Their captured arg (e.g. "center" from
+# ``\begin{center}``, "XCharter" from ``\usepackage{XCharter}``) is skipped.
+_STRUCTURAL_CMDS = frozenset({
+    "begin", "end", "section", "subsection", "subsubsection",
+    "vspace", "hspace", "textcolor", "definecolor", "color",
+    "includegraphics", "label", "ref", "href", "url", "item",
+    "usepackage", "documentclass", "requirepackage", "setmainfont",
+    "setsansfont", "newfontfamily", "newcommand", "renewcommand",
+    "providecommand", "hfill", "par", "centering", "raggedright",
+})
+
+_DOCUMENT_MARKER = "\\begin{document}"
 
 
 def _strip_tex(value: str) -> str:
@@ -31,20 +56,51 @@ def _strip_tex(value: str) -> str:
     return (match.group(1) if match else value).strip()
 
 
+def _looks_like_name(value: str) -> bool:
+    """Heuristic: a name has letters and is not an email/URL/nested command."""
+    v = value.strip()
+    if not v or "@" in v or "\\" in v or "http" in v.lower():
+        return False
+    return any(ch.isalpha() for ch in v)
+
+
+def _document_body(resume_tex_raw: str) -> str:
+    """Return the content the name can live in — never the preamble.
+
+    Prefer everything after ``\\begin{document}``. When the source has no
+    document environment, drop lines that can only be preamble commands
+    (``\\usepackage{...}`` etc.) so a font/package argument can't masquerade as
+    the candidate name.
+    """
+    idx = resume_tex_raw.find(_DOCUMENT_MARKER)
+    if idx != -1:
+        return resume_tex_raw[idx + len(_DOCUMENT_MARKER):]
+    kept = [
+        line
+        for line in resume_tex_raw.splitlines()
+        if not line.lstrip().startswith(_PREAMBLE_LINE_PREFIXES)
+    ]
+    return "\n".join(kept)
+
+
 def extract_name(resume_tex_raw: str) -> str:
     """Best-effort candidate name from the raw .tex.
 
-    Convention: the name is the first bold/large command's content. Falls back
-    to the first non-empty content line.
+    Convention: the name is the first formatting-command content in the DOCUMENT
+    BODY (e.g. ``\\textbf{Jane Doe}``) — never a preamble/font argument and never
+    a structural command like ``\\begin{center}``. Falls back to the first
+    non-empty content line that reads like a name.
     """
-    match = _TEX_COMMAND.search(resume_tex_raw)
-    if match:
-        candidate = match.group(1).strip()
-        if candidate:
-            return candidate
-    for line in resume_tex_raw.splitlines():
+    body = _document_body(resume_tex_raw)
+    for match in _TEX_COMMAND_NAMED.finditer(body):
+        cmd, arg = match.group(1).lower(), match.group(2).strip()
+        if cmd in _STRUCTURAL_CMDS:
+            continue
+        if _looks_like_name(arg):
+            return arg
+    for line in body.splitlines():
         stripped = line.strip()
-        if stripped and not stripped.startswith("\\"):
+        if stripped and not stripped.startswith("\\") and _looks_like_name(stripped):
             return stripped
     return ""
 

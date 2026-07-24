@@ -35,7 +35,12 @@ from langgraph.graph import END, START, StateGraph
 
 log = logging.getLogger(__name__)
 
-from config.settings import MAX_COMPILE_RETRIES, MAX_IDENTITY_RETRIES, MAX_ITERATIONS
+from config.settings import (
+    MAX_COMPILE_RETRIES,
+    MAX_IDENTITY_RETRIES,
+    MAX_ITERATIONS,
+    MAX_LENGTH_RETRIES,
+)
 from src.agents.aggregator import aggregator
 from src.agents.gap_analyzer import gap_analysis
 from src.agents.jd_analyzer import analyze_jd
@@ -100,12 +105,12 @@ def compile_node(state: PipelineState) -> dict:
                 "compile_ok": False,
                 "compile_errors": (
                     f"PAGE OVERFLOW: the resume compiled to {pages} pages but MUST fit "
-                    f"exactly 1 page. Shorten bullets NOW — this is a hard constraint. "
-                    f"ACTION: reduce every LONG bullet (>140 chars) to MEDIUM or SHORT. "
-                    f"Cut words from the mechanism/details clause first; preserve the "
-                    f"outcome and its result so the cause-and-effect survives. "
-                    f"Target per role: 1-2 SHORT (≤90 chars), 2-3 MEDIUM (91-140 chars), "
-                    f"0-1 LONG (141-180 chars). Do NOT add new content — only remove."
+                    f"exactly 1 page. Every bullet is locked to the 195-210 char band "
+                    f"and CANNOT be shortened below 195 — the lever is bullet COUNT, "
+                    f"not bullet length. ACTION: cut the lowest-value bullet(s) from the "
+                    f"role(s) carrying the most bullets (stay within the 8-total / "
+                    f"5-per-role caps), and trim the skills list to the highest-signal "
+                    f"entries. Do NOT add new content and do NOT shorten bullets below 195."
                 ),
                 "pdf_path": "",
                 "compile_retries": retries + 1,
@@ -170,7 +175,15 @@ def bookkeep_node(state: PipelineState) -> dict:
         "bookkeep     | fail — iteration %d→%d, best_score=%.2f → looping to writer",
         iteration, iteration + 1, best_so_far,
     )
-    return {**best, "iteration": iteration + 1, "compile_retries": 0}
+    # Reset per-iteration counters so the next revision gets fresh budgets and
+    # never inherits a stale length_violations list from the prior iteration.
+    return {
+        **best,
+        "iteration": iteration + 1,
+        "compile_retries": 0,
+        "length_retries": 0,
+        "length_violations": None,
+    }
 
 
 # --- conditional-edge functions (pure, independently tested) ------------------
@@ -195,13 +208,25 @@ def route_after_identity(state: PipelineState) -> str:
 
 
 def route_after_bullet_check(state: PipelineState) -> str:
-    """Route based on bullet length violations.
+    """Route based on bullet length violations and the retry budget.
 
     - No violations → ``render_node`` (proceed to render)
-    - Violations → ``writer`` (fix length violations)
+    - Violations AND budget remains → ``writer`` (fix length violations)
+    - Violations AND budget exhausted → ``render_node`` (ship best-effort draft)
+
+    Length is a cosmetic gate, not an integrity gate: if the writer cannot
+    converge to the band after ``MAX_LENGTH_RETRIES`` tries, the pipeline
+    proceeds with the last draft rather than looping forever (option A).
     """
-    if state.get("length_violations"):
+    if not state.get("length_violations"):
+        return "render_node"
+    if state.get("length_retries", 0) <= MAX_LENGTH_RETRIES:
         return "writer"
+    log.warning(
+        "check_bullet_lengths | length_retries budget exhausted (%d) — proceeding "
+        "to render with best-effort draft",
+        state.get("length_retries", 0),
+    )
     return "render_node"
 
 

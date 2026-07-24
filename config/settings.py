@@ -15,6 +15,10 @@ THRESHOLD = 78          # lowered from 88 — fabrication mode; plausibility cap
 MAX_ITERATIONS = 6
 MAX_COMPILE_RETRIES = 4
 MAX_IDENTITY_RETRIES = 4
+# Per-iteration budget for the bullet-length loop. On exhaustion the pipeline
+# proceeds to render with the best-effort draft (never blocks on a cosmetic
+# gate), guaranteeing the writer↔check loop can't spin forever.
+MAX_LENGTH_RETRIES = 3
 PLAUSIBILITY_FLOOR = 20
 
 # --- Rubric weights (must sum to 1.0) ----------------------------------------

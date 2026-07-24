@@ -72,7 +72,7 @@ def test_every_model_instantiates():
     RoleBullets(index=0, bullets=["Did a thing"])
     WriterOutput(
         roles=[RoleBullets(index=0, bullets=["Did a thing"])],
-        skills=["Python"], summary="A summary.",
+        skills=["Python"],
     )
     PanelScore(
         persona="skeptic", keyword_match=80, impact_quality=75,

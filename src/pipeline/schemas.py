@@ -121,7 +121,6 @@ class WriterOutput(BaseModel):
 
     roles: list[RoleBullets]
     skills: list[str]
-    summary: str
 
 
 class PanelScore(BaseModel):

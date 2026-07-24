@@ -46,6 +46,17 @@ class PipelineState(TypedDict, total=False):
     # Writer renders either shape (a lone legacy string is still accepted).
     revision_notes: list[str]
 
+    # --- length gate ----------------------------------------------------------
+    # Recorded by ``check_bullet_lengths``; a non-empty list routes back to the
+    # writer (within the length-retry budget). Absent/empty means every bullet
+    # is in-band. MUST be declared here — LangGraph silently drops updates to
+    # channels that are not part of the state schema, which would make the gate
+    # a no-op.
+    length_violations: list[str]
+    # Per-iteration length-retry counter. Reset in ``bookkeep_node`` alongside
+    # ``compile_retries`` so each revision iteration gets a fresh budget.
+    length_retries: int
+
     # --- compile-loop / identity bookkeeping ----------------------------------
     # Recorded by ``identity_check_node``; a non-empty list routes back to the
     # writer. Absent/empty means the render is clean.

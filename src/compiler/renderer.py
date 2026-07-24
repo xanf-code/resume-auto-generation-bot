@@ -3,7 +3,7 @@
 Patches the user's original ``.tex`` file in-place: only the
 ``\\begin{itemize}...\\end{itemize}`` block immediately following each role's
 company-name anchor is replaced with the writer's new bullets. Every other
-byte — packages, fonts, section formatting, summary, skills, education — is
+byte — packages, fonts, section formatting, skills, education — is
 preserved verbatim from the original file.
 
 A ``%% ROLE-HEADER %%`` comment is injected before each role's anchor line so
@@ -230,7 +230,7 @@ def render(
 ) -> str:
     """Patch ``original_tex`` in-place: replace bullet blocks per role.
 
-    The original document's packages, fonts, formatting, summary, skills, and
+    The original document's packages, fonts, formatting, skills, and
     education sections are left verbatim. Only the ``\\begin{itemize}...
     \\end{itemize}`` block immediately following each role's anchor is replaced
     with the writer's optimised bullets. pdfTeX-only directives that break

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Writer prompt instructs the model to keep bullets within 158-180 characters, but models slip on hard constraints. The bullet length validator runs post-Writer and pre-Renderer, catching violations and routing them back to Writer via `length_violations`.
+The Writer prompt instructs the model to keep every experience/project bullet within **195-210 characters** (minimum 195, maximum 210), but models slip on hard numeric constraints. The bullet length validator runs post-Writer and pre-Renderer, catching violations and routing them back to Writer via `length_violations`.
 
 ## Architecture
 
@@ -17,17 +17,17 @@ writer → check_bullet_lengths → [violations?]
 
 1. **Validator Function** (`src/agents/validators.py`)
    - Pure Python character counting (no LLM calls)
-   - Returns list of violation strings with precise feedback
-   - Default range: 158-180 characters
+   - `validate_bullet_lengths` — default `BULLET_LO=195` / `BULLET_HI=210`
+   - Returns a list of violation strings with precise feedback
 
 2. **Validation Node** (`src/agents/validators.py`)
-   - Graph node that wraps the validator
+   - `check_bullet_lengths` wraps the validator
    - Sets `length_violations` in state when violations exist
    - Logs violations for debugging
 
 3. **Writer Integration** (`src/agents/writer.py`)
-   - `build_writer_user_message` includes LENGTH VIOLATIONS section
-   - Instructs Writer to "fix ONLY these bullets to 158-180 chars, keep the rest"
+   - `build_writer_user_message` includes a LENGTH VIOLATIONS section
+   - Instructs Writer to "fix ONLY these bullets to 195-210 chars, keep the rest"
    - Preserves good work, only targets violators
 
 4. **Graph Routing** (`src/pipeline/graph.py`)
@@ -41,25 +41,19 @@ The validator runs automatically in the pipeline. No configuration needed.
 
 ### Violation Format
 
-Each violation includes:
-- Role index and bullet index
-- Actual character count
-- Delta from valid range (SHORT by N / LONG by N)
-- Target range (158-180)
-- Full bullet text for context
+Each violation includes the role/bullet index, actual character count, the delta from the valid range (`UNDERBUILT by N` / `BLOATED by N`), the target band, and the full bullet text for context.
 
 Example:
 ```
-Role 0 bullet 1: 142 chars (SHORT by 16). Target: 158-180 chars.
+Role 0 bullet 1: 142 chars (UNDERBUILT by 53). Target: 195-210 chars.
 Text: "Built REST APIs for CRM sync."
 ```
 
 ## Testing
 
-- **Unit tests**: `tests/test_bullet_validator.py` (11 tests)
-- **Integration tests**: `tests/test_writer.py` (3 new tests)
-- **Graph routing tests**: `tests/test_graph.py` (4 new tests)
-- **Coverage**: 173 tests passing ✓
+- **Unit tests**: `tests/test_bullet_validator.py`
+- **Integration tests**: `tests/test_writer.py` (LENGTH VIOLATIONS section, prompt band)
+- **Graph routing tests**: `tests/test_graph.py` (routing + compile page-overflow remedy)
 
 ## Why This Works
 
@@ -69,8 +63,6 @@ Text: "Built REST APIs for CRM sync."
 4. **Reuses existing pattern**: Length violations flow like compile errors
 5. **Separate concerns**: Length validation happens before rendering
 
-## Prompt + Validator = Exactly Right
+## Page Overflow
 
-- **Prompt alone**: Makes it *mostly* right (80-90% compliance)
-- **Validator backstop**: Makes it *exactly* right (100% compliance)
-- **Defense in depth**: Model does heavy lifting, validator catches edge cases
+Because bullets are fixed to the 195-210 band, they cannot be shortened below 195 to save space. When the compile step reports >1 page, the retry remedy therefore targets bullet **COUNT** (drop the lowest-value bullet from the role with the most, within the 8-total / 5-per-role caps) and trims the skills list — never "shorten the bullets."

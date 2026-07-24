@@ -77,7 +77,6 @@ def _writer_output() -> WriterOutput:
             ),
         ],
         skills=["Python", "SQL", "REST APIs"],
-        summary="Senior data engineer specializing in REST-based data integration.",
     )
 
 
@@ -137,12 +136,12 @@ def test_revision_notes_trigger_section_without_explicit_iteration():
     """revision_notes present is sufficient to include the revision section."""
     state = _first_iteration_state()
     state["writer_output"] = _writer_output()
-    state["revision_notes"] = "1. Tighten the summary."
+    state["revision_notes"] = "1. Tighten the opening bullet."
 
     msg = writer.build_writer_user_message(state)
 
     assert "REVISION NOTES" in msg
-    assert "Tighten the summary" in msg
+    assert "Tighten the opening bullet" in msg
 
 
 def test_different_revision_notes_produce_different_messages():
@@ -152,14 +151,14 @@ def test_different_revision_notes_produce_different_messages():
     base["writer_output"] = _writer_output()
 
     state_a = {**base, "revision_notes": "1. Add a quantified metric to bullet 1."}
-    state_b = {**base, "revision_notes": "1. Remove jargon from the summary."}
+    state_b = {**base, "revision_notes": "1. Remove jargon from bullet 2."}
 
     msg_a = writer.build_writer_user_message(state_a)
     msg_b = writer.build_writer_user_message(state_b)
 
     assert msg_a != msg_b
     assert "Add a quantified metric to bullet 1" in msg_a
-    assert "Remove jargon from the summary" in msg_b
+    assert "Remove jargon from bullet 2" in msg_b
 
 
 # --- build_writer_user_message: compile bounce ---------------------------------
@@ -216,15 +215,15 @@ def test_build_writer_user_message_includes_length_violations():
     state = _first_iteration_state()
     state["writer_output"] = _writer_output()
     state["length_violations"] = [
-        "Role 0 bullet 0: 142 chars (SHORT by 16). Target: 158-180 chars.",
-        "Role 0 bullet 1: 195 chars (LONG by 15). Target: 158-180 chars.",
+        "Role 0 bullet 0: 142 chars (UNDERBUILT by 53). Target: 195-210 chars.",
+        "Role 0 bullet 1: 230 chars (BLOATED by 20). Target: 195-210 chars.",
     ]
     msg = writer.build_writer_user_message(state)
 
     assert "LENGTH VIOLATIONS" in msg
     assert "Role 0 bullet 0: 142 chars" in msg
-    assert "Role 0 bullet 1: 195 chars" in msg
-    assert "fix ONLY these bullets to 158-180 chars" in msg
+    assert "Role 0 bullet 1: 230 chars" in msg
+    assert "fix ONLY these bullets to 195-210 chars" in msg
 
 
 def test_build_writer_user_message_no_length_violations_when_empty():
@@ -273,6 +272,45 @@ def test_write_resume_writes_output_and_uses_correct_schema(monkeypatch):
     assert isinstance(captured["system"], str) and captured["system"]
 
 
+def test_write_resume_strips_char_annotations(monkeypatch):
+    """The [chars: N] self-verification tags must NEVER reach the output.
+
+    The Writer prompt asks the model to append ``[chars: N]`` to each bullet so
+    it can self-check length. Those tags are for the model only — they must be
+    stripped before the validator counts chars and before the renderer injects
+    the bullet into the PDF.
+    """
+    annotated = WriterOutput(
+        roles=[
+            RoleBullets(
+                index=0,
+                bullets=[
+                    "Built an ETL pipeline in Python that cut reporting time. [chars: 202]",
+                    "Scaled the service to 8M+ users on the platform [chars: 199]",
+                ],
+            ),
+        ],
+        skills=["Python", "SQL"],
+    )
+    monkeypatch.setattr(writer, "parse_strong", lambda *a, **k: annotated)
+
+    out = writer.write_resume(_first_iteration_state())
+    bullets = [b for role in out["writer_output"].roles for b in role.bullets]
+
+    assert all("[chars:" not in b for b in bullets)
+    assert bullets[0] == "Built an ETL pipeline in Python that cut reporting time."
+    assert bullets[1] == "Scaled the service to 8M+ users on the platform"
+
+
+def test_write_resume_leaves_clean_bullets_untouched(monkeypatch):
+    """Bullets with no annotation pass through unchanged (same object identity)."""
+    canned = _writer_output()  # no [chars: N] tags
+    monkeypatch.setattr(writer, "parse_strong", lambda *a, **k: canned)
+
+    out = writer.write_resume(_first_iteration_state())
+    assert out["writer_output"] is canned
+
+
 def test_write_resume_does_not_mutate_input_state(monkeypatch):
     monkeypatch.setattr(writer, "parse_strong", lambda *a, **k: _writer_output())
 
@@ -293,3 +331,27 @@ def test_writer_system_enforces_keyword_coverage_cap():
     # Must still require 100% coverage of must_mirror and high-weight skills
     assert "must_mirror" in WRITER_SYSTEM
     assert "0.8" in WRITER_SYSTEM
+
+
+def test_writer_system_enforces_bullet_band():
+    """Bullet band is the required 195-210 (min 195, max 210)."""
+    from src.prompts.writer import WRITER_SYSTEM
+
+    assert "195-210" in WRITER_SYSTEM, "Missing 195-210 bullet band"
+
+
+def test_writer_system_caps_bullet_count_flexibly():
+    """8 bullets total, hard-max 5 per role, relevance-driven split."""
+    from src.prompts.writer import WRITER_SYSTEM
+
+    assert "8 bullets total" in WRITER_SYSTEM
+    assert "5 per role" in WRITER_SYSTEM
+    # The old rigid 4-per-role cap must be gone.
+    assert "maximum 4 bullets per role" not in WRITER_SYSTEM
+
+
+def test_writer_system_does_not_mention_summary():
+    """Summary is removed from the app — the Writer must not emit one."""
+    from src.prompts.writer import WRITER_SYSTEM
+
+    assert "summary" not in WRITER_SYSTEM.lower()

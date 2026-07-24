@@ -3,12 +3,13 @@
 Assembles the user prompt from the extraction artifacts (``resume_struct``,
 ``jd_vector``, ``gap_targets``) and, on revision/compile bounces, the prior
 ``writer_output`` plus ``revision_notes`` / ``compile_errors``. Emits a
-``WriterOutput`` (bullets + skills + summary — no identity fields).
+``WriterOutput`` (bullets + skills — no identity fields).
 
 The user-message builder is a pure function so the deterministic "what does the
 next draft see" behaviour is directly testable without any API call.
 """
 import logging
+import re
 
 from config.settings import MODEL_STRONG
 from src.pipeline.llm import parse_strong
@@ -17,6 +18,37 @@ log = logging.getLogger(__name__)
 from src.pipeline.schemas import WriterOutput
 from src.pipeline.state import PipelineState
 from src.prompts.writer import WRITER_SYSTEM
+
+# The Writer prompt asks the model to self-verify length by appending a
+# ``[chars: N]`` tag to each bullet. Those tags are a model-only scratchpad —
+# they must be stripped before the length validator counts characters and
+# before the renderer injects the bullet, or they leak into the final PDF.
+_CHAR_ANNOTATION = re.compile(r"\s*\[chars:\s*\d+\]", re.IGNORECASE)
+
+
+def strip_char_annotation(bullet: str) -> str:
+    """Remove any ``[chars: N]`` self-verification tag(s) from a bullet."""
+    return _CHAR_ANNOTATION.sub("", bullet).strip()
+
+
+def sanitize_writer_output(output: WriterOutput) -> WriterOutput:
+    """Return a WriterOutput with every ``[chars: N]`` tag stripped from bullets.
+
+    Immutable: builds new objects. When no bullet actually changes, the original
+    object is returned unchanged so object identity is preserved for callers.
+    """
+    changed = False
+    cleaned_roles = []
+    for role in output.roles:
+        cleaned = [strip_char_annotation(b) for b in role.bullets]
+        if cleaned != role.bullets:
+            changed = True
+            cleaned_roles.append(role.model_copy(update={"bullets": cleaned}))
+        else:
+            cleaned_roles.append(role)
+    if not changed:
+        return output
+    return output.model_copy(update={"roles": cleaned_roles})
 
 
 def render_revision_notes(revision_notes: object) -> str:
@@ -93,7 +125,7 @@ def build_writer_user_message(state: PipelineState) -> str:
         violations_text = "\n".join(length_violations)
         sections += [
             "",
-            "## LENGTH VIOLATIONS (fix ONLY these bullets to 158-180 chars, keep the rest)",
+            "## LENGTH VIOLATIONS (fix ONLY these bullets to 195-210 chars, keep the rest)",
             violations_text,
         ]
 
@@ -123,10 +155,13 @@ def write_resume(state: PipelineState) -> dict:
     )
     user_msg = build_writer_user_message(state)
     output = parse_strong(WRITER_SYSTEM, user_msg, WriterOutput, effort="high")
+    # Strip the model's [chars: N] self-verification tags before anything
+    # downstream sees them — the validator must count clean bullets and the
+    # renderer must never leak the tags into the PDF.
+    output = sanitize_writer_output(output)
     total_bullets = sum(len(r.bullets) for r in output.roles)
     log.info(
-        "writer       | done — %d roles, %d total bullets, %d skills, "
-        "summary=%d chars",
-        len(output.roles), total_bullets, len(output.skills), len(output.summary),
+        "writer       | done — %d roles, %d total bullets, %d skills",
+        len(output.roles), total_bullets, len(output.skills),
     )
     return {"writer_output": output}
