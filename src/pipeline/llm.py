@@ -138,6 +138,7 @@ def parse_gap(
     system: str,
     user: str,
     schema: type[SchemaT],
+    effort: str = "high",
     max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> SchemaT:
     """Structured parse on the gap analyzer model.
@@ -145,6 +146,9 @@ def parse_gap(
     Uses MODEL_GAP by default. Gap analysis requires creative reframing strategy
     and strong reasoning to produce effective framing guidance, so it uses a
     more capable model than the parser/JD analyzer.
+
+    ``effort`` is accepted for call-site compatibility but not forwarded;
+    OpenRouter does not support this Anthropic-specific parameter.
     """
     model = _ctx_model_gap.get() or MODEL_GAP
     return _parse(system, user, schema, model, max_tokens)

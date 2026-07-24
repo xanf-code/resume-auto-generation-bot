@@ -86,6 +86,38 @@ def test_end_to_end_without_scoring_skips_score_report(monkeypatch):
     assert "score_report_md" not in result
 
 
+# --- route_after_bullet_check -------------------------------------------------
+
+
+def test_route_after_bullet_check_clean_goes_to_render():
+    """No length violations → proceed to render_node."""
+    state = {"length_violations": None}
+    assert graph_mod.route_after_bullet_check(state) == "render_node"
+
+
+def test_route_after_bullet_check_empty_list_goes_to_render():
+    """Empty violations list (no violations) → proceed to render_node."""
+    state = {"length_violations": []}
+    assert graph_mod.route_after_bullet_check(state) == "render_node"
+
+
+def test_route_after_bullet_check_violations_go_to_writer():
+    """Length violations present → route back to writer."""
+    state = {"length_violations": ["Role 0 bullet 0: 142 chars (SHORT by 16)"]}
+    assert graph_mod.route_after_bullet_check(state) == "writer"
+
+
+def test_route_after_bullet_check_multiple_violations_go_to_writer():
+    """Multiple length violations → route back to writer."""
+    state = {
+        "length_violations": [
+            "Role 0 bullet 0: 142 chars (SHORT by 16)",
+            "Role 1 bullet 1: 195 chars (LONG by 15)",
+        ]
+    }
+    assert graph_mod.route_after_bullet_check(state) == "writer"
+
+
 # --- route_after_identity -----------------------------------------------------
 
 
@@ -312,6 +344,10 @@ def _install_fake_nodes(monkeypatch, *, aggregator_behaviour):
     )
     monkeypatch.setattr(
         graph_mod, "write_resume", lambda s: {"writer_output": "WO"}
+    )
+    # Validator stub: no length violations (clean bullets).
+    monkeypatch.setattr(
+        graph_mod, "check_bullet_lengths", lambda s: {"length_violations": None}
     )
     # render + identity + compile wrappers replaced with clean/success stubs.
     monkeypatch.setattr(

@@ -82,6 +82,7 @@ def test_gap_analysis_writes_unwrapped_list(monkeypatch):
         captured["system"] = system
         captured["user"] = user
         captured["schema"] = schema
+        captured["kwargs"] = kwargs
         return wrapper
 
     monkeypatch.setattr(gap_analyzer, "parse_gap", fake_parse_gap)
@@ -95,6 +96,8 @@ def test_gap_analysis_writes_unwrapped_list(monkeypatch):
     # The user message combines both resume + JD context.
     assert "Salesforce" in captured["user"]
     assert "CRM-sync ETL" in captured["user"]
+    # It uses high effort for creative reframing strategy.
+    assert captured["kwargs"].get("effort") == "high"
 
     # Output is the plain list, unwrapped from the GapTargets wrapper.
     assert set(out.keys()) == {"gap_targets"}

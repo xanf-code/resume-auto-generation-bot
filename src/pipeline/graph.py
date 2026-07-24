@@ -2,16 +2,21 @@
 
 Topology::
 
-    parse_resume → analyze_jd → gap_analysis → writer → render_node
-                     ▲                                      │
-                     │                              identity_check_node
-                     │                                      │
-     (identity violation) ──────────────────────────┐  (clean)
-                     │                               │      │
-                     └── writer ◀── (compile fail,   │  compile_node
-                          revision  ≤ retries)  ◀────┤      │
-                          bounce)                    │  ┌───┴── (ok)
-                                                     │  │
+    parse_resume → analyze_jd → gap_analysis → writer → check_bullet_lengths
+                     ▲                                      │    │
+                     │                                      │ (clean)
+                     │                                      │    │
+     (length violation) ────────────────────────────────────┘    │
+                     │                                         render_node
+                     │                                            │
+                     │                                    identity_check_node
+                     │                                            │
+     (identity violation) ──────────────────────────┐        (clean)
+                     │                               │            │
+                     └── writer ◀── (compile fail,   │        compile_node
+                          revision  ≤ retries)  ◀────┤            │
+                          bounce)                    │      ┌─────┴── (ok)
+                                                     │      │
                        (retries exhausted) ──────────┴──┤   recruiter_panel
                                                         │      │
                                                      emit    aggregator
@@ -20,7 +25,7 @@ Topology::
                                                                │
                                     (fail & iter < MAX) ──▶ writer
 
-The three conditional-edge functions are pure and independently unit-tested.
+The four conditional-edge functions are pure and independently unit-tested.
 Node wrappers around the plain compiler functions (``render``, ``check_identity``,
 ``compile_tex``) adapt them to the state-in/state-out node contract.
 """
@@ -36,6 +41,7 @@ from src.agents.gap_analyzer import gap_analysis
 from src.agents.jd_analyzer import analyze_jd
 from src.agents.parser import parse_resume
 from src.agents.recruiters import recruiter_panel
+from src.agents.validators import check_bullet_lengths
 from src.agents.writer import write_resume
 from src.compiler.identity_check import check_identity
 from src.compiler.renderer import render
@@ -188,6 +194,17 @@ def route_after_identity(state: PipelineState) -> str:
     return "emit"
 
 
+def route_after_bullet_check(state: PipelineState) -> str:
+    """Route based on bullet length violations.
+
+    - No violations → ``render_node`` (proceed to render)
+    - Violations → ``writer`` (fix length violations)
+    """
+    if state.get("length_violations"):
+        return "writer"
+    return "render_node"
+
+
 def route_after_compile(state: PipelineState) -> str:
     """ok → ``recruiter_panel``; fail & retries left → ``writer``; else ``emit``.
 
@@ -231,6 +248,7 @@ def build_graph(enable_scoring: bool = False):
     builder.add_node("analyze_jd", analyze_jd)
     builder.add_node("gap_analysis", gap_analysis)
     builder.add_node("writer", write_resume)
+    builder.add_node("check_bullet_lengths", check_bullet_lengths)
     builder.add_node("render_node", render_node)
     builder.add_node("identity_check_node", identity_check_node)
     builder.add_node("compile_node", compile_node)
@@ -245,8 +263,14 @@ def build_graph(enable_scoring: bool = False):
     builder.add_edge("analyze_jd", "gap_analysis")
     builder.add_edge("gap_analysis", "writer")
 
-    # Writer → render → identity check.
-    builder.add_edge("writer", "render_node")
+    # Writer → bullet length check → render → identity check.
+    # Length violations route back to writer; clean bullets proceed to render.
+    builder.add_edge("writer", "check_bullet_lengths")
+    builder.add_conditional_edges(
+        "check_bullet_lengths",
+        route_after_bullet_check,
+        {"writer": "writer", "render_node": "render_node"},
+    )
     builder.add_edge("render_node", "identity_check_node")
 
     # identity: violations (within budget) → writer; exhausted → emit; clean → compile.

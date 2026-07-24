@@ -34,13 +34,13 @@ def gap_analysis(state: PipelineState) -> dict:
     struct = state["resume_struct"]
     vector = state["jd_vector"]
     log.info(
-        "gap_analysis | %d roles vs %d JD skills → sending to %s",
+        "gap_analysis | %d roles vs %d JD skills → sending to %s (effort=high)",
         len(struct.roles),
         len(vector.weighted_skills),
         MODEL_GAP,
     )
     user_msg = build_user_message(struct, vector)
-    wrapper = parse_gap(GAP_SYSTEM, user_msg, GapTargets)
+    wrapper = parse_gap(GAP_SYSTEM, user_msg, GapTargets, effort="high")
     targets = list(wrapper.targets)
     no_ev = sum(1 for t in targets if t.no_evidence)
     active = [t for t in targets if not t.no_evidence]

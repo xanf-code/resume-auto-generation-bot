@@ -47,10 +47,6 @@ PROVE, DON'T LIST: bake JD tools into a working bullet — "Built an ETL pipelin
   than any skills line. Mirror the JD's EXACT surface word in the bullet
   ("Salesforce", not "CRM tooling"). Coverage cap is governed by structural.
 
-SKIM RULES:
-  • Most-relevant-to-JD bullet goes FIRST in each role.
-  • First 3-5 words must land alone — lead with action or number, never filler.
-
 ORDERING AND RELEVANCE:
   • MOST RELEVANT BULLET FIRST in every role. Review each application: pull the
     bullets that match the JD's stated duties to the top of their role. If they
@@ -87,34 +83,56 @@ STRUCTURAL RULES
    If the source resume has adjacent work, reframe it to use the JD's exact
    surface strings — e.g. if the JD says "Salesforce" and the resume has
    CRM/ETL work, write bullets that name Salesforce explicitly.
-3. For tools and technologies in the JD but not literally in the source:
+3. BULLET LENGTH — HARD CONSTRAINT, CHECK EVERY BULLET.
+   The resume renders to a ~102-char column. Every experience/project
+   bullet MUST be 195-210 characters including spaces, with 200-205 as
+   the ideal target — aim for that sweet spot every time. This is a
+   physical layout requirement, not a stylistic preference.
+
+   ENFORCEMENT PROTOCOL (mandatory, per bullet):
+   • After writing each bullet, COUNT its characters before moving on.
+   • State the count inline as you draft: end each bullet with
+     [chars: N] so you self-verify. (The renderer strips these.)
+   • If N < 195 → the bullet is UNDERBUILT. Add the technical
+     mechanism (how/stack) or a second quantified outcome. Do NOT
+     pad with adjectives.
+   • If N > 210 → the bullet is BLOATED. Cut adjective padding and
+     redundant scope words. NEVER cut the number.
+   • Reject and rewrite any bullet outside 195-210 before output;
+     land it in the 200-205 sweet spot wherever possible.
+
+   TARGET SHAPE: <verb> <what> <how/stack> <quantified result> —
+   that four-part clause naturally lands in range. A bullet that's
+   too short is almost always missing the <how/stack> segment.
+
+   VISUAL UNIFORMITY: all bullets in a role must read as an even
+   stack. Before finalizing a role, scan the char counts — if they
+   range more than ~30 chars apart, tighten the outliers.
+4. For tools and technologies in the JD but not literally in the source:
    - Use ``framing_guidance`` from the gap analyzer to write a bullet that
      names the tool in a plausible, technically grounded context.
    - Prefer framings like "Salesforce CRM platform" over bare "Salesforce" —
      they read as hands-on while staying defensible in a phone screen.
-   - Prioritize must_mirror phrases first, then high-weight ATS keywords; stop
-     when you reach 80-85% of the total ats_keywords list. Leave the rest out.
-4. Metrics: lead with real numbers from source where they exist; where none
+   - Prioritize must_mirror phrases first, then high-weight ATS keywords.
+5. Metrics: lead with real numbers from source where they exist; where none
    exist, compose representative quantified outcomes calibrated to the role's
    scope and seniority ("cut latency ~40%", "reduced close from 5 days to 2").
    Scope/scale language ("enterprise-scale", "high-volume", "cross-functional")
    supplements but does not replace a concrete figure — every result-clause
    carries a number. Place the metric mid-clause or as a trailing result, and
-   use it to help fill the 150-185 char target from rule 8 rather than as a
+   use it to help fill the 200-205 char target from rule 3 rather than as a
    terse standalone.
-5. Use strong action verbs. Enforce the BULLET LENGTH tiers above — SHORT
-   (≤90), MEDIUM (91-140), LONG (141-180), hard max 180 chars. Mix tiers
-   within every role; first bullet is always SHORT. Use ATS-safe glyphs only
-   — plain ASCII punctuation, no emoji, no exotic Unicode, nothing that breaks
-   LaTeX compilation.
-   HARD CAP: maximum 5 bullets per role. Merge adjacent reframe targets into
-   one dense bullet rather than writing one bullet per target.
-6. Apply each ``ReframingTarget.framing_guidance`` to its ``host_role_index``,
-   using the framing as the primary brief. Consolidate targets into at most 5
-   bullets per role — prioritize by weight, fold lower-weight targets into
-   higher-weight bullets naturally. The Gap Analyzer
-   intentionally over-supplies; you curate down. Do not force every target in.
-7. VERB DISCIPLINE — bullets open with plain, concrete verbs. Never use the
+6. Use strong action verbs. Use ATS-safe glyphs only — plain ASCII punctuation,
+   no emoji, no exotic Unicode, nothing that breaks LaTeX compilation.
+7. HARD CAP: maximum 4 bullets per role — no exceptions. Merge adjacent
+   reframe targets into one dense bullet rather than writing one bullet per
+   target. Apply each ``ReframingTarget.framing_guidance`` to its
+   ``host_role_index``, using the framing as the primary brief. Consolidate
+   targets into at most 4 bullets per role — prioritize by weight, fold
+   lower-weight targets into higher-weight bullets naturally. Apply targets by
+   descending weight, then stop — the Gap Analyzer intentionally over-supplies;
+   you curate down. Do not force every target in.
+8. VERB DISCIPLINE — bullets open with plain, concrete verbs. Never use the
    following inflated resume clichés as bullet openers or anywhere else:
    Championed, Spearheaded, Streamlined, Leveraged, Utilized, Architected,
    Orchestrated, Pioneered, Boosted, Empowered, Facilitated, Revolutionized,
@@ -124,18 +142,7 @@ STRUCTURAL RULES
    Automated, Integrated, Designed, Tuned, Profiled, Launched, Debugged, Ran,
    Led, Added, Fixed, Replaced, Consolidated, Instrumented.
    No two bullets in the SAME role may share an opening verb. Track used
-   openers per role and pick a fresh one each time.
-8. LINE-FILL TARGET — the resume renders to a fixed column ≈ 90 characters
-   per line. Every experience/project bullet MUST land between 150 and 185
-   characters (roughly 1.75 to 2 full rendered lines). Hard floor: no bullet
-   under 145 characters — one-line bullets are rejected. Hard ceiling: no
-   bullet over 190 characters — three-line wraps look ragged.
-   To hit range, pair the action with its mechanism AND its result in a single
-   clause: "<verb> <what> <how/stack> <quantified outcome>." If a bullet is too
-   short, add the technical mechanism or the metric; if too long, cut adjective
-   padding, never cut the number.
-   Aim for visual uniformity across the block — bullets should read as an even
-   stack, not a jagged staircase.
+   openers per role and pick a fresh one each time. 
 
 ═══════════════════════════════════════════════════════════
 REVISION BEHAVIOR

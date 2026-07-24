@@ -208,6 +208,41 @@ def test_build_writer_user_message_no_violations_section_when_absent():
     assert "IDENTITY VIOLATIONS" not in msg
 
 
+# --- build_writer_user_message: length violations ------------------------------
+
+
+def test_build_writer_user_message_includes_length_violations():
+    """length_violations present → LENGTH VIOLATIONS section appears."""
+    state = _first_iteration_state()
+    state["writer_output"] = _writer_output()
+    state["length_violations"] = [
+        "Role 0 bullet 0: 142 chars (SHORT by 16). Target: 158-180 chars.",
+        "Role 0 bullet 1: 195 chars (LONG by 15). Target: 158-180 chars.",
+    ]
+    msg = writer.build_writer_user_message(state)
+
+    assert "LENGTH VIOLATIONS" in msg
+    assert "Role 0 bullet 0: 142 chars" in msg
+    assert "Role 0 bullet 1: 195 chars" in msg
+    assert "fix ONLY these bullets to 158-180 chars" in msg
+
+
+def test_build_writer_user_message_no_length_violations_when_empty():
+    """Empty length_violations list → no LENGTH VIOLATIONS section."""
+    state = _first_iteration_state()
+    state["length_violations"] = []
+    msg = writer.build_writer_user_message(state)
+
+    assert "LENGTH VIOLATIONS" not in msg
+
+
+def test_build_writer_user_message_no_length_violations_when_absent():
+    """Absent length_violations key → no LENGTH VIOLATIONS section."""
+    msg = writer.build_writer_user_message(_first_iteration_state())
+
+    assert "LENGTH VIOLATIONS" not in msg
+
+
 # --- write_resume node ---------------------------------------------------------
 
 

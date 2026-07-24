@@ -88,6 +88,15 @@ def build_writer_user_message(state: PipelineState) -> str:
             violations_text,
         ]
 
+    length_violations = state.get("length_violations")
+    if length_violations:
+        violations_text = "\n".join(length_violations)
+        sections += [
+            "",
+            "## LENGTH VIOLATIONS (fix ONLY these bullets to 158-180 chars, keep the rest)",
+            violations_text,
+        ]
+
     compile_errors = state.get("compile_errors")
     if compile_errors:
         sections += [
