@@ -16,6 +16,7 @@ from pathlib import Path
 
 from config.settings import MAX_ITERATIONS, require_api_key
 from src.pipeline.graph import build_graph
+from src.pipeline.schemas import IdentityLedger, ResumeStruct
 
 # ---------------------------------------------------------------------------
 # Logging — configured once here; every module uses getLogger(__name__)
@@ -112,8 +113,20 @@ def _print_progress(state: dict) -> None:
         print(f"  aggregate = {agg:.2f}   →   {verdict}")
 
 
-def run(resume_path: str, jd_path: str, out_dir: str, enable_scoring: bool = False) -> dict:
-    """Execute the pipeline. Requires the API key (fires the fail-fast gate)."""
+def run(
+    resume_path: str,
+    jd_path: str,
+    out_dir: str,
+    enable_scoring: bool = False,
+    resume_struct: ResumeStruct | None = None,
+    identity_ledger: IdentityLedger | None = None,
+) -> dict:
+    """Execute the pipeline. Requires the API key (fires the fail-fast gate).
+
+    ``resume_struct``/``identity_ledger`` let a caller that already parsed this
+    exact resume (e.g. batch mode, running one resume against many JDs) skip
+    the parser LLM call — ``parse_resume`` short-circuits when both are seeded.
+    """
     require_api_key()  # fail fast before any node runs
 
     resume_tex_raw = _read_text(resume_path)
@@ -129,6 +142,10 @@ def run(resume_path: str, jd_path: str, out_dir: str, enable_scoring: bool = Fal
         "jd_name": Path(jd_path).stem,
         "enable_scoring": enable_scoring,
     }
+    if resume_struct is not None:
+        initial_state["resume_struct"] = resume_struct
+    if identity_ledger is not None:
+        initial_state["identity_ledger"] = identity_ledger
 
     graph = build_graph(enable_scoring=enable_scoring)
     config = {"recursion_limit": _RECURSION_LIMIT}

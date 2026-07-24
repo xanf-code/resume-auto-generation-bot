@@ -12,11 +12,27 @@ from typing import Generator, TypeVar
 import openai
 from pydantic import BaseModel
 
-from config.settings import MODEL_FAST, MODEL_GAP, MODEL_SCORING, MODEL_STRONG, require_api_key
+from config.settings import (
+    EFFORT_GAP,
+    EFFORT_STRONG,
+    MODEL_FAST,
+    MODEL_GAP,
+    MODEL_SCORING,
+    MODEL_STRONG,
+    require_api_key,
+)
 
 SchemaT = TypeVar("SchemaT", bound=BaseModel)
 
+# Sized just under gpt-4o-mini's real 16,384-token output ceiling
+# (MODEL_FAST / MODEL_SCORING) — do not raise this without checking that cap.
 DEFAULT_MAX_TOKENS = 16000
+# MODEL_STRONG / MODEL_GAP are Anthropic reasoning models whose extended-
+# thinking tokens bill against the SAME completion budget as the structured
+# output. DEFAULT_MAX_TOKENS is too tight for them — reasoning alone can eat
+# the ceiling before the schema is emitted, surfacing as
+# openai.LengthFinishReasonError. These two calls get more headroom.
+REASONING_MAX_TOKENS = 32000
 
 # Per-run model overrides — set by model_context(); default to None (→ config constants).
 _ctx_model_fast: ContextVar[str | None] = ContextVar("model_fast", default=None)
@@ -82,7 +98,15 @@ def _parse(
     schema: type[SchemaT],
     model: str,
     max_tokens: int,
+    effort: str | None = None,
 ) -> SchemaT:
+    extra_kwargs = {}
+    if effort is not None:
+        # OpenRouter's unified reasoning parameter — not a native OpenAI SDK
+        # field, so it must go through extra_body. Anthropic reasoning models
+        # translate this into a thinking-effort depth; the thinking token
+        # budget itself is calculated from max_tokens.
+        extra_kwargs["extra_body"] = {"reasoning": {"effort": effort}}
     response = client().beta.chat.completions.parse(
         model=model,
         max_tokens=max_tokens,
@@ -91,6 +115,7 @@ def _parse(
             {"role": "user", "content": user},
         ],
         response_format=schema,
+        **extra_kwargs,
     )
     usage_log = _ctx_usage.get()
     if usage_log is not None and response.usage:
@@ -122,24 +147,25 @@ def parse_strong(
     system: str,
     user: str,
     schema: type[SchemaT],
-    effort: str = "high",
-    max_tokens: int = DEFAULT_MAX_TOKENS,
+    effort: str = EFFORT_STRONG,
+    max_tokens: int = REASONING_MAX_TOKENS,
 ) -> SchemaT:
     """Structured parse on the strong model.
 
-    ``effort`` is accepted for call-site compatibility but not forwarded;
-    OpenRouter does not support this Anthropic-specific parameter.
+    ``effort`` defaults to ``config.settings.EFFORT_STRONG`` and is forwarded
+    to OpenRouter's unified reasoning parameter — change it in settings to
+    retune reasoning depth without touching call sites.
     """
     model = _ctx_model_strong.get() or MODEL_STRONG
-    return _parse(system, user, schema, model, max_tokens)
+    return _parse(system, user, schema, model, max_tokens, effort=effort)
 
 
 def parse_gap(
     system: str,
     user: str,
     schema: type[SchemaT],
-    effort: str = "high",
-    max_tokens: int = DEFAULT_MAX_TOKENS,
+    effort: str = EFFORT_GAP,
+    max_tokens: int = REASONING_MAX_TOKENS,
 ) -> SchemaT:
     """Structured parse on the gap analyzer model.
 
@@ -147,11 +173,12 @@ def parse_gap(
     and strong reasoning to produce effective framing guidance, so it uses a
     more capable model than the parser/JD analyzer.
 
-    ``effort`` is accepted for call-site compatibility but not forwarded;
-    OpenRouter does not support this Anthropic-specific parameter.
+    ``effort`` defaults to ``config.settings.EFFORT_GAP`` and is forwarded to
+    OpenRouter's unified reasoning parameter — change it in settings to
+    retune reasoning depth without touching call sites.
     """
     model = _ctx_model_gap.get() or MODEL_GAP
-    return _parse(system, user, schema, model, max_tokens)
+    return _parse(system, user, schema, model, max_tokens, effort=effort)
 
 
 def parse_scoring(

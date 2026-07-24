@@ -11,7 +11,7 @@ next draft see" behaviour is directly testable without any API call.
 import logging
 import re
 
-from config.settings import MODEL_STRONG
+from config.settings import EFFORT_STRONG, MODEL_STRONG
 from src.pipeline.llm import parse_strong
 
 log = logging.getLogger(__name__)
@@ -51,18 +51,15 @@ def sanitize_writer_output(output: WriterOutput) -> WriterOutput:
     return output.model_copy(update={"roles": cleaned_roles})
 
 
-def render_revision_notes(revision_notes: object) -> str:
-    """Render the revision directives into prompt text.
+def render_revision_notes(revision_notes: list[str] | None) -> str:
+    """Render the ranked revision directives into prompt text.
 
-    The aggregator emits ``list[str]`` (ranked directives); a legacy lone
-    ``str`` is also accepted so callers can pass either shape. A list is
+    The aggregator emits ``list[str]`` (ranked directives). A list is
     enumerated ("1. ..."), preserving the aggregator's ranking; an empty/None
     value renders "(none)".
     """
-    if revision_notes is None:
+    if not revision_notes:
         return "(none)"
-    if isinstance(revision_notes, str):
-        return revision_notes or "(none)"
     directives = [str(note).strip() for note in revision_notes if str(note).strip()]
     if not directives:
         return "(none)"
@@ -147,14 +144,15 @@ def write_resume(state: PipelineState) -> dict:
     has_compile_err = bool(state.get("compile_errors"))
     log.info(
         "writer       | iteration=%d  revision_notes=%s  compile_errors=%s  "
-        "→ sending to %s (effort=high)",
+        "→ sending to %s (effort=%s)",
         iteration,
         "yes" if has_revision else "no",
         "yes" if has_compile_err else "no",
         MODEL_STRONG,
+        EFFORT_STRONG,
     )
     user_msg = build_writer_user_message(state)
-    output = parse_strong(WRITER_SYSTEM, user_msg, WriterOutput, effort="high")
+    output = parse_strong(WRITER_SYSTEM, user_msg, WriterOutput)
     # Strip the model's [chars: N] self-verification tags before anything
     # downstream sees them — the validator must count clean bullets and the
     # renderer must never leak the tags into the PDF.

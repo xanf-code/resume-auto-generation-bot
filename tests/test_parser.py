@@ -101,6 +101,53 @@ def test_parse_resume_does_not_mutate_input_state(monkeypatch):
     assert state == {"resume_tex_raw": SAMPLE_TEX}
 
 
+def test_parse_resume_skips_llm_call_when_cached(monkeypatch):
+    """When resume_struct + identity_ledger are already in state (seeded by a
+    caller that parsed this resume once — e.g. a batch run reusing the parse
+    across multiple JDs), parse_resume must NOT call parse_fast and must
+    return the cached pair unchanged."""
+    called = {"n": 0}
+
+    def fake_parse_fast(*a, **k):
+        called["n"] += 1
+        return _fixed_struct()
+
+    monkeypatch.setattr(parser, "parse_fast", fake_parse_fast)
+
+    struct = _fixed_struct()
+    ledger = _ledger_from_struct(struct)
+    state = {
+        "resume_tex_raw": SAMPLE_TEX,
+        "resume_struct": struct,
+        "identity_ledger": ledger,
+    }
+
+    out = parser.parse_resume(state)
+
+    assert called["n"] == 0, "parse_fast must not be called when a cached struct/ledger is present"
+    assert out == {"resume_struct": struct, "identity_ledger": ledger}
+    assert out["resume_struct"] is struct
+    assert out["identity_ledger"] is ledger
+
+
+def test_parse_resume_cache_requires_both_fields(monkeypatch):
+    """A partially-seeded state (only one of the two cached fields) must still
+    parse via the LLM — the cache short-circuit only fires when BOTH are present."""
+    struct = _fixed_struct()
+    captured = {}
+
+    def fake_parse_fast(system, user, schema, **kwargs):
+        captured["called"] = True
+        return _fixed_struct()
+
+    monkeypatch.setattr(parser, "parse_fast", fake_parse_fast)
+
+    state = {"resume_tex_raw": SAMPLE_TEX, "resume_struct": struct}
+    parser.parse_resume(state)
+
+    assert captured.get("called") is True
+
+
 def _ledger_from_struct(struct: ResumeStruct) -> IdentityLedger:
     return parser.derive_ledger(struct, name="Jane Doe", contact="jane.doe@example.com")
 

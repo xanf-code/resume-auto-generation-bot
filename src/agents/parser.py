@@ -19,9 +19,8 @@ from src.prompts.extraction import PARSER_SYSTEM
 
 _IDENTITY_FIELDS = ("company", "title", "start", "end")
 
-# A LaTeX command wrapper like \textbf{Jane Doe} -> "Jane Doe".
-_TEX_COMMAND = re.compile(r"\\[a-zA-Z]+\*?\{([^{}]*)\}")
-# Same, but capturing the command name too, so we can skip structural commands.
+# A LaTeX command wrapper like \textbf{Jane Doe} -> "Jane Doe", capturing the
+# command name too so callers can skip structural commands.
 _TEX_COMMAND_NAMED = re.compile(r"\\([a-zA-Z]+)\*?\{([^{}]*)\}")
 # A plausible email address.
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
@@ -48,12 +47,6 @@ _STRUCTURAL_CMDS = frozenset({
 })
 
 _DOCUMENT_MARKER = "\\begin{document}"
-
-
-def _strip_tex(value: str) -> str:
-    """Collapse the outermost LaTeX command wrapper and trim whitespace."""
-    match = _TEX_COMMAND.search(value)
-    return (match.group(1) if match else value).strip()
 
 
 def _looks_like_name(value: str) -> bool:
@@ -156,7 +149,19 @@ def assert_ledger_matches_source(
 
 
 def parse_resume(state: PipelineState) -> dict:
-    """Node: parse the raw resume and derive its identity ledger."""
+    """Node: parse the raw resume and derive its identity ledger.
+
+    Skips the parser LLM call entirely when ``resume_struct`` and
+    ``identity_ledger`` are already present in state — seeded by a caller that
+    parsed this exact resume once already (e.g. a batch run reusing one parse
+    across many JDs instead of re-parsing per JD).
+    """
+    cached_struct = state.get("resume_struct")
+    cached_ledger = state.get("identity_ledger")
+    if cached_struct is not None and cached_ledger is not None:
+        log.info("parse_resume | resume_struct/identity_ledger cached — skipping LLM call")
+        return {"resume_struct": cached_struct, "identity_ledger": cached_ledger}
+
     resume_tex_raw = state["resume_tex_raw"]
     log.info("parse_resume | sending %d chars to %s", len(resume_tex_raw), MODEL_FAST)
     struct = parse_fast(PARSER_SYSTEM, resume_tex_raw, ResumeStruct)

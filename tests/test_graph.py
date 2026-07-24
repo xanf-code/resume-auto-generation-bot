@@ -18,7 +18,15 @@ from config.settings import (
     MAX_LENGTH_RETRIES,
 )
 from src.pipeline import graph as graph_mod
-from src.pipeline.schemas import RoleBullets, WriterOutput
+from src.pipeline.schemas import (
+    JDVector,
+    PanelScore,
+    ResumeRole,
+    ResumeStruct,
+    RoleBullets,
+    SkillWeight,
+    WriterOutput,
+)
 
 
 # --- build_graph: compiles ----------------------------------------------------
@@ -715,3 +723,93 @@ def test_bookkeep_resets_length_counters_on_loop():
     assert out["iteration"] == 2
     assert out["length_retries"] == 0
     assert out["length_violations"] is None
+
+
+# --- recruiter-panel exact-match cache survives compiled-graph channels -------
+#
+# Same bug class as the length_violations history above: if panel_cache_latex /
+# panel_cache_scores were not declared on PipelineState, LangGraph would drop
+# them between node hops and the panel would re-run every iteration even when
+# the rendered draft is identical. This test runs the REAL recruiter_panel node
+# (only its underlying LLM call, score_one, is mocked) through two iterations
+# with byte-identical latex_rendered, and pins that the persona calls fire once.
+
+
+def test_panel_cache_persists_through_compiled_graph_channels(monkeypatch):
+    """Regression guard: an unchanged draft across iterations must NOT
+    re-trigger the 4-persona panel — the cache must survive real channel
+    plumbing, not just an in-memory dict passed directly to the function."""
+    from src.agents import recruiters as recruiters_mod
+
+    call_count = {"n": 0}
+
+    async def fake_score_one(persona_name, system, user):
+        call_count["n"] += 1
+        return PanelScore(
+            persona=persona_name, keyword_match=80, impact_quality=80,
+            coherence=80, plausibility=80, formatting=80, notes="ok",
+        )
+
+    monkeypatch.setattr(recruiters_mod, "score_one", fake_score_one)
+
+    # recruiter_panel is real here, so its inputs must be real schema
+    # instances (it calls .model_dump_json() on both).
+    resume_struct = ResumeStruct(
+        roles=[
+            ResumeRole(
+                company="Acme Corp", title="Engineer", start="2020", end="Present",
+                source_evidence=["Built things."],
+            ),
+        ],
+        education=["BS Computer Science"],
+        skills=["Python"],
+    )
+    jd_vector = JDVector(
+        weighted_skills=[SkillWeight(name="Python", weight=0.9)],
+        ats_keywords=["Python"],
+        seniority="mid",
+        must_mirror=["Python"],
+    )
+
+    monkeypatch.setattr(
+        graph_mod, "parse_resume",
+        lambda s: {"resume_struct": resume_struct, "identity_ledger": "LEDGER"},
+    )
+    monkeypatch.setattr(graph_mod, "analyze_jd", lambda s: {"jd_vector": jd_vector})
+    monkeypatch.setattr(graph_mod, "gap_analysis", lambda s: {"gap_targets": []})
+    monkeypatch.setattr(graph_mod, "write_resume", lambda s: {"writer_output": "WO"})
+    monkeypatch.setattr(graph_mod, "check_bullet_lengths", lambda s: {"length_violations": None})
+    # render_node ALWAYS emits the identical draft — the exact case the cache targets.
+    monkeypatch.setattr(graph_mod, "render_node", lambda s: {"latex_rendered": "SAME LATEX EVERY TIME"})
+    monkeypatch.setattr(graph_mod, "identity_check_node", lambda s: {"identity_violations": []})
+    monkeypatch.setattr(
+        graph_mod, "compile_node",
+        lambda s: {"compile_ok": True, "compile_errors": "", "pdf_path": "/tmp/x.pdf", "compile_retries": 0},
+    )
+    # recruiter_panel is intentionally left REAL — it is the unit under test.
+
+    agg_calls = {"n": 0}
+
+    def agg_flip(state):
+        agg_calls["n"] += 1
+        if agg_calls["n"] == 1:
+            return {"passed": False, "aggregate_score": 70.0, "revision_notes": ["1. improve"]}
+        return {"passed": True, "aggregate_score": 95.0}
+
+    monkeypatch.setattr(graph_mod, "aggregator", agg_flip)
+    monkeypatch.setattr(graph_mod, "emit_node", lambda s: {"emitted": True})
+
+    compiled = graph_mod.build_graph(enable_scoring=False)
+    result = compiled.invoke(
+        {"resume_tex_raw": "R", "jd_raw": "J", "iteration": 1, "compile_retries": 0},
+        {"recursion_limit": 100},
+    )
+
+    assert result.get("emitted") is True
+    assert agg_calls["n"] >= 2, "aggregator must run at least twice (looped on fail)"
+    assert call_count["n"] == 4, (
+        "panel_cache_latex/panel_cache_scores must survive LangGraph's channel "
+        "plumbing across iterations — if this is 8, the cache state is being "
+        "dropped between node hops and the panel re-ran on the second, "
+        "identical draft"
+    )

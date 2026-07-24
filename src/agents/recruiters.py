@@ -95,7 +95,21 @@ async def run_panel(state: PipelineState) -> list[PanelScore]:
 
 
 def recruiter_panel(state: PipelineState) -> dict:
-    """Node: run the four-persona panel and return their scores."""
+    """Node: run the four-persona panel and return their scores.
+
+    Exact-match memoized on ``latex_rendered``: when the current draft is
+    byte-identical to the one scored last (``panel_cache_latex``) — which
+    happens when the writer plateaus and re-emits the same content across
+    revision iterations — the panel is skipped entirely and the cached scores
+    are reused instead of re-running all four persona calls.
+    """
+    latex_rendered = state["latex_rendered"]
+    cached_latex = state.get("panel_cache_latex")
+    cached_scores = state.get("panel_cache_scores")
+    if cached_latex == latex_rendered and cached_scores is not None:
+        log.info("recruiter    | latex unchanged since last scoring — reusing cached panel scores")
+        return {"panel_scores": cached_scores, "panel_cache_latex": cached_latex, "panel_cache_scores": cached_scores}
+
     log.info("recruiter    | spawning 4 %s personas concurrently…", MODEL_SCORING)
     scores = asyncio.run(run_panel(state))
     for s in scores:
@@ -104,4 +118,4 @@ def recruiter_panel(state: PipelineState) -> dict:
             s.persona, s.keyword_match, s.impact_quality,
             s.coherence, s.plausibility, s.formatting,
         )
-    return {"panel_scores": scores}
+    return {"panel_scores": scores, "panel_cache_latex": latex_rendered, "panel_cache_scores": scores}

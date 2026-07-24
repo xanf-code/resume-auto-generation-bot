@@ -12,9 +12,13 @@ load_dotenv()
 
 # --- Loop / scoring thresholds ------------------------------------------------
 THRESHOLD = 78          # lowered from 88 — fabrication mode; plausibility caps ~85
-MAX_ITERATIONS = 6
-MAX_COMPILE_RETRIES = 4
-MAX_IDENTITY_RETRIES = 4
+# Tightened from 6/4/4 — the writer loop (MODEL_STRONG) is the dominant
+# pipeline cost. On cap-hit the pipeline already ships the best-scoring draft
+# seen so far, so a smaller worst-case tail trims cost with near-zero
+# happy-path pass-rate impact.
+MAX_ITERATIONS = 4
+MAX_COMPILE_RETRIES = 2
+MAX_IDENTITY_RETRIES = 2
 # Per-iteration budget for the bullet-length loop. On exhaustion the pipeline
 # proceeds to render with the best-effort draft (never blocks on a cosmetic
 # gate), guaranteeing the writer↔check loop can't spin forever.
@@ -41,8 +45,17 @@ RUBRIC_WEIGHTS = {
 # - MODEL_SCORING: Scoring panel (independent evaluation, eliminates writer bias, effort=low)
 MODEL_STRONG = "anthropic/claude-sonnet-5"
 MODEL_FAST = "openai/gpt-4o-mini"
-MODEL_GAP = "anthropic/claude-opus-4.8"
+MODEL_GAP = "anthropic/claude-opus-5"
 MODEL_SCORING = "openai/gpt-4o-mini"
+
+# --- Reasoning effort ----------------------------------------------------------
+# Forwarded to OpenRouter's unified `reasoning` parameter
+# (extra_body={"reasoning": {"effort": ...}}), which Anthropic reasoning models
+# honor as thinking-effort depth. Only MODEL_STRONG / MODEL_GAP are reasoning
+# models — MODEL_FAST / MODEL_SCORING (gpt-4o-mini) don't take an effort knob.
+# Valid values: "low" | "medium" | "high" | "max" | "x-high".
+EFFORT_STRONG = "medium"  # Writer (creative optimization, keyword balancing)
+EFFORT_GAP = "medium"     # Gap Analyzer (creative reframing strategy)
 
 _API_KEY_ENV = "OPENROUTER_API_KEY"
 

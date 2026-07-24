@@ -84,7 +84,7 @@ def test_recruiter_panel_returns_four_distinct_scores(monkeypatch):
 
     out = recruiters.recruiter_panel(_state())
 
-    assert set(out.keys()) == {"panel_scores"}
+    assert set(out.keys()) == {"panel_scores", "panel_cache_latex", "panel_cache_scores"}
     scores = out["panel_scores"]
     assert len(scores) == 4
     assert all(isinstance(s, PanelScore) for s in scores)
@@ -146,3 +146,70 @@ def test_recruiter_panel_does_not_mutate_input_state(monkeypatch):
     recruiters.recruiter_panel(state)
     assert set(state.keys()) == snapshot_keys
     assert "panel_scores" not in state
+
+
+# --- exact-match panel-score cache (Tier 3 cost optimization) -----------------
+
+
+def test_recruiter_panel_reuses_cached_scores_when_latex_unchanged(monkeypatch):
+    """When latex_rendered is byte-identical to panel_cache_latex (the writer
+    produced the same draft as last time it was scored), the panel must NOT
+    re-run any persona call — it reuses panel_cache_scores verbatim."""
+    call_count = {"n": 0}
+
+    async def fake_score_one(persona_name, system, user):
+        call_count["n"] += 1
+        return _canned(persona_name)
+
+    monkeypatch.setattr(recruiters, "score_one", fake_score_one)
+
+    cached_scores = [_canned(name) for name in recruiters.PERSONAS]
+    state = _state()
+    state["panel_cache_latex"] = state["latex_rendered"]
+    state["panel_cache_scores"] = cached_scores
+
+    out = recruiters.recruiter_panel(state)
+
+    assert call_count["n"] == 0, "cache hit must skip every persona call"
+    assert out["panel_scores"] == cached_scores
+    assert out["panel_cache_latex"] == state["latex_rendered"]
+    assert out["panel_cache_scores"] == cached_scores
+
+
+def test_recruiter_panel_runs_and_updates_cache_when_latex_changes(monkeypatch):
+    """A different latex_rendered than what's cached is a cache MISS — the
+    panel runs normally and the cache is refreshed to the new draft/scores."""
+    call_count = {"n": 0}
+
+    async def fake_score_one(persona_name, system, user):
+        call_count["n"] += 1
+        return _canned(persona_name)
+
+    monkeypatch.setattr(recruiters, "score_one", fake_score_one)
+
+    state = _state()
+    state["panel_cache_latex"] = "SOME OLDER DRAFT"
+    state["panel_cache_scores"] = [_canned(name) for name in recruiters.PERSONAS]
+
+    out = recruiters.recruiter_panel(state)
+
+    assert call_count["n"] == 4, "cache miss must run all four persona calls"
+    assert out["panel_cache_latex"] == state["latex_rendered"]
+    assert out["panel_cache_scores"] == out["panel_scores"]
+
+
+def test_recruiter_panel_first_call_has_no_cache_and_runs_normally(monkeypatch):
+    """No panel_cache_latex/panel_cache_scores present (first-ever scoring
+    pass) must behave exactly like a cache miss, not raise or skip."""
+    call_count = {"n": 0}
+
+    async def fake_score_one(persona_name, system, user):
+        call_count["n"] += 1
+        return _canned(persona_name)
+
+    monkeypatch.setattr(recruiters, "score_one", fake_score_one)
+
+    out = recruiters.recruiter_panel(_state())
+
+    assert call_count["n"] == 4
+    assert out["panel_cache_latex"] == _state()["latex_rendered"]

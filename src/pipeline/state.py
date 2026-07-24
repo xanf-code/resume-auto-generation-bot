@@ -39,11 +39,17 @@ class PipelineState(TypedDict, total=False):
 
     # --- eval -----------------------------------------------------------------
     panel_scores: list[PanelScore]
+    # Exact-match memoization for the recruiter panel: the rendered LaTeX last
+    # scored, and the scores it produced. When a later iteration's
+    # latex_rendered is byte-identical (the writer converged/plateaued),
+    # recruiter_panel reuses these instead of re-running all four persona
+    # calls. MUST be declared here — LangGraph silently drops updates to
+    # channels absent from this schema (see length_violations history above).
+    panel_cache_latex: str
+    panel_cache_scores: list[PanelScore]
     aggregate_score: float
     passed: bool
-    # Ranked revision directives distilled by the aggregator. Widened from
-    # ``str`` to ``list[str]`` in Phase 6 to match the aggregator's output; the
-    # Writer renders either shape (a lone legacy string is still accepted).
+    # Ranked revision directives distilled by the aggregator.
     revision_notes: list[str]
 
     # --- length gate ----------------------------------------------------------

@@ -5,6 +5,9 @@
 message-construction behaviour — the core of the Writer's testable surface — plus
 the node's contract: it writes ``writer_output`` and never mutates input state.
 """
+import logging
+
+from config.settings import EFFORT_STRONG
 from src.agents import writer
 from src.pipeline.schemas import (
     JDVector,
@@ -121,7 +124,7 @@ def test_revision_iteration_includes_prior_draft_and_notes():
     state = _first_iteration_state()
     state["iteration"] = 2
     state["writer_output"] = _writer_output()
-    state["revision_notes"] = "1. Strengthen the impact verb on the CRM bullet."
+    state["revision_notes"] = ["Strengthen the impact verb on the CRM bullet."]
 
     msg = writer.build_writer_user_message(state)
 
@@ -136,7 +139,7 @@ def test_revision_notes_trigger_section_without_explicit_iteration():
     """revision_notes present is sufficient to include the revision section."""
     state = _first_iteration_state()
     state["writer_output"] = _writer_output()
-    state["revision_notes"] = "1. Tighten the opening bullet."
+    state["revision_notes"] = ["Tighten the opening bullet."]
 
     msg = writer.build_writer_user_message(state)
 
@@ -150,8 +153,8 @@ def test_different_revision_notes_produce_different_messages():
     base["iteration"] = 2
     base["writer_output"] = _writer_output()
 
-    state_a = {**base, "revision_notes": "1. Add a quantified metric to bullet 1."}
-    state_b = {**base, "revision_notes": "1. Remove jargon from bullet 2."}
+    state_a = {**base, "revision_notes": ["Add a quantified metric to bullet 1."]}
+    state_b = {**base, "revision_notes": ["Remove jargon from bullet 2."]}
 
     msg_a = writer.build_writer_user_message(state_a)
     msg_b = writer.build_writer_user_message(state_b)
@@ -265,11 +268,26 @@ def test_write_resume_writes_output_and_uses_correct_schema(monkeypatch):
     assert set(out.keys()) == {"writer_output"}
     assert out["writer_output"] is canned
 
-    # It parsed against WriterOutput with high effort on the strong model.
+    # It parsed against WriterOutput on the strong model.
     assert captured["schema"] is WriterOutput
-    assert captured["kwargs"].get("effort") == "high"
+    # Effort is NOT passed at the call site — it defers to parse_strong's
+    # own default (config.settings.EFFORT_STRONG), so retuning reasoning
+    # depth only requires a settings change, not a writer.py edit.
+    assert "effort" not in captured["kwargs"]
     # The system prompt is the Writer's hard-rules prompt.
     assert isinstance(captured["system"], str) and captured["system"]
+
+
+def test_write_resume_logs_configured_effort(monkeypatch, caplog):
+    """The log line reports the ACTUAL configured effort from settings, not a
+    hardcoded literal — so log output stays truthful if EFFORT_STRONG changes."""
+    monkeypatch.setattr(writer, "parse_strong", lambda *a, **k: _writer_output())
+
+    with caplog.at_level(logging.INFO, logger="src.agents.writer"):
+        writer.write_resume(_first_iteration_state())
+
+    log_text = " ".join(caplog.messages)
+    assert f"effort={EFFORT_STRONG}" in log_text
 
 
 def test_write_resume_strips_char_annotations(monkeypatch):
