@@ -3,7 +3,7 @@ import importlib
 
 
 def test_llm_imports_without_api_key(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     import src.pipeline.llm as llm
 
     importlib.reload(llm)

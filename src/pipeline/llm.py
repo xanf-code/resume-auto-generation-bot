@@ -1,12 +1,13 @@
-"""Anthropic client helpers for structured-output parsing.
+"""OpenRouter client helpers for structured-output parsing.
 
+Uses the OpenAI-compatible API at https://openrouter.ai/api/v1.
 Importable with no API key present — the client is instantiated lazily and
 cached, so ``require_api_key`` only fires on the first real call.
 """
 from functools import lru_cache
 from typing import TypeVar
 
-import anthropic
+import openai
 from pydantic import BaseModel
 
 from config.settings import MODEL_FAST, MODEL_STRONG, require_api_key
@@ -17,26 +18,36 @@ DEFAULT_MAX_TOKENS = 16000
 
 
 @lru_cache(maxsize=1)
-def client() -> anthropic.Anthropic:
-    """Return a cached Anthropic client (validates the API key on first call)."""
-    return anthropic.Anthropic(api_key=require_api_key())
-
-
-def _extract_parsed(message, schema: type[SchemaT]) -> SchemaT:
-    """Pull the parsed schema instance out of a ParsedMessage's content blocks.
-
-    The SDK attaches the validated model to ``parsed_output`` on each parsed
-    text block. We return the first non-null instance.
-    """
-    for block in message.content:
-        parsed = getattr(block, "parsed_output", None)
-        if isinstance(parsed, schema):
-            return parsed
-        if parsed is not None:
-            return schema.model_validate(parsed)
-    raise ValueError(
-        f"No parsed {schema.__name__} instance found in model response."
+def client() -> openai.OpenAI:
+    """Return a cached OpenRouter client (validates the API key on first call)."""
+    return openai.OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=require_api_key(),
     )
+
+
+def _parse(
+    system: str,
+    user: str,
+    schema: type[SchemaT],
+    model: str,
+    max_tokens: int,
+) -> SchemaT:
+    response = client().beta.chat.completions.parse(
+        model=model,
+        max_tokens=max_tokens,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        response_format=schema,
+    )
+    parsed = response.choices[0].message.parsed
+    if parsed is None:
+        raise ValueError(
+            f"No parsed {schema.__name__} instance found in model response."
+        )
+    return parsed
 
 
 def parse_fast(
@@ -46,14 +57,7 @@ def parse_fast(
     max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> SchemaT:
     """Structured parse on the fast (Haiku) model. Returns a ``schema`` instance."""
-    message = client().messages.parse(
-        model=MODEL_FAST,
-        max_tokens=max_tokens,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-        output_format=schema,
-    )
-    return _extract_parsed(message, schema)
+    return _parse(system, user, schema, MODEL_FAST, max_tokens)
 
 
 def parse_strong(
@@ -63,17 +67,9 @@ def parse_strong(
     effort: str = "high",
     max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> SchemaT:
-    """Structured parse on the strong (Opus) model with adaptive thinking.
+    """Structured parse on the strong (Opus) model.
 
-    No temperature/top_p — those are rejected on Opus 4.8.
+    ``effort`` is accepted for call-site compatibility but not forwarded;
+    OpenRouter does not support this Anthropic-specific parameter.
     """
-    message = client().messages.parse(
-        model=MODEL_STRONG,
-        max_tokens=max_tokens,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-        output_format=schema,
-        thinking={"type": "adaptive"},
-        output_config={"effort": effort},
-    )
-    return _extract_parsed(message, schema)
+    return _parse(system, user, schema, MODEL_STRONG, max_tokens)

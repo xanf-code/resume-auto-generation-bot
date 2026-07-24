@@ -15,7 +15,7 @@ ranked, deduplicated directive list for the Writer's next iteration.
 """
 import logging
 
-from config.settings import PLAUSIBILITY_FLOOR, RUBRIC_WEIGHTS, THRESHOLD
+from config.settings import MODEL_STRONG, PLAUSIBILITY_FLOOR, RUBRIC_WEIGHTS, THRESHOLD
 
 log = logging.getLogger(__name__)
 from src.pipeline.llm import parse_strong
@@ -110,7 +110,7 @@ def aggregator(state: PipelineState) -> dict:
         "passed": passed,
     }
     if not passed:
-        log.info("aggregator   | distilling revision notes via Opus…")
+        log.info("aggregator   | distilling revision notes via %s…", MODEL_STRONG)
         result["revision_notes"] = distill_revision_notes(scores)
         log.info("aggregator   | %d revision directives ready", len(result["revision_notes"]))
     return result

@@ -9,6 +9,7 @@ guard rejects loudly.
 import logging
 import re
 
+from config.settings import MODEL_FAST
 from src.pipeline.llm import parse_fast
 
 log = logging.getLogger(__name__)
@@ -101,7 +102,7 @@ def assert_ledger_matches_source(
 def parse_resume(state: PipelineState) -> dict:
     """Node: parse the raw resume and derive its identity ledger."""
     resume_tex_raw = state["resume_tex_raw"]
-    log.info("parse_resume | sending %d chars to Haiku", len(resume_tex_raw))
+    log.info("parse_resume | sending %d chars to %s", len(resume_tex_raw), MODEL_FAST)
     struct = parse_fast(PARSER_SYSTEM, resume_tex_raw, ResumeStruct)
     name = extract_name(resume_tex_raw)
     contact = extract_contact(resume_tex_raw)

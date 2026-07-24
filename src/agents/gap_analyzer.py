@@ -10,6 +10,7 @@ to the user later, never fabricated over).
 """
 import logging
 
+from config.settings import MODEL_FAST
 from src.pipeline.llm import parse_fast
 from src.pipeline.schemas import GapTargets, JDVector, ResumeStruct
 from src.pipeline.state import PipelineState
@@ -33,9 +34,10 @@ def gap_analysis(state: PipelineState) -> dict:
     struct = state["resume_struct"]
     vector = state["jd_vector"]
     log.info(
-        "gap_analysis | %d roles vs %d JD skills → sending to Haiku",
+        "gap_analysis | %d roles vs %d JD skills → sending to %s",
         len(struct.roles),
         len(vector.weighted_skills),
+        MODEL_FAST,
     )
     user_msg = build_user_message(struct, vector)
     wrapper = parse_fast(GAP_SYSTEM, user_msg, GapTargets)

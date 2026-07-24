@@ -10,6 +10,7 @@ next draft see" behaviour is directly testable without any API call.
 """
 import logging
 
+from config.settings import MODEL_STRONG
 from src.pipeline.llm import parse_strong
 
 log = logging.getLogger(__name__)
@@ -105,10 +106,11 @@ def write_resume(state: PipelineState) -> dict:
     has_compile_err = bool(state.get("compile_errors"))
     log.info(
         "writer       | iteration=%d  revision_notes=%s  compile_errors=%s  "
-        "→ sending to Opus (effort=high)",
+        "→ sending to %s (effort=high)",
         iteration,
         "yes" if has_revision else "no",
         "yes" if has_compile_err else "no",
+        MODEL_STRONG,
     )
     user_msg = build_writer_user_message(state)
     output = parse_strong(WRITER_SYSTEM, user_msg, WriterOutput, effort="high")

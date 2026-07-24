@@ -6,7 +6,7 @@ import pytest
 
 def test_module_imports_without_api_key(monkeypatch):
     """Importing settings must NEVER require the API key."""
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     import config.settings as settings
 
     importlib.reload(settings)  # re-import under a key-less env
@@ -20,8 +20,8 @@ def test_constant_values():
     assert settings.MAX_ITERATIONS == 6
     assert settings.MAX_COMPILE_RETRIES == 4
     assert settings.PLAUSIBILITY_FLOOR == 20
-    assert settings.MODEL_STRONG == "claude-opus-4-8"
-    assert settings.MODEL_FAST == "claude-haiku-4-5"
+    assert settings.MODEL_STRONG == "anthropic/claude-sonnet-4-6"
+    assert settings.MODEL_FAST == "google/gemini-2.5-flash"
 
 
 def test_rubric_weights_exact():
@@ -45,7 +45,7 @@ def test_rubric_weights_sum_to_one():
 def test_require_api_key_raises_when_unset(monkeypatch):
     import config.settings as settings
 
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     with pytest.raises(RuntimeError):
         settings.require_api_key()
 
@@ -53,7 +53,7 @@ def test_require_api_key_raises_when_unset(monkeypatch):
 def test_require_api_key_raises_when_empty(monkeypatch):
     import config.settings as settings
 
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "")
     with pytest.raises(RuntimeError):
         settings.require_api_key()
 
@@ -61,5 +61,5 @@ def test_require_api_key_raises_when_empty(monkeypatch):
 def test_require_api_key_returns_value_when_set(monkeypatch):
     import config.settings as settings
 
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-value")
-    assert settings.require_api_key() == "sk-test-value"
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test-value")
+    assert settings.require_api_key() == "sk-or-test-value"

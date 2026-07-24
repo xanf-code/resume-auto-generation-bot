@@ -6,6 +6,7 @@ and the top must-mirror phrases.
 """
 import logging
 
+from config.settings import MODEL_FAST
 from src.pipeline.llm import parse_fast
 from src.pipeline.schemas import JDVector
 from src.pipeline.state import PipelineState
@@ -17,7 +18,7 @@ log = logging.getLogger(__name__)
 def analyze_jd(state: PipelineState) -> dict:
     """Node: analyze the raw JD into a JDVector."""
     jd_raw = state["jd_raw"]
-    log.info("analyze_jd  | sending %d chars to Haiku", len(jd_raw))
+    log.info("analyze_jd  | sending %d chars to %s", len(jd_raw), MODEL_FAST)
     vector = parse_fast(JD_SYSTEM, jd_raw, JDVector)
     log.info(
         "analyze_jd  | done — %d weighted skills, %d ATS keywords, "

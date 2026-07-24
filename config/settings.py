@@ -6,6 +6,10 @@ module (and the whole package) works in test/CI environments without a key.
 """
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # --- Loop / scoring thresholds ------------------------------------------------
 THRESHOLD = 78          # lowered from 88 — fabrication mode; plausibility caps ~85
 MAX_ITERATIONS = 6
@@ -26,17 +30,17 @@ RUBRIC_WEIGHTS = {
 }
 
 # --- Model identifiers --------------------------------------------------------
-MODEL_STRONG = "claude-opus-4-8"
-MODEL_FAST = "claude-haiku-4-5"
+MODEL_STRONG = "anthropic/claude-opus-4-8"
+MODEL_FAST = "google/gemini-2.5-flash"
 
-_API_KEY_ENV = "ANTHROPIC_API_KEY"
+_API_KEY_ENV = "OPENROUTER_API_KEY"
 
 
 def require_api_key() -> str:
-    """Return the Anthropic API key from the environment.
+    """Return the OpenRouter API key from the environment.
 
     Raises:
-        RuntimeError: if ``ANTHROPIC_API_KEY`` is missing or empty. This is the
+        RuntimeError: if ``OPENROUTER_API_KEY`` is missing or empty. This is the
             "raise at startup if missing" guarantee — enforced when the key is
             actually needed, never at import time.
     """

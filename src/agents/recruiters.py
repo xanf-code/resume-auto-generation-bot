@@ -13,6 +13,7 @@ together with ``asyncio.gather``.
 import asyncio
 import logging
 
+from config.settings import MODEL_STRONG
 from src.pipeline.llm import parse_strong
 
 log = logging.getLogger(__name__)
@@ -95,7 +96,7 @@ async def run_panel(state: PipelineState) -> list[PanelScore]:
 
 def recruiter_panel(state: PipelineState) -> dict:
     """Node: run the four-persona panel and return their scores."""
-    log.info("recruiter    | spawning 4 Opus personas concurrently…")
+    log.info("recruiter    | spawning 4 %s personas concurrently…", MODEL_STRONG)
     scores = asyncio.run(run_panel(state))
     for s in scores:
         log.info(
