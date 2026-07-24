@@ -1,45 +1,45 @@
 {
   "passed": true,
   "cap_hit": false,
-  "aggregate_score": 84.3125,
-  "best_score": 84.3125,
+  "aggregate_score": 88.6875,
+  "best_score": 88.6875,
   "iteration": 1,
   "personas": [
     {
       "persona": "ATS Matcher",
-      "keyword_match": 80,
-      "impact_quality": 75,
-      "coherence": 70,
-      "plausibility": 80,
+      "keyword_match": 88,
+      "impact_quality": 95,
+      "coherence": 92,
+      "plausibility": 90,
       "formatting": 85,
-      "notes": "Keywords such as \"Typescript,\" \"Node.js,\" \"NestJS,\" and \"service oriented systems\" are present, matching well with JD requirements. \"SQL-based databases,\" \"Unit testing,\" and \"TDD\" are explicitly mentioned, covering many high-weight keywords. However, terms like \"Agile practices,\" \"Scrum,\" and \"Kanban\" are missing, which are needed.\n\nFor impact quality, you use strong action verbs and quantify improvements (e.g., \"boost transaction throughput by 200%\").\n\nCoherence can be enhanced with more consistent alignment of experiences and skills to tell a cohesive professional journey.\n\nTo improve plausibility, ensure all claims such as boosting transaction throughput are backed by specifics or context within the data, possibly by sharing methodologies or tools in more detail.\n\nFormatting is generally clean and ATS-friendly, but consider simplifying fonts and bullet structures to avoid potential parsing issues. Use plain text where possible for clean parsing."
+      "notes": "The resume excellently mirrors most of the key terms from the job description, particularly emphasizing Typescript, Node.js, NestJS, SQL-based databases, unit testing, TDD, and service-oriented systems. There are slight omissions in specific terms like CSS, SRE best practices, post-mortems, logging, and alerting, which are lightly weighted in the JD.\n\nFor formatting, while the resume is clear and structured, including some listing formats like XCharter, or non-standard list spacing, could confuse basic ATS parsers. Consider simplifying.\n\nThe impact quality is high, with each bullet using strong verbs and quantitative results. The resume also presents a coherent narrative of a skilled software engineer with progressive project experience at reputed organizations, which aligns with the JD's requirements for a mid-level position.\n\nTo maximize ATS compatibility, ensure embedded URLs don't hinder keyword scanning and consider conventional formatting for sections like project links. Refine some claims in light of plausibility\u2014quantifying results with percentages and numbers adds credibility."
     },
     {
       "persona": "Hiring Manager",
-      "keyword_match": 95,
+      "keyword_match": 90,
       "impact_quality": 85,
-      "coherence": 80,
-      "plausibility": 90,
-      "formatting": 85,
-      "notes": "- Ensure dates of educational background are clearly present, especially if it indicates ongoing education.\n- Add more quantifiable metrics to your Dassault Systemes role to match the specificity seen in the London Stock Exchange Group role's achievements.\n- Clearly outline Agile or Scrum experience if applicable, as these are noted in the JD's ATS keywords.\n- Consider linking educational information directly to relevant projects or roles to enhance coherence and demonstrate application of skills.\n- Reduce verbosity in bullet points for clarity and ensure each point directly addresses the required outcomes for the target role."
+      "coherence": 90,
+      "plausibility": 88,
+      "formatting": 95,
+      "notes": "The resume effectively highlights relevant skills and experiences matching the job description, including Typescript, Node.js, NestJS, SQL databases, unit testing, TDD, and service-oriented systems. However, the resume could further emphasize experience with SQL-based databases specifically. There is strong quantified impact in the work experiences, specifically at the London Stock Exchange Group, where results are well-documented. The transition from the London position to Dassault Systemes suggests growth, but further clarity on increased responsibilities or leadership roles would strengthen the narrative. Projects demonstrate a strong technical foundation and problem-solving skills. Ensure certain projects and achievements, like in 'GoonedIn', are directly tied to real-world applications to boost plausibility and relevance. Update education information as the graduation date approaches or changes."
     },
     {
       "persona": "Technical Screener",
-      "keyword_match": 95,
-      "impact_quality": 90,
-      "coherence": 85,
-      "plausibility": 80,
+      "keyword_match": 90,
+      "impact_quality": 85,
+      "coherence": 90,
+      "plausibility": 88,
       "formatting": 95,
-      "notes": "The resume offers strong keyword coverage for the job description, indicating proficiency in key areas like TypeScript, Node.js, and NestJS. The candidate also details substantial experience with SQL databases and service-oriented systems, matching the required job skills. Impact is clearly demonstrated through quantifiable outcomes, such as a 200% boost in transaction throughput and the innovative use of Redis cache and Hibernate, which is promising for potential employers.\n\nHowever, the coherence suffers slightly; the timeline raises questions about the master's degree's completion alongside work experience. Clarifying this overlap could strengthen the narrative. While overall claims are plausible, the broad scope of expertise (ranging from cloud computing to detailed implementation features) might push the bounds of credibility in a short timeframe, particularly given a still-in-progress education. The formatting is clean and ATS compliant, making machine parsing straightforward.\n\nConsider simplifying the skills section to ensure all listed skills are defensible, perhaps focusing on those most relevant to the desired role."
+      "notes": "The resume nicely matches the job description, with clear evidence of experience in key areas like TypeScript, Node.js, NestJS, and SQL-based databases. The candidate demonstrates experience with unit testing, TDD, and service-oriented systems through roles at Dassault Systemes and the London Stock Exchange Group. Notable achievements are well quantified, such as the 200% increase in transaction throughput or 95% relevance score achieved in projects.\n\nConsider clarifying specific AWS services used for determining if they align perfectly with job requirements \u2014 particularly if any lesser-known or niche AWS services are leveraged. Additionally, expand on the resume's CI/CD experience; while Jenkins is mentioned, detailing specific types of pipelines could strengthen the CI/CD coverage.\n\nOverall, the resume is well-formatted and machine-readable, showing good structure and clarity without unnecessary formatting complexity."
     },
     {
       "persona": "Skeptic",
       "keyword_match": 85,
       "impact_quality": 80,
-      "coherence": 75,
-      "plausibility": 80,
-      "formatting": 90,
-      "notes": "- Bullet \"Enhanced data storage and retrieval mechanisms by leveraging SQL-based databases alongside NoSQL technologies\" is plausible due to the candidate's experience with Redis and Kafka but could be further quantified with specific performance metrics or technologies.\n- The claim about \"service-oriented applications utilizing Node.js and TypeScript within the NestJS framework\" matches experience, though NestJS is not directly mentioned in source evidence.\n- The experience with \"GoonedIn\" web project effectively covers key JD terms like \"FastAPI\" and \"scalable systems,\" aligning with the claimed technical expertise.\n- Ensure clarity in mentioning TDD separately from unit testing to distinguish the methodology's broader application."
+      "coherence": 88,
+      "plausibility": 83,
+      "formatting": 95,
+      "notes": "1. The candidate's claim of \"Developed scalable, high-performance web applications using Typescript alongside Node.js and NestJS frameworks, contributing to increased system efficiency and maintainability\" at Dassault Systemes is plausible given their experience with Node.js and Typescript, though specific use of NestJS is not mentioned in the source. \n2. Highlighting \"Designed and implemented service-oriented systems utilizing microservices and RESTful APIs\" aligns with their expertise in microservices, though not explicitly breaking down RESTful APIs.\n3. The emphasis on \"unit testing and TDD approaches\" and achieving 99% test coverage is consistent with the mention of maintaining test coverage using JUnit and Jasmine on their source resume.\n4. Good coverage of AWS, Agile practices, and React within projects and work experience, but CSS and HTML get less emphasis.\n5. Ensure to elaborate on specific \"SQL-based databases\" experience, such as PostgreSQL, that matches jd_vector phrasing."
     }
   ],
   "true_gaps": []

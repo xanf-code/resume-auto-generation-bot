@@ -184,3 +184,102 @@ def test_render_matches_bullets_by_role_index():
     first_role_block = out.split("Babbage \\& Co")[0]
     assert "FIRST ROLE BULLET" in first_role_block
     assert "SECOND ROLE BULLET" not in first_role_block
+
+
+# --- render: bold formatting preserved ---------------------------------------
+
+
+def _main_tex_style() -> str:
+    """Fixture using the actual main.tex format: bold title, company in braces."""
+    return r"""\documentclass[11pt]{article}
+\usepackage[margin=0.5in]{geometry}
+\usepackage{enumitem}
+\begin{document}
+\centerline{\Huge Test User}
+\centerline{test@example.com}
+\section*{Experience}
+\textbf{Software Engineer,} {AcmeCorp} -- New York, NY \hfill Jan 2024 -- Present \\
+\vspace{-9pt}
+\begin{itemize}
+    \item Original bullet one
+    \item Original bullet two
+\end{itemize}
+\textbf{Junior Developer,} {StartupXYZ} -- Remote \hfill Jun 2022 -- Dec 2023 \\
+\vspace{-9pt}
+\begin{itemize}
+    \item Old work item A
+\end{itemize}
+\section*{Projects}
+\textbf{CoolProject} \hfill https://example.com \\
+\vspace{-9pt}
+\begin{itemize}
+  \item Project bullet stays frozen
+\end{itemize}
+\end{document}
+"""
+
+
+def _main_tex_ledger() -> IdentityLedger:
+    return IdentityLedger(
+        name="Test User",
+        contact="test@example.com",
+        roles=[
+            Role(company="AcmeCorp", title="Software Engineer", start="Jan 2024", end="Present"),
+            Role(company="StartupXYZ", title="Junior Developer", start="Jun 2022", end="Dec 2023"),
+        ],
+    )
+
+
+def _main_tex_writer() -> WriterOutput:
+    return WriterOutput(
+        roles=[
+            RoleBullets(index=0, bullets=["Increased throughput by rewriting pipeline in Go"]),
+            RoleBullets(index=1, bullets=["Reduced latency using Redis caching layer"]),
+        ],
+        skills=["Go", "Redis"],
+        summary="Senior engineer with distributed systems focus.",
+    )
+
+
+def test_bold_role_title_preserved_after_patch():
+    r"""\textbf{Role,} in role header lines must survive bullet replacement intact."""
+    out = render(_main_tex_style(), _main_tex_ledger(), _main_tex_writer())
+    assert r"\textbf{Software Engineer,}" in out
+    assert r"\textbf{Junior Developer,}" in out
+
+
+def test_company_braces_preserved_after_patch():
+    """Company name in {braces} must survive bullet replacement intact."""
+    out = render(_main_tex_style(), _main_tex_ledger(), _main_tex_writer())
+    assert "{AcmeCorp}" in out
+    assert "{StartupXYZ}" in out
+
+
+def test_vspace_between_header_and_itemize_preserved():
+    r"""The \vspace{-9pt} between role header and \begin{itemize} must survive."""
+    out = render(_main_tex_style(), _main_tex_ledger(), _main_tex_writer())
+    assert r"\vspace{-9pt}" in out
+
+
+def test_project_section_bold_untouched():
+    r"""\textbf{ProjectName} in frozen Projects section must not be altered."""
+    out = render(_main_tex_style(), _main_tex_ledger(), _main_tex_writer())
+    assert r"\textbf{CoolProject}" in out
+    assert "Project bullet stays frozen" in out
+
+
+def test_project_section_bullets_not_replaced():
+    """Project itemize blocks must never be patched (projects are frozen)."""
+    out = render(_main_tex_style(), _main_tex_ledger(), _main_tex_writer())
+    assert "Project bullet stays frozen" in out
+    # Experience bullets must be replaced.
+    assert "Original bullet one" not in out
+    assert "Old work item A" not in out
+
+
+def test_new_experience_bullets_appear_in_correct_roles():
+    """Writer bullets land under their matching company, not in the wrong role."""
+    out = render(_main_tex_style(), _main_tex_ledger(), _main_tex_writer())
+    before_startup = out.split("StartupXYZ")[0]
+    assert "Increased throughput" in before_startup
+    assert "Reduced latency" not in before_startup

@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 from src.pipeline.schemas import PanelScore, ReframingTarget
 
-_PDF_NAME = "resume_optimized.pdf"
+_PDF_NAME_DEFAULT = "resume_optimized.pdf"
 _REPORT_NAME = "score_report.json"
 
 _CAP_HIT_WARNING = (
@@ -104,10 +104,13 @@ def emit(state: dict, out_dir: str = "out") -> dict:
     report_path = out / _REPORT_NAME
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
+    jd_name = state.get("jd_name", "").strip()
+    pdf_filename = f"{jd_name}.pdf" if jd_name else _PDF_NAME_DEFAULT
+
     # Prefer the best-scoring PDF over the last-compiled PDF.
     # Fallback chain: best_pdf_path → pdf_path → None (no PDF copied).
     effective_pdf_path = state.get("best_pdf_path") or state.get("pdf_path", "")
-    output_pdf = _copy_pdf(effective_pdf_path, out / _PDF_NAME)
+    output_pdf = _copy_pdf(effective_pdf_path, out / pdf_filename)
 
     return {"output_pdf": output_pdf, "output_report": str(report_path)}
 

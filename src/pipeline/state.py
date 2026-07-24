@@ -76,3 +76,6 @@ class PipelineState(TypedDict, total=False):
     output_report: str
     # Seeded by the CLI so the emit node knows where to write.
     out_dir: str
+    # Stem of the JD file path (e.g. "amazon_sde" from "examples/amazon_sde.txt").
+    # Used by emit to name the output PDF after the JD.
+    jd_name: str

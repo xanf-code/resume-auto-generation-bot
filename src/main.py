@@ -119,6 +119,7 @@ def run(resume_path: str, jd_path: str, out_dir: str) -> dict:
         "compile_retries": 0,
         "identity_retries": 0,
         "out_dir": out_dir,
+        "jd_name": Path(jd_path).stem,
     }
 
     graph = build_graph()

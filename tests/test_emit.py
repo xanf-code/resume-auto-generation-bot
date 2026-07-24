@@ -206,3 +206,47 @@ def test_emit_falls_back_gracefully_when_both_absent(tmp_path):
 
     assert (out_dir / "score_report.json").is_file()
     assert result.get("output_pdf") is None
+
+
+# --- JD-derived output filename -----------------------------------------------
+
+
+def test_emit_uses_jd_name_for_pdf_filename(tmp_path):
+    """When jd_name is in state, the output PDF uses that stem."""
+    out_dir = tmp_path / "out"
+    state = _make_state(tmp_path)
+    state["jd_name"] = "amazon_sde"
+
+    result = emit_mod.emit(state, out_dir=str(out_dir))
+
+    assert result["output_pdf"].endswith("amazon_sde.pdf")
+    assert (out_dir / "amazon_sde.pdf").is_file()
+
+
+def test_emit_falls_back_to_resume_optimized_when_no_jd_name(tmp_path):
+    """When jd_name is absent, the output PDF falls back to resume_optimized.pdf."""
+    out_dir = tmp_path / "out"
+    state = _make_state(tmp_path)
+    state.pop("jd_name", None)
+
+    result = emit_mod.emit(state, out_dir=str(out_dir))
+
+    assert result["output_pdf"].endswith("resume_optimized.pdf")
+    assert (out_dir / "resume_optimized.pdf").is_file()
+
+
+def test_emit_jd_name_used_for_best_pdf_path_too(tmp_path):
+    """jd_name controls the output filename regardless of which pdf_path source wins."""
+    best_pdf = tmp_path / "best.pdf"
+    best_pdf.write_bytes(b"%PDF best")
+    out_dir = tmp_path / "out"
+
+    state = _make_state(tmp_path, passed=False, hit_cap=True)
+    state["pdf_path"] = ""
+    state["best_pdf_path"] = str(best_pdf)
+    state["jd_name"] = "google_l5"
+
+    result = emit_mod.emit(state, out_dir=str(out_dir))
+
+    assert result["output_pdf"].endswith("google_l5.pdf")
+    assert (out_dir / "google_l5.pdf").read_bytes() == b"%PDF best"
