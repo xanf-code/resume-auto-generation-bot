@@ -79,7 +79,6 @@ def _writer_output() -> WriterOutput:
                 ],
             ),
         ],
-        skills=["Python", "SQL", "REST APIs"],
     )
 
 
@@ -308,7 +307,6 @@ def test_write_resume_strips_char_annotations(monkeypatch):
                 ],
             ),
         ],
-        skills=["Python", "SQL"],
     )
     monkeypatch.setattr(writer, "parse_strong", lambda *a, **k: annotated)
 

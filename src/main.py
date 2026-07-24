@@ -8,6 +8,9 @@ Usage::
 Fails fast (before any LLM call) if ``ANTHROPIC_API_KEY`` is missing. Reads the
 resume/JD files into the initial state, invokes the compiled graph, streams
 per-iteration progress to stdout, and writes outputs via the emit node.
+
+Outputs are packaged per-JD: a run against ``examples/JD1.txt`` writes
+``out/JD1/`` containing ``resume.pdf``, ``score_report.json``, and ``skills.mdx``.
 """
 import argparse
 import logging
@@ -47,6 +50,7 @@ _KEY_TO_NODE: dict[str, str] = {
     "identity_ledger":    "parse_resume",
     "jd_vector":          "analyze_jd",
     "gap_targets":        "gap_analysis",
+    "skill_dump":         "generate_skills",
     "writer_output":      "writer",
     "latex_rendered":     "render",
     "identity_violations":"identity_check",
@@ -56,6 +60,7 @@ _KEY_TO_NODE: dict[str, str] = {
     "best_score":         "bookkeep",
     "cap_hit":            "bookkeep",
     "output_pdf":         "emit",
+    "output_skills":      "emit",
     "score_report_md":    "score_report",
 }
 
@@ -192,9 +197,13 @@ def _print_summary(state: dict) -> None:
         print(f"Best aggregate score: {state['best_score']:.2f}")
     pdf = state.get("output_pdf")
     report = state.get("output_report")
+    skills = state.get("output_skills")
     score_md = state.get("score_report_md")
+    if report:
+        print(f"Package:      {Path(report).parent}/")
     print(f"PDF:          {pdf if pdf else '(none — compile never succeeded)'}")
     print(f"Score Report: {report}")
+    print(f"Skills MDX:   {skills}")
     if score_md:
         print(f"Score MD:     {score_md}")
     print("=" * 52)

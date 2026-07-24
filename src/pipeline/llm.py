@@ -18,6 +18,7 @@ from config.settings import (
     MODEL_FAST,
     MODEL_GAP,
     MODEL_SCORING,
+    MODEL_SKILLS,
     MODEL_STRONG,
     require_api_key,
 )
@@ -39,6 +40,7 @@ _ctx_model_fast: ContextVar[str | None] = ContextVar("model_fast", default=None)
 _ctx_model_strong: ContextVar[str | None] = ContextVar("model_strong", default=None)
 _ctx_model_gap: ContextVar[str | None] = ContextVar("model_gap", default=None)
 _ctx_model_scoring: ContextVar[str | None] = ContextVar("model_scoring", default=None)
+_ctx_model_skills: ContextVar[str | None] = ContextVar("model_skills", default=None)
 
 # Accumulates raw usage dicts [{model, input_tokens, output_tokens}] when set.
 _ctx_usage: ContextVar[list | None] = ContextVar("usage", default=None)
@@ -46,7 +48,11 @@ _ctx_usage: ContextVar[list | None] = ContextVar("usage", default=None)
 
 @contextmanager
 def model_context(
-    fast: str, strong: str, gap: str | None = None, scoring: str | None = None
+    fast: str,
+    strong: str,
+    gap: str | None = None,
+    scoring: str | None = None,
+    skills: str | None = None,
 ) -> Generator[list[dict], None, None]:
     """Inject model overrides and collect token usage for one pipeline run.
 
@@ -57,6 +63,8 @@ def model_context(
              Defaults to ``strong`` if not provided.
         scoring: Model for scoring panel (recruiters + aggregator).
                  Defaults to ``fast`` if not provided.
+        skills: Model for the skill-dump node.
+                Defaults to ``MODEL_SKILLS`` (config constant) if not provided.
 
     Usage::
 
@@ -71,6 +79,7 @@ def model_context(
     t_strong = _ctx_model_strong.set(strong)
     t_gap = _ctx_model_gap.set(gap or strong)
     t_scoring = _ctx_model_scoring.set(scoring or fast)
+    t_skills = _ctx_model_skills.set(skills)
     usage: list[dict] = []
     t_usage = _ctx_usage.set(usage)
     try:
@@ -80,6 +89,7 @@ def model_context(
         _ctx_model_strong.reset(t_strong)
         _ctx_model_gap.reset(t_gap)
         _ctx_model_scoring.reset(t_scoring)
+        _ctx_model_skills.reset(t_skills)
         _ctx_usage.reset(t_usage)
 
 
@@ -194,3 +204,22 @@ def parse_scoring(
     """
     model = _ctx_model_scoring.get() or MODEL_SCORING
     return _parse(system, user, schema, model, max_tokens)
+
+
+def parse_skills(
+    system: str,
+    user: str,
+    schema: type[SchemaT],
+    effort: str | None = None,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
+) -> SchemaT:
+    """Structured parse on the skills model (categorized skill dump).
+
+    Uses MODEL_SKILLS by default (gpt-4o-mini). No effort is forwarded by
+    default — gpt-4o-mini is not a reasoning model and rejects the field.
+    Pass an explicit ``effort`` only when overriding to a reasoning model.
+    ``max_tokens`` defaults to DEFAULT_MAX_TOKENS (not REASONING_MAX_TOKENS)
+    since gpt-4o-mini caps completions at ~16k.
+    """
+    model = _ctx_model_skills.get() or MODEL_SKILLS
+    return _parse(system, user, schema, model, max_tokens, effort=effort)

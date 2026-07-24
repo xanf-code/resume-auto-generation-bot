@@ -7,11 +7,7 @@ These tests verify:
 
 NO live LLM calls — generate_score_report is mocked.
 """
-import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from src.pipeline.score_report import score_report_node, format_markdown_report
 from src.resume_scorer import (

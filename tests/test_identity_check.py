@@ -40,7 +40,6 @@ def _writer() -> WriterOutput:
             RoleBullets(index=0, bullets=["Invented the compiler concept"]),
             RoleBullets(index=1, bullets=["Developed FLOW-MATIC"]),
         ],
-        skills=["COBOL", "Leadership"],
     )
 
 

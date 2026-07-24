@@ -1,15 +1,20 @@
-"""Emit node — write the winning draft and its score report to ``out/``.
+"""Emit node — write the winning draft's deliverables to a per-JD package folder.
 
-Writes three deliverables into the output directory:
+For a JD file ``JD1.txt`` the pipeline writes ``out/JD1/`` containing:
 
-- ``resume_optimized.pdf`` — a copy of the winning ``pdf_path``. On a hard
-  compile failure there may be no pdf; the report is still written.
+- ``resume.pdf`` — a copy of the winning ``pdf_path``. On a hard compile failure
+  there may be no pdf; the rest of the package is still written.
 - ``score_report.json`` — per-persona rubric breakdowns, the aggregate, the
   iteration count, best score, and whether the run passed or hit the cap (with a
-  warning on cap-hit).
-- A TRUE-GAPS section inside the report — the competencies the Gap Analyzer
-  flagged ``no_evidence=True``, so the user sees what the resume genuinely
-  cannot claim.
+  warning on cap-hit). Includes a TRUE-GAPS section — the competencies the Gap
+  Analyzer flagged ``no_evidence=True`` — so the user sees what the resume
+  genuinely cannot claim.
+- ``skills.mdx`` — the writer's optimized, JD-tailored skill list for the user to
+  dump manually (LinkedIn / ATS skill fields / portal). Skills are NOT rendered
+  into the resume LaTeX; this file is the sole skills deliverable.
+
+When ``jd_name`` is absent the package collapses to ``out_dir`` itself and the
+PDF keeps the legacy ``resume_optimized.pdf`` name.
 
 Pure I/O: no LLM, no network. The node reads state and writes files; it returns
 a NEW dict with the paths it wrote (never mutates input state).
@@ -17,14 +22,25 @@ a NEW dict with the paths it wrote (never mutates input state).
 import json
 import logging
 import shutil
+from datetime import date
 from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-from src.pipeline.schemas import PanelScore, ReframingTarget
+from src.pipeline.schemas import PanelScore, ReframingTarget, SkillDump
 
 _PDF_NAME_DEFAULT = "resume_optimized.pdf"
+_PDF_NAME_PACKAGE = "resume.pdf"
 _REPORT_NAME = "score_report.json"
+_SKILLS_NAME = "skills.mdx"
+
+# (SkillDump attribute, display header) — fixed order for the MDX sections.
+_SKILL_CATEGORIES: tuple[tuple[str, str], ...] = (
+    ("language_and_framework", "Language & Framework"),
+    ("infrastructure", "Infrastructure"),
+    ("database", "Database"),
+    ("ai_tools", "AI Tools"),
+)
 
 _CAP_HIT_WARNING = (
     "Iteration cap reached without clearing the score threshold. Emitting the "
@@ -76,6 +92,48 @@ def build_score_report(state: dict) -> dict:
     return report
 
 
+def build_skills_mdx(skills: SkillDump, jd_name: str) -> str:
+    """Build the categorized skill-dump MDX artifact (pure).
+
+    Frontmatter + one section per fixed category (``## Language & Framework``,
+    ``## Infrastructure``, ``## Database``, ``## AI Tools``), each with a bulleted
+    list and a per-category copy-paste line. Skills arrive already ordered by the
+    writer (highest JD relevance first) within each bucket; order is preserved.
+    MDX is a superset of Markdown, so plain Markdown content is valid MDX.
+    """
+    title = jd_name or "resume"
+    lines = [
+        "---",
+        f"jd: {title}",
+        f"generated: {date.today().isoformat()}",
+        f"skill_count: {skills.total()}",
+        "---",
+        "",
+        f"# Skills to Dump — {title}",
+        "",
+        "Grouped by category, ordered by relevance to the target JD. Paste each "
+        "group into the application's skills field.",
+        "",
+    ]
+    for attr, header in _SKILL_CATEGORIES:
+        items: list[str] = getattr(skills, attr)
+        lines.append(f"## {header}")
+        if items:
+            lines.extend(f"- {s}" for s in items)
+            lines.append("")
+            lines.append(f"Copy-paste: `{', '.join(items)}`")
+        else:
+            lines.append("_None._")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _skills_from_state(state: dict) -> SkillDump:
+    """Resolve the skill dump: generated once by generate_skills, stable across iterations."""
+    dump = state.get("skill_dump")
+    return dump if isinstance(dump, SkillDump) else SkillDump()
+
+
 def _copy_pdf(pdf_path: str, out_path: Path) -> str | None:
     """Copy the winning pdf into ``out_path``; return its path or None."""
     if not pdf_path:
@@ -88,31 +146,41 @@ def _copy_pdf(pdf_path: str, out_path: Path) -> str | None:
 
 
 def emit(state: dict, out_dir: str = "out") -> dict:
-    """Node: write the winning pdf + score report to ``out_dir``.
+    """Node: write the winning draft's package to ``out_dir/{jd_name}/``.
 
     Args:
         state: The final pipeline state.
-        out_dir: Destination directory (created if absent).
+        out_dir: Root output directory (created if absent).
 
     Returns:
-        A NEW dict with ``output_pdf`` (str | None) and ``output_report`` (str).
+        A NEW dict with ``output_pdf`` (str | None), ``output_report`` (str), and
+        ``output_skills`` (str) — the paths written.
     """
-    out = Path(out_dir)
-    out.mkdir(parents=True, exist_ok=True)
+    jd_name = state.get("jd_name", "").strip()
+    # Package the run into a per-JD folder so outputs never collide across JDs.
+    # Without a jd_name, collapse to out_dir and keep the legacy PDF name.
+    pkg_dir = Path(out_dir) / jd_name if jd_name else Path(out_dir)
+    pdf_filename = _PDF_NAME_PACKAGE if jd_name else _PDF_NAME_DEFAULT
+    pkg_dir.mkdir(parents=True, exist_ok=True)
 
     report = build_score_report(state)
-    report_path = out / _REPORT_NAME
+    report_path = pkg_dir / _REPORT_NAME
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
-    jd_name = state.get("jd_name", "").strip()
-    pdf_filename = f"{jd_name}.pdf" if jd_name else _PDF_NAME_DEFAULT
+    skills_mdx = build_skills_mdx(_skills_from_state(state), jd_name)
+    skills_path = pkg_dir / _SKILLS_NAME
+    skills_path.write_text(skills_mdx, encoding="utf-8")
 
     # Prefer the best-scoring PDF over the last-compiled PDF.
     # Fallback chain: best_pdf_path → pdf_path → None (no PDF copied).
     effective_pdf_path = state.get("best_pdf_path") or state.get("pdf_path", "")
-    output_pdf = _copy_pdf(effective_pdf_path, out / pdf_filename)
+    output_pdf = _copy_pdf(effective_pdf_path, pkg_dir / pdf_filename)
 
-    return {"output_pdf": output_pdf, "output_report": str(report_path)}
+    return {
+        "output_pdf": output_pdf,
+        "output_report": str(report_path),
+        "output_skills": str(skills_path),
+    }
 
 
 def emit_node(state: dict) -> dict:
@@ -122,4 +190,5 @@ def emit_node(state: dict) -> dict:
     result = emit(state, out_dir=out_dir)
     log.info("emit         | PDF    → %s", result.get("output_pdf") or "(none — compile never succeeded)")
     log.info("emit         | report → %s", result.get("output_report"))
+    log.info("emit         | skills → %s", result.get("output_skills"))
     return {**result, "emitted": True}

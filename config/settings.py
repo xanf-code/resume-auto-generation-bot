@@ -47,6 +47,7 @@ MODEL_STRONG = "anthropic/claude-sonnet-5"
 MODEL_FAST = "openai/gpt-4o-mini"
 MODEL_GAP = "anthropic/claude-opus-5"
 MODEL_SCORING = "openai/gpt-4o-mini"
+MODEL_SKILLS = "openai/gpt-4o-mini"
 
 # --- Reasoning effort ----------------------------------------------------------
 # Forwarded to OpenRouter's unified `reasoning` parameter
@@ -56,6 +57,7 @@ MODEL_SCORING = "openai/gpt-4o-mini"
 # Valid values: "low" | "medium" | "high" | "max" | "x-high".
 EFFORT_STRONG = "medium"  # Writer (creative optimization, keyword balancing)
 EFFORT_GAP = "medium"     # Gap Analyzer (creative reframing strategy)
+EFFORT_SKILLS = "low"     # Skills node (ignored by gpt-4o-mini; wired for future reasoning-model switch)
 
 _API_KEY_ENV = "OPENROUTER_API_KEY"
 

@@ -305,6 +305,110 @@ def test_parse_scoring_never_forwards_an_effort(monkeypatch):
     assert captured["effort"] is None
 
 
+# --- parse_skills (one-shot skill dump on MODEL_SKILLS) ------------------------
+#
+# parse_skills targets gpt-4o-mini (MODEL_SKILLS). gpt-4o-mini is NOT a
+# reasoning model and rejects the reasoning effort field, so parse_skills
+# must NOT forward any effort by default (same invariant as parse_fast /
+# parse_scoring). Its max_tokens default is DEFAULT_MAX_TOKENS (not
+# REASONING_MAX_TOKENS) since gpt-4o-mini caps at ~16k.
+
+
+def test_parse_skills_does_not_forward_effort_by_default(monkeypatch):
+    """gpt-4o-mini isn't a reasoning model — parse_skills must not set an effort."""
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, effort=None):
+        captured["effort"] = effort
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    llm.parse_skills("sys", "user", _DummySchema)
+
+    assert captured["effort"] is None
+
+
+def test_parse_skills_defaults_to_default_max_tokens(monkeypatch):
+    """gpt-4o-mini-backed — must use DEFAULT_MAX_TOKENS, NOT the reasoning ceiling."""
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, effort=None):
+        captured["max_tokens"] = max_tokens
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    llm.parse_skills("sys", "user", _DummySchema)
+
+    assert captured["max_tokens"] == llm.DEFAULT_MAX_TOKENS
+
+
+def test_parse_skills_caller_can_override_effort(monkeypatch):
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, effort=None):
+        captured["effort"] = effort
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    llm.parse_skills("sys", "user", _DummySchema, effort="high")
+
+    assert captured["effort"] == "high"
+
+
+def test_parse_skills_defaults_to_model_skills(monkeypatch):
+    """With no override in context, parse_skills resolves to MODEL_SKILLS."""
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, effort=None):
+        captured["model"] = model
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    llm.parse_skills("sys", "user", _DummySchema)
+
+    assert captured["model"] == llm.MODEL_SKILLS
+
+
+def test_model_context_sets_and_resets_skills_var():
+    """model_context(skills=...) overrides _ctx_model_skills then restores it."""
+    from src.pipeline.llm import _ctx_model_skills, model_context
+
+    with model_context(fast="f", strong="s", skills="skills-override"):
+        assert _ctx_model_skills.get() == "skills-override"
+
+    assert _ctx_model_skills.get() is None
+
+
+def test_model_context_skills_override_wins_in_parse_skills(monkeypatch):
+    """A skills= override on model_context takes precedence over MODEL_SKILLS."""
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, effort=None):
+        captured["model"] = model
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    with llm.model_context(fast="f", strong="s", skills="anthropic/claude-opus-5"):
+        llm.parse_skills("sys", "user", _DummySchema)
+
+    assert captured["model"] == "anthropic/claude-opus-5"
+
+
 def test_parse_forwards_effort_via_openrouter_reasoning_extra_body(monkeypatch):
     """_parse must translate effort into OpenRouter's unified reasoning field —
     it is not a native OpenAI SDK kwarg, so it has to ride in extra_body."""

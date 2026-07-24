@@ -11,6 +11,7 @@ from src.pipeline.schemas import (
     PanelScore,
     ReframingTarget,
     ResumeStruct,
+    SkillDump,
     WriterOutput,
 )
 
@@ -73,6 +74,12 @@ class PipelineState(TypedDict, total=False):
     # Global identity-retry counter. Incremented each time identity_check_node
     # detects violations; NOT reset on clean passes (global budget, not per-iter).
     identity_retries: int
+
+    # --- skills (generated once, before the writer loop) ---------------------
+    # Produced by ``generate_skills`` and stable across all revision iterations.
+    # MUST be declared here — LangGraph silently drops updates to channels absent
+    # from the state schema.
+    skill_dump: SkillDump
 
     # --- bookkeeping ----------------------------------------------------------
     iteration: int

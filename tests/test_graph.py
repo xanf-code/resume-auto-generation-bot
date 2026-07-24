@@ -9,8 +9,6 @@ unset). These tests pin:
 - (hermetic) a fully-mocked end-to-end reaches ``emit`` on a pass path and loops
   at least once on a fail-then-pass path.
 """
-import pytest
-
 from config.settings import (
     MAX_COMPILE_RETRIES,
     MAX_IDENTITY_RETRIES,
@@ -24,9 +22,13 @@ from src.pipeline.schemas import (
     ResumeRole,
     ResumeStruct,
     RoleBullets,
+    SkillDump,
     SkillWeight,
     WriterOutput,
 )
+
+# generate_skills is imported here so _install_fake_nodes can patch it on graph_mod.
+from src.agents import skills as skills_mod  # noqa: F401 (used via monkeypatch)
 
 
 # --- build_graph: compiles ----------------------------------------------------
@@ -346,6 +348,13 @@ def test_update_best_captures_pdf_path():
     assert out["best_pdf_path"] == "/tmp/x.pdf"
 
 
+def test_update_best_does_not_track_skills():
+    """update_best must NOT include best_skills — skills are invariant across iterations."""
+    state = {"aggregate_score": 85.0, "latex_rendered": "DRAFT-X", "pdf_path": "/tmp/x.pdf"}
+    out = graph_mod.update_best(state)
+    assert "best_skills" not in out
+
+
 def test_update_best_does_not_capture_pdf_path_when_score_not_higher():
     """When score doesn't beat best, old best_pdf_path is preserved, not replaced."""
     state = {
@@ -358,6 +367,7 @@ def test_update_best_does_not_capture_pdf_path_when_score_not_higher():
     }
     out = graph_mod.update_best(state)
     assert out["best_pdf_path"] == "/tmp/best.pdf"
+    assert "best_skills" not in out
 
 
 def test_update_best_keeps_higher_of_two():
@@ -421,6 +431,9 @@ def _install_fake_nodes(monkeypatch, *, aggregator_behaviour):
     monkeypatch.setattr(graph_mod, "analyze_jd", lambda s: {"jd_vector": "JD"})
     monkeypatch.setattr(
         graph_mod, "gap_analysis", lambda s: {"gap_targets": []}
+    )
+    monkeypatch.setattr(
+        graph_mod, "generate_skills", lambda s: {"skill_dump": SkillDump()}
     )
     monkeypatch.setattr(
         graph_mod, "write_resume", lambda s: {"writer_output": "WO"}
@@ -605,7 +618,7 @@ def test_identity_check_node_clean_preserves_zero_retries(monkeypatch):
 
 def _bullets(n: int) -> WriterOutput:
     """A one-role WriterOutput whose single bullet is exactly ``n`` chars."""
-    return WriterOutput(roles=[RoleBullets(index=0, bullets=["x" * n])], skills=["s"])
+    return WriterOutput(roles=[RoleBullets(index=0, bullets=["x" * n])])
 
 
 def _install_fake_nodes_keep_length_gate(monkeypatch, *, writer_behaviour):
@@ -615,6 +628,9 @@ def _install_fake_nodes_keep_length_gate(monkeypatch, *, writer_behaviour):
     )
     monkeypatch.setattr(graph_mod, "analyze_jd", lambda s: {"jd_vector": "JD"})
     monkeypatch.setattr(graph_mod, "gap_analysis", lambda s: {"gap_targets": []})
+    monkeypatch.setattr(
+        graph_mod, "generate_skills", lambda s: {"skill_dump": SkillDump()}
+    )
     monkeypatch.setattr(graph_mod, "write_resume", writer_behaviour)
     # check_bullet_lengths is intentionally NOT stubbed — it is the unit under test.
     monkeypatch.setattr(graph_mod, "render_node", lambda s: {"latex_rendered": "LATEX"})
@@ -777,6 +793,9 @@ def test_panel_cache_persists_through_compiled_graph_channels(monkeypatch):
     )
     monkeypatch.setattr(graph_mod, "analyze_jd", lambda s: {"jd_vector": jd_vector})
     monkeypatch.setattr(graph_mod, "gap_analysis", lambda s: {"gap_targets": []})
+    monkeypatch.setattr(
+        graph_mod, "generate_skills", lambda s: {"skill_dump": SkillDump()}
+    )
     monkeypatch.setattr(graph_mod, "write_resume", lambda s: {"writer_output": "WO"})
     monkeypatch.setattr(graph_mod, "check_bullet_lengths", lambda s: {"length_violations": None})
     # render_node ALWAYS emits the identical draft — the exact case the cache targets.
@@ -813,3 +832,68 @@ def test_panel_cache_persists_through_compiled_graph_channels(monkeypatch):
         "dropped between node hops and the panel re-ran on the second, "
         "identical draft"
     )
+
+
+# --- generate_skills single-invocation regression -----------------------------
+#
+# The generate_skills node must fire exactly once per pipeline run, even when
+# the writer loop iterates multiple times. This is guaranteed structurally (the
+# back-edges all re-enter at "writer", never before "generate_skills") but is
+# worth pinning explicitly in an E2E test with a counter in the stub.
+
+
+def test_generate_skills_runs_exactly_once_across_multiple_iterations(monkeypatch):
+    """generate_skills fires exactly once even on a fail-then-pass run.
+
+    The skill_dump produced on the first pass must be the one present in the
+    final state — not re-generated or overwritten by a later iteration.
+    """
+    canned_dump = SkillDump(language_and_framework=["from-skills-node"])
+    skills_calls = {"n": 0}
+
+    def counting_generate_skills(state):
+        skills_calls["n"] += 1
+        return {"skill_dump": canned_dump}
+
+    monkeypatch.setattr(
+        graph_mod, "parse_resume",
+        lambda s: {"resume_struct": "RS", "identity_ledger": "LEDGER"},
+    )
+    monkeypatch.setattr(graph_mod, "analyze_jd", lambda s: {"jd_vector": "JD"})
+    monkeypatch.setattr(graph_mod, "gap_analysis", lambda s: {"gap_targets": []})
+    monkeypatch.setattr(graph_mod, "generate_skills", counting_generate_skills)
+    monkeypatch.setattr(graph_mod, "write_resume", lambda s: {"writer_output": "WO"})
+    monkeypatch.setattr(graph_mod, "check_bullet_lengths", lambda s: {"length_violations": None})
+    monkeypatch.setattr(graph_mod, "render_node", lambda s: {"latex_rendered": "LATEX"})
+    monkeypatch.setattr(graph_mod, "identity_check_node", lambda s: {"identity_violations": []})
+    monkeypatch.setattr(
+        graph_mod, "compile_node",
+        lambda s: {"compile_ok": True, "compile_errors": "", "pdf_path": "/tmp/x.pdf", "compile_retries": 0},
+    )
+    monkeypatch.setattr(graph_mod, "recruiter_panel", lambda s: {"panel_scores": []})
+
+    agg_calls = {"n": 0}
+
+    def agg_flip(state):
+        agg_calls["n"] += 1
+        if agg_calls["n"] == 1:
+            return {"passed": False, "aggregate_score": 70.0, "revision_notes": ["improve"]}
+        return {"passed": True, "aggregate_score": 95.0, "panel_scores": []}
+
+    monkeypatch.setattr(graph_mod, "aggregator", agg_flip)
+    monkeypatch.setattr(graph_mod, "emit_node", lambda s: {"emitted": True})
+
+    compiled = graph_mod.build_graph(enable_scoring=False)
+    result = compiled.invoke(
+        {"resume_tex_raw": "R", "jd_raw": "J", "iteration": 1, "compile_retries": 0},
+        {"recursion_limit": 100},
+    )
+
+    assert result.get("emitted") is True
+    assert agg_calls["n"] >= 2, "must have iterated (fail-then-pass)"
+    assert skills_calls["n"] == 1, (
+        "generate_skills must run exactly once — if this is > 1, "
+        "the back-edge is incorrectly re-entering before generate_skills"
+    )
+    # The skill_dump from the first (and only) skills call must be in the final state.
+    assert result.get("skill_dump") is canned_dump

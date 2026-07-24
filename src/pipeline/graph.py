@@ -2,28 +2,30 @@
 
 Topology::
 
-    parse_resume → analyze_jd → gap_analysis → writer → check_bullet_lengths
-                     ▲                                      │    │
-                     │                                      │ (clean)
-                     │                                      │    │
-     (length violation) ────────────────────────────────────┘    │
-                     │                                         render_node
-                     │                                            │
-                     │                                    identity_check_node
-                     │                                            │
-     (identity violation) ──────────────────────────┐        (clean)
-                     │                               │            │
-                     └── writer ◀── (compile fail,   │        compile_node
-                          revision  ≤ retries)  ◀────┤            │
-                          bounce)                    │      ┌─────┴── (ok)
-                                                     │      │
-                       (retries exhausted) ──────────┴──┤   recruiter_panel
-                                                        │      │
-                                                     emit    aggregator
-                                                        ▲      │
-                                    (pass / cap hit) ───┴── bookkeep
-                                                               │
-                                    (fail & iter < MAX) ──▶ writer
+    parse_resume → analyze_jd → gap_analysis → generate_skills → writer → check_bullet_lengths
+                                                                     ▲          │    │
+                                                                     │          │ (clean)
+                                                                     │          │    │
+                                             (length violation) ─────┘     render_node
+                                                                                 │
+                                                                         identity_check_node
+                                                                                 │
+                                          (identity violation) ──────────┐   (clean)
+                                                                         │       │
+                                               writer ◀── (compile fail, │   compile_node
+                                                revision  ≤ retries) ◀──┤       │
+                                                bounce)                  │ ┌─────┴── (ok)
+                                                                         │ │
+                                            (retries exhausted) ─────────┤ recruiter_panel
+                                                                         │     │
+                                                                      emit   aggregator
+                                                                         ▲     │
+                                             (pass / cap hit) ───────────┴── bookkeep
+                                                                               │
+                                             (fail & iter < MAX) ──▶ writer
+
+``generate_skills`` fires exactly once: the graph's back-edges all re-enter at
+``writer``, never before it, so skill_dump is invariant across revisions.
 
 The four conditional-edge functions are pure and independently unit-tested.
 Node wrappers around the plain compiler functions (``render``, ``check_identity``,
@@ -46,6 +48,7 @@ from src.agents.gap_analyzer import gap_analysis
 from src.agents.jd_analyzer import analyze_jd
 from src.agents.parser import parse_resume
 from src.agents.recruiters import recruiter_panel
+from src.agents.skills import generate_skills
 from src.agents.validators import check_bullet_lengths
 from src.agents.writer import write_resume
 from src.compiler.identity_check import check_identity
@@ -109,8 +112,8 @@ def compile_node(state: PipelineState) -> dict:
                     f"and CANNOT be shortened below 195 — the lever is bullet COUNT, "
                     f"not bullet length. ACTION: cut the lowest-value bullet(s) from the "
                     f"role(s) carrying the most bullets (stay within the 8-total / "
-                    f"5-per-role caps), and trim the skills list to the highest-signal "
-                    f"entries. Do NOT add new content and do NOT shorten bullets below 195."
+                    f"5-per-role caps). Do NOT add new content and do NOT shorten bullets "
+                    f"below 195."
                 ),
                 "pdf_path": "",
                 "compile_retries": retries + 1,
@@ -137,10 +140,12 @@ def compile_node(state: PipelineState) -> dict:
 
 
 def update_best(state: PipelineState) -> dict:
-    """Pure helper: keep the running max of (aggregate_score, latex_rendered, pdf_path).
+    """Pure helper: keep the running max of (score, latex, pdf).
 
     Returns a NEW dict with ``best_score`` / ``best_latex`` / ``best_pdf_path``
-    reflecting the highest score seen so far. Never mutates ``state``.
+    reflecting the highest score seen so far. Skills are invariant across
+    iterations (produced once by ``generate_skills``) so there is nothing to
+    snapshot here. Never mutates ``state``.
     """
     current_score = state.get("aggregate_score")
     current_latex = state.get("latex_rendered", "")
@@ -150,8 +155,16 @@ def update_best(state: PipelineState) -> dict:
     if current_score is None:
         return {}
     if best_score is None or current_score > best_score:
-        return {"best_score": current_score, "best_latex": current_latex, "best_pdf_path": current_pdf}
-    return {"best_score": best_score, "best_latex": state.get("best_latex", ""), "best_pdf_path": state.get("best_pdf_path", "")}
+        return {
+            "best_score": current_score,
+            "best_latex": current_latex,
+            "best_pdf_path": current_pdf,
+        }
+    return {
+        "best_score": best_score,
+        "best_latex": state.get("best_latex", ""),
+        "best_pdf_path": state.get("best_pdf_path", ""),
+    }
 
 
 def bookkeep_node(state: PipelineState) -> dict:
@@ -272,6 +285,7 @@ def build_graph(enable_scoring: bool = False):
     builder.add_node("parse_resume", parse_resume)
     builder.add_node("analyze_jd", analyze_jd)
     builder.add_node("gap_analysis", gap_analysis)
+    builder.add_node("generate_skills", generate_skills)
     builder.add_node("writer", write_resume)
     builder.add_node("check_bullet_lengths", check_bullet_lengths)
     builder.add_node("render_node", render_node)
@@ -282,11 +296,12 @@ def build_graph(enable_scoring: bool = False):
     builder.add_node("bookkeep", bookkeep_node)
     builder.add_node("emit", emit_node)
 
-    # Linear extraction spine.
+    # Linear extraction spine — generate_skills fires once before the writer loop.
     builder.add_edge(START, "parse_resume")
     builder.add_edge("parse_resume", "analyze_jd")
     builder.add_edge("analyze_jd", "gap_analysis")
-    builder.add_edge("gap_analysis", "writer")
+    builder.add_edge("gap_analysis", "generate_skills")
+    builder.add_edge("generate_skills", "writer")
 
     # Writer → bullet length check → render → identity check.
     # Length violations route back to writer; clean bullets proceed to render.

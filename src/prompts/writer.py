@@ -164,5 +164,5 @@ REVISION BEHAVIOR
   glyph or an overlong bullet. Change nothing else; keep the prior draft's
   substance intact.
 
-Return only the structured object (bullets keyed by role index, and skills).
+Return only the structured object (bullets keyed by role index).
 No identity fields. No commentary."""

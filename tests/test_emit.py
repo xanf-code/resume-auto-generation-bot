@@ -11,7 +11,7 @@ including a no_evidence target). Asserts:
 import json
 
 from src.pipeline import emit as emit_mod
-from src.pipeline.schemas import PanelScore, ReframingTarget
+from src.pipeline.schemas import PanelScore, ReframingTarget, SkillDump
 
 
 def _panel_scores() -> list[PanelScore]:
@@ -211,20 +211,21 @@ def test_emit_falls_back_gracefully_when_both_absent(tmp_path):
 # --- JD-derived output filename -----------------------------------------------
 
 
-def test_emit_uses_jd_name_for_pdf_filename(tmp_path):
-    """When jd_name is in state, the output PDF uses that stem."""
+def test_emit_uses_jd_name_for_package_folder(tmp_path):
+    """When jd_name is in state, outputs land in out/{jd_name}/ as resume.pdf."""
     out_dir = tmp_path / "out"
     state = _make_state(tmp_path)
     state["jd_name"] = "amazon_sde"
 
     result = emit_mod.emit(state, out_dir=str(out_dir))
 
-    assert result["output_pdf"].endswith("amazon_sde.pdf")
-    assert (out_dir / "amazon_sde.pdf").is_file()
+    pdf_out = out_dir / "amazon_sde" / "resume.pdf"
+    assert pdf_out.is_file()
+    assert result["output_pdf"] == str(pdf_out)
 
 
 def test_emit_falls_back_to_resume_optimized_when_no_jd_name(tmp_path):
-    """When jd_name is absent, the output PDF falls back to resume_optimized.pdf."""
+    """No jd_name → no subfolder; PDF keeps the legacy resume_optimized.pdf name."""
     out_dir = tmp_path / "out"
     state = _make_state(tmp_path)
     state.pop("jd_name", None)
@@ -235,8 +236,8 @@ def test_emit_falls_back_to_resume_optimized_when_no_jd_name(tmp_path):
     assert (out_dir / "resume_optimized.pdf").is_file()
 
 
-def test_emit_jd_name_used_for_best_pdf_path_too(tmp_path):
-    """jd_name controls the output filename regardless of which pdf_path source wins."""
+def test_emit_jd_name_folder_used_for_best_pdf_path_too(tmp_path):
+    """jd_name controls the package folder regardless of which pdf source wins."""
     best_pdf = tmp_path / "best.pdf"
     best_pdf.write_bytes(b"%PDF best")
     out_dir = tmp_path / "out"
@@ -248,5 +249,114 @@ def test_emit_jd_name_used_for_best_pdf_path_too(tmp_path):
 
     result = emit_mod.emit(state, out_dir=str(out_dir))
 
-    assert result["output_pdf"].endswith("google_l5.pdf")
-    assert (out_dir / "google_l5.pdf").read_bytes() == b"%PDF best"
+    pdf_out = out_dir / "google_l5" / "resume.pdf"
+    assert result["output_pdf"] == str(pdf_out)
+    assert pdf_out.read_bytes() == b"%PDF best"
+
+
+# --- per-JD package layout + skills.mdx ----------------------------------------
+
+
+def _skill_dump() -> SkillDump:
+    return SkillDump(
+        language_and_framework=["Python", "TypeScript"],
+        infrastructure=["AWS", "Docker"],
+        database=["PostgreSQL", "Kafka"],
+        ai_tools=["LangChain", "RAG"],
+    )
+
+
+def test_emit_package_folder_contains_all_three_deliverables(tmp_path):
+    """out/{jd_name}/ holds resume.pdf, score_report.json, and skills.mdx."""
+    out_dir = tmp_path / "out"
+    state = _make_state(tmp_path)
+    state["jd_name"] = "JD1"
+    state["skill_dump"] = _skill_dump()
+
+    result = emit_mod.emit(state, out_dir=str(out_dir))
+
+    pkg = out_dir / "JD1"
+    assert (pkg / "resume.pdf").is_file()
+    assert (pkg / "score_report.json").is_file()
+    assert (pkg / "skills.mdx").is_file()
+    assert result["output_skills"] == str(pkg / "skills.mdx")
+
+
+def test_skills_mdx_has_frontmatter_category_sections_and_copy_paste(tmp_path):
+    out_dir = tmp_path / "out"
+    state = _make_state(tmp_path)
+    state["jd_name"] = "JD1"
+    state["skill_dump"] = _skill_dump()
+
+    emit_mod.emit(state, out_dir=str(out_dir))
+
+    mdx = (out_dir / "JD1" / "skills.mdx").read_text()
+    assert mdx.startswith("---\n")
+    assert "jd: JD1" in mdx
+    assert "generated:" in mdx
+    assert "skill_count: 8" in mdx
+    # All four fixed category headers render, in order.
+    for header in ("## Language & Framework", "## Infrastructure",
+                   "## Database", "## AI Tools"):
+        assert header in mdx
+    assert mdx.index("## Language & Framework") < mdx.index("## Infrastructure") \
+        < mdx.index("## Database") < mdx.index("## AI Tools")
+    # Skills render as bullets and per-category copy-paste lines.
+    assert "- Python" in mdx
+    assert "Copy-paste: `Python, TypeScript`" in mdx
+    assert "Copy-paste: `LangChain, RAG`" in mdx
+
+
+def test_skills_mdx_uses_skill_dump_from_state(tmp_path):
+    """skill_dump on state is the single source of truth for the MDX."""
+    out_dir = tmp_path / "out"
+    state = _make_state(tmp_path)
+    state["jd_name"] = "JD1"
+    state["skill_dump"] = SkillDump(language_and_framework=["canonical-skill"])
+
+    emit_mod.emit(state, out_dir=str(out_dir))
+
+    mdx = (out_dir / "JD1" / "skills.mdx").read_text()
+    assert "canonical-skill" in mdx
+
+
+def test_skills_mdx_all_none_when_skill_dump_absent(tmp_path):
+    """No skill_dump in state → empty SkillDump → all four buckets show _None._."""
+    out_dir = tmp_path / "out"
+    state = _make_state(tmp_path)
+    state["jd_name"] = "JD1"
+    state.pop("skill_dump", None)
+
+    emit_mod.emit(state, out_dir=str(out_dir))
+
+    mdx = (out_dir / "JD1" / "skills.mdx").read_text()
+    assert mdx.count("_None._") == 4
+
+
+def test_build_skills_mdx_preserves_order_within_category(tmp_path):
+    """The builder keeps writer order within a bucket and never re-sorts."""
+    dump = SkillDump(language_and_framework=["Zebra", "Apple", "Mango"])
+    mdx = emit_mod.build_skills_mdx(dump, "role")
+    assert "Copy-paste: `Zebra, Apple, Mango`" in mdx
+    assert "skill_count: 3" in mdx
+
+
+def test_build_skills_mdx_handles_empty_dump(tmp_path):
+    """No skills → valid MDX, count 0, every category shows _None_, no crash."""
+    mdx = emit_mod.build_skills_mdx(SkillDump(), "")
+    assert "skill_count: 0" in mdx
+    assert mdx.count("_None._") == 4
+
+
+def test_skills_mdx_empty_category_renders_none(tmp_path):
+    """A populated dump with one empty bucket still renders that bucket as _None_."""
+    out_dir = tmp_path / "out"
+    state = _make_state(tmp_path)
+    state["jd_name"] = "JD1"
+    state["skill_dump"] = SkillDump(language_and_framework=["Python"])  # others empty
+
+    emit_mod.emit(state, out_dir=str(out_dir))
+
+    mdx = (out_dir / "JD1" / "skills.mdx").read_text()
+    assert "- Python" in mdx
+    assert "_None._" in mdx  # e.g. AI Tools bucket is empty

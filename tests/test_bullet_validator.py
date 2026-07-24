@@ -30,7 +30,6 @@ def _valid_output() -> WriterOutput:
                 ],
             ),
         ],
-        skills=["Python", "SQL"],
     )
 
 
@@ -45,7 +44,6 @@ def _short_bullet_output() -> WriterOutput:
                 ],
             ),
         ],
-        skills=["Python"],
     )
 
 
@@ -60,7 +58,6 @@ def _long_bullet_output() -> WriterOutput:
                 ],
             ),
         ],
-        skills=["Python"],
     )
 
 
@@ -83,7 +80,6 @@ def _mixed_violations_output() -> WriterOutput:
                 ],
             ),
         ],
-        skills=["Python"],
     )
 
 
@@ -131,7 +127,6 @@ def test_validate_bullet_lengths_respects_custom_bounds():
     """Custom lo/hi bounds are respected."""
     output = WriterOutput(
         roles=[RoleBullets(index=0, bullets=["x" * 100])],
-        skills=["Python"],
     )
 
     # 100 chars is invalid for default [195, 210]
@@ -142,13 +137,13 @@ def test_validate_bullet_lengths_respects_custom_bounds():
 
 def test_validate_bullet_lengths_empty_roles():
     """No roles → no violations."""
-    output = WriterOutput(roles=[], skills=["Python"])
+    output = WriterOutput(roles=[])
     assert validate_bullet_lengths(output) == []
 
 
 def test_validate_bullet_lengths_empty_bullets():
     """Role with no bullets → no violations."""
-    output = WriterOutput(roles=[RoleBullets(index=0, bullets=[])], skills=["Python"])
+    output = WriterOutput(roles=[RoleBullets(index=0, bullets=[])])
     assert validate_bullet_lengths(output) == []
 
 

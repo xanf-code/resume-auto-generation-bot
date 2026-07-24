@@ -159,7 +159,7 @@ def write_resume(state: PipelineState) -> dict:
     output = sanitize_writer_output(output)
     total_bullets = sum(len(r.bullets) for r in output.roles)
     log.info(
-        "writer       | done — %d roles, %d total bullets, %d skills",
-        len(output.roles), total_bullets, len(output.skills),
+        "writer       | done — %d roles, %d total bullets",
+        len(output.roles), total_bullets,
     )
     return {"writer_output": output}

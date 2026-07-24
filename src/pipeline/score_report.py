@@ -8,9 +8,7 @@ After the threshold is cleared and PDF is generated, this module:
 """
 import logging
 import subprocess
-import sys
 from pathlib import Path
-from typing import Any
 
 from src.resume_scorer import score_resume, ScoringResult
 
