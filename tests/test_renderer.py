@@ -283,3 +283,105 @@ def test_new_experience_bullets_appear_in_correct_roles():
     before_startup = out.split("StartupXYZ")[0]
     assert "Increased throughput" in before_startup
     assert "Reduced latency" not in before_startup
+
+
+# --- render: tectonic font normalization (bold-loss fix) ---------------------
+#
+# The root cause of "bold disappears in the PDF": the source loads XCharter via
+# the pdfLaTeX Type1 path (\usepackage{XCharter} + [T1]{fontenc} + inputenc).
+# Under tectonic's XeTeX engine that path silently falls back to a bold-less
+# font, flattening EVERY \textbf in the document. render() must convert the font
+# setup to the XeTeX-native fontspec path so the bold face loads.
+
+
+def _xcharter_tex() -> str:
+    """A resume preamble using the pdfLaTeX-era XCharter font setup."""
+    return r"""\documentclass[11pt]{article}
+\usepackage[margin=0.5in]{geometry}
+\usepackage[normalem]{ulem}
+\usepackage{XCharter}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\begin{document}
+\section*{Experience}
+\textbf{Software Engineer,} {AcmeCorp} -- NY \hfill Jan 2024 -- Present \\
+\begin{itemize}
+  \item Original bullet
+\end{itemize}
+\end{document}
+"""
+
+
+def _xcharter_ledger() -> IdentityLedger:
+    return IdentityLedger(
+        name="Test User",
+        contact="t@x.com",
+        roles=[Role(company="AcmeCorp", title="Software Engineer", start="Jan 2024", end="Present")],
+    )
+
+
+def _xcharter_writer() -> WriterOutput:
+    return WriterOutput(
+        roles=[RoleBullets(index=0, bullets=["New optimized bullet"])],
+        skills=["x"],
+        summary="y",
+    )
+
+
+def test_xcharter_converted_to_fontspec():
+    """\\usepackage{XCharter} must become the fontspec path so bold loads."""
+    out = render(_xcharter_tex(), _xcharter_ledger(), _xcharter_writer())
+    assert r"\usepackage{fontspec}" in out
+    assert r"\setmainfont{XCharter}" in out
+    assert r"\usepackage{XCharter}" not in out
+
+
+def test_legacy_encoding_packages_dropped_on_conversion():
+    """T1 fontenc and inputenc break the XeTeX font path; drop them."""
+    out = render(_xcharter_tex(), _xcharter_ledger(), _xcharter_writer())
+    assert "fontenc" not in out
+    assert "inputenc" not in out
+
+
+def test_fontspec_loaded_before_setmainfont():
+    r"""\setmainfont is undefined until fontspec loads — order matters."""
+    out = render(_xcharter_tex(), _xcharter_ledger(), _xcharter_writer())
+    assert out.index(r"\usepackage{fontspec}") < out.index(r"\setmainfont{XCharter}")
+
+
+def test_font_conversion_preserves_bold_markup_and_body():
+    """Conversion touches only the preamble; \\textbf headers and body survive."""
+    out = render(_xcharter_tex(), _xcharter_ledger(), _xcharter_writer())
+    assert r"\textbf{Software Engineer,}" in out
+    assert "{AcmeCorp}" in out
+    assert "New optimized bullet" in out
+    # Non-font packages are untouched.
+    assert r"\usepackage[margin=0.5in]{geometry}" in out
+    assert r"\usepackage{enumitem}" in out
+    assert r"\usepackage[hidelinks]{hyperref}" in out
+
+
+def test_no_font_conversion_when_no_known_font_package():
+    """Docs without a convertible font package keep their preamble verbatim."""
+    plain = r"""\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage{enumitem}
+\begin{document}
+\section*{Experience}
+\textbf{Engineer} {AcmeCorp}\par
+\begin{itemize}
+  \item Old
+\end{itemize}
+\end{document}
+"""
+    ledger = IdentityLedger(
+        name="U", contact="c",
+        roles=[Role(company="AcmeCorp", title="Engineer", start="", end="")],
+    )
+    writer = WriterOutput(roles=[RoleBullets(index=0, bullets=["New"])], skills=["s"], summary="m")
+    out = render(plain, ledger, writer)
+    # No fontspec injected; existing (harmless, working) fontenc left alone.
+    assert r"\usepackage{fontspec}" not in out
+    assert r"\usepackage[T1]{fontenc}" in out

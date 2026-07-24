@@ -1,45 +1,45 @@
 {
   "passed": true,
   "cap_hit": false,
-  "aggregate_score": 88.6875,
-  "best_score": 88.6875,
+  "aggregate_score": 79.725,
+  "best_score": 79.725,
   "iteration": 1,
   "personas": [
     {
       "persona": "ATS Matcher",
-      "keyword_match": 88,
-      "impact_quality": 95,
-      "coherence": 92,
-      "plausibility": 90,
-      "formatting": 85,
-      "notes": "The resume excellently mirrors most of the key terms from the job description, particularly emphasizing Typescript, Node.js, NestJS, SQL-based databases, unit testing, TDD, and service-oriented systems. There are slight omissions in specific terms like CSS, SRE best practices, post-mortems, logging, and alerting, which are lightly weighted in the JD.\n\nFor formatting, while the resume is clear and structured, including some listing formats like XCharter, or non-standard list spacing, could confuse basic ATS parsers. Consider simplifying.\n\nThe impact quality is high, with each bullet using strong verbs and quantitative results. The resume also presents a coherent narrative of a skilled software engineer with progressive project experience at reputed organizations, which aligns with the JD's requirements for a mid-level position.\n\nTo maximize ATS compatibility, ensure embedded URLs don't hinder keyword scanning and consider conventional formatting for sections like project links. Refine some claims in light of plausibility\u2014quantifying results with percentages and numbers adds credibility."
+      "keyword_match": 82,
+      "impact_quality": 88,
+      "coherence": 85,
+      "plausibility": 80,
+      "formatting": 72,
+      "notes": "Strong coverage of high-weight keywords: TypeScript, Node.js, SQL, Git, AWS, unit testing/TDD, CI/CD, Jenkins, service oriented systems, Agile/Scrum/Kanban, SRE post-mortems/logging/alerting, and financial systems all appear verbatim. CRITICAL GAP: NestJS (weight 0.9, in both weighted_skills and must_mirror) is entirely absent \u2014 you list Spring Boot/FastAPI/Express-adjacent frameworks but never NestJS. Add NestJS to the Framework skills line and ideally to a Node.js bullet, since must_mirror explicitly wants 'Typescript, Node.js and NestJS' together. Also missing 'SaaS integrations' as an exact phrase \u2014 the LSEG bullet on third-party integrations is close but never uses 'SaaS'; add it. The JD's 'synchronization across multiple internal and external systems' and 'orchestration of data transfers' are well-mirrored in your Kafka-Elasticsearch bullet \u2014 good. FORMATTING concerns for the parser: (1) fontspec/XCharter requires XeLaTeX/LuaLaTeX; ensure the PDF embeds a Unicode text layer or an ATS may fail to extract text. (2) The \\hfill dates and \\centerline contact line can cause column-merge or misordered token extraction in weaker parsers \u2014 consider left-aligned date placement. (3) Escaped ampersands (\\&) and the $\\vcenter{\\hbox{...}}$ bullet glyph render fine visually but keep bullets to a plain bullet to avoid math-mode extraction noise. (4) 'CS Degree' keyword: your degree is 'MS in Computer Software Engineering' \u2014 acceptable but not an exact 'Computer Science' match. Add NestJS and 'SaaS' and you jump ~10 points on keyword_match."
     },
     {
       "persona": "Hiring Manager",
-      "keyword_match": 90,
-      "impact_quality": 85,
-      "coherence": 90,
-      "plausibility": 88,
-      "formatting": 95,
-      "notes": "The resume effectively highlights relevant skills and experiences matching the job description, including Typescript, Node.js, NestJS, SQL databases, unit testing, TDD, and service-oriented systems. However, the resume could further emphasize experience with SQL-based databases specifically. There is strong quantified impact in the work experiences, specifically at the London Stock Exchange Group, where results are well-documented. The transition from the London position to Dassault Systemes suggests growth, but further clarity on increased responsibilities or leadership roles would strengthen the narrative. Projects demonstrate a strong technical foundation and problem-solving skills. Ensure certain projects and achievements, like in 'GoonedIn', are directly tied to real-world applications to boost plausibility and relevance. Update education information as the graduation date approaches or changes."
+      "keyword_match": 82,
+      "impact_quality": 83,
+      "coherence": 85,
+      "plausibility": 68,
+      "formatting": 88,
+      "notes": "Strong keyword alignment with the JD \u2014 TypeScript, Node.js, SOA, SQL, Git, Agile/Scrum/Kanban, CI/CD, Jenkins, SRE post-mortems/logging/alerting, and third-party integration language are all mirrored well (the LSEG bullets on Kafka-Elasticsearch orchestration and integration monitoring map almost directly to Vestwell's data-sync/SaaS-integration requirements). Two gaps to close: (1) NestJS is a 0.9-weighted must-mirror skill and appears nowhere \u2014 you list Node.js/Spring Boot/FastAPI but not NestJS. Add it explicitly to Skills and ideally one bullet, since ATS will hard-filter on it. (2) SQL-based databases are implied via Redis/Hibernate/PostgreSQL but no bullet names a relational DB outcome directly tied to SOA \u2014 tighten one bullet. On impact: bullets are quantified and use strong verbs (Reduced 70%, Increased 200%, cutting recurrence 75%), which is exactly what I want to see. However, several numbers strain plausibility and will draw scrutiny in interviews: '1.4B daily records,' '99% unit test coverage,' '95% relevance score,' and '8M+ users' all read as inflated or unverifiable \u2014 soften or contextualize (e.g., '~90% coverage on core services') to protect credibility. Seniority fit is good for a mid-level role, but note the Dassault tenure is only ~7 months (Jun 2025\u2013Jan 2026) and dated into the future, while total professional experience (~2 yrs at LSEG) meets the '2+ years' bar \u2014 make the future-dated end date a present/current role to avoid confusion. The 'GoonedIn' project name is unprofessional and will undercut an otherwise credible narrative \u2014 rename it. Overall the growth story from LSEG fraud/integration platform to current work is coherent and on-target; fix NestJS, rein in the most extreme metrics, and rename the project."
     },
     {
       "persona": "Technical Screener",
-      "keyword_match": 90,
-      "impact_quality": 85,
-      "coherence": 90,
-      "plausibility": 88,
-      "formatting": 95,
-      "notes": "The resume nicely matches the job description, with clear evidence of experience in key areas like TypeScript, Node.js, NestJS, and SQL-based databases. The candidate demonstrates experience with unit testing, TDD, and service-oriented systems through roles at Dassault Systemes and the London Stock Exchange Group. Notable achievements are well quantified, such as the 200% increase in transaction throughput or 95% relevance score achieved in projects.\n\nConsider clarifying specific AWS services used for determining if they align perfectly with job requirements \u2014 particularly if any lesser-known or niche AWS services are leveraged. Additionally, expand on the resume's CI/CD experience; while Jenkins is mentioned, detailing specific types of pipelines could strengthen the CI/CD coverage.\n\nOverall, the resume is well-formatted and machine-readable, showing good structure and clarity without unnecessary formatting complexity."
+      "keyword_match": 78,
+      "impact_quality": 72,
+      "coherence": 74,
+      "plausibility": 58,
+      "formatting": 88,
+      "notes": "Strong keyword alignment with the JD, but several claims won't survive a 30-minute phone screen. CRITICAL: NestJS is a must_mirror item and appears NOWHERE \u2014 you list Node.js/TypeScript but not NestJS. Add it honestly if you've touched it; right now you fail an explicit mirror requirement. PLAUSIBILITY RED FLAGS: (1) Dassault bullet claims '1.4B daily records' fraud platform at LSEG AND a '99% unit testing coverage' claim \u2014 99% coverage is a number screeners probe hard; be ready to explain how you measured it or drop to a defensible figure. (2) The Dassault role is dated June 2025\u2013Jan 2026, which is future-dated relative to a plausible screen and overlaps oddly with your Dec 2026 graduation \u2014 reconcile the timeline; an internship label would read more credibly. (3) 'two-tower embeddings and vector search on 8M+ users' plus '200% throughput' plus '90% retrieval boost' plus '70% latency reduction' is a dense stack of round-number wins that reads as buzzword-optimized; keep 1-2 per role and make them defensible. (4) LSEG bullet stacks TypeScript, Node.js AND Spring Boot for the same 'service oriented systems' \u2014 clarify which service used which, since a screener will ask. STRENGTHS: SRE/post-mortem/runbook bullet maps cleanly to JD and is defensible; Kafka-Elasticsearch data-sync bullet directly mirrors 'orchestration of data transfers / synchronization across internal and external systems' \u2014 good. ACTION: The 'AWS Solutions Architect - Professional' cert alongside only ~2 yrs experience is a stretch given Professional requires depth \u2014 be ready to defend or consider it's a flag. Tighten skills 'salad' in the Framework line (Angular, RxJS, LangChain, Hibernate, JPA all listed) \u2014 a screener will pick the least-supported one; only list what you can discuss."
     },
     {
       "persona": "Skeptic",
-      "keyword_match": 85,
-      "impact_quality": 80,
-      "coherence": 88,
-      "plausibility": 83,
-      "formatting": 95,
-      "notes": "1. The candidate's claim of \"Developed scalable, high-performance web applications using Typescript alongside Node.js and NestJS frameworks, contributing to increased system efficiency and maintainability\" at Dassault Systemes is plausible given their experience with Node.js and Typescript, though specific use of NestJS is not mentioned in the source. \n2. Highlighting \"Designed and implemented service-oriented systems utilizing microservices and RESTful APIs\" aligns with their expertise in microservices, though not explicitly breaking down RESTful APIs.\n3. The emphasis on \"unit testing and TDD approaches\" and achieving 99% test coverage is consistent with the mention of maintaining test coverage using JUnit and Jasmine on their source resume.\n4. Good coverage of AWS, Agile practices, and React within projects and work experience, but CSS and HTML get less emphasis.\n5. Ensure to elaborate on specific \"SQL-based databases\" experience, such as PostgreSQL, that matches jd_vector phrasing."
+      "keyword_match": 78,
+      "impact_quality": 82,
+      "coherence": 85,
+      "plausibility": 72,
+      "formatting": 88,
+      "notes": "Most reframings are defensible. Concerns for phone screen: (1) LSEG bullet 'Orchestrated data transfers and synchronization across internal and external systems...Kafka-Elasticsearch pipelines' \u2014 source says 'Boosted data retrieval speed by 90% for 500+ analysts.' The JD-mirroring 'data transfers/synchronization across internal and external systems' framing is adjacent but stretches the original internal analytics pipeline into a third-party integration story; be ready to explain what external systems were actually integrated. (2) LSEG bullet 'Monitored and supported third-party system integrations by resolving 20+ issues via SRE post-mortems' \u2014 source is 'Resolved 20+ production issues through RCA and custom React/Node.js monitoring dashboard.' The 'third-party system integrations' and 'SRE post-mortems' framing is not directly supported; candidate should be prepared to name specific third-party integrations or soften to 'production integration issues.' (3) Dassault TDD bullet claims '99% unit testing coverage' and 'JUnit' \u2014 source says JUnit/Jasmine, so JUnit is fine, but 'Drove TDD' is an upgrade from 'Maintained 99% test coverage'; defensible but interviewer may probe whether tests were truly test-first. (4) NestJS is a must_mirror JD keyword and appears NOWHERE in resume \u2014 candidate uses Node.js/FastAPI/Spring Boot but no NestJS; do not fabricate it, but this is a genuine gap that will surface. Node.js/TypeScript/service-oriented/Git/AWS/Agile/Scrum/Kanban/CI-CD all well supported. Financial systems (LSEG fraud platform) is legitimately backed."
     }
   ],
   "true_gaps": []

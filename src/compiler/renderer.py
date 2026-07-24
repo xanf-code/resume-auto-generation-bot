@@ -10,6 +10,8 @@ A ``%% ROLE-HEADER %%`` comment is injected before each role's anchor line so
 the identity tripwire can count roles without relying on Jinja template markers.
 Every injected bullet string is LaTeX-escaped (backslash first).
 """
+import re
+
 from src.pipeline.schemas import IdentityLedger, WriterOutput
 
 # LaTeX comment injected before each role header so identity_check can count
@@ -155,6 +157,72 @@ def _strip_tectonic_incompatible(tex: str) -> str:
     return "".join(lines)
 
 
+# pdfLaTeX-era font packages whose Type1 loading path misbehaves under
+# tectonic's XeTeX engine: the OTF request silently falls back to a bold-less
+# font, flattening EVERY ``\textbf`` in the document. Each maps its
+# ``\usepackage{<pkg>}`` to the fontspec ``\setmainfont`` name that restores the
+# bold face via the XeTeX-native path. Extend this map for other OTF-available
+# font packages as they come up.
+_FONTSPEC_CONVERTIBLE: dict[str, str] = {
+    "XCharter": "XCharter",
+}
+
+# Legacy encoding packages that are unnecessary — and actively harmful — under
+# XeTeX once the main font is loaded via fontspec. fontspec manages Unicode
+# encoding itself; leaving these in forces the legacy path that drops bold.
+_LEGACY_ENCODING_PKGS = frozenset({"fontenc", "inputenc"})
+
+# Matches ``\usepackage`` with optional ``[options]`` and captures the braced
+# package list (``\usepackage[T1]{fontenc}`` → ``fontenc``).
+_USEPACKAGE_RE = re.compile(r"\\usepackage(?:\[[^\]]*\])?\{([^}]*)\}")
+
+
+def _normalize_fonts_for_tectonic(tex: str) -> str:
+    """Convert a pdfLaTeX font setup to the XeTeX-native fontspec path.
+
+    Only acts when the document loads a known convertible font package (see
+    ``_FONTSPEC_CONVERTIBLE``). In that case it:
+
+    1. Replaces ``\\usepackage{<font>}`` with ``\\usepackage{fontspec}`` +
+       ``\\setmainfont{<font>}`` (fontspec injected once, before the first
+       ``\\setmainfont`` so the command is defined when used).
+    2. Drops legacy ``fontenc`` / ``inputenc`` packages, which force the Type1
+       path that silently loses the bold face under tectonic.
+
+    Documents without a convertible font package are returned unchanged — their
+    preamble (including a plain, working ``fontenc``) is left verbatim.
+    """
+    fonts_present = {
+        pkg: mainfont
+        for pkg, mainfont in _FONTSPEC_CONVERTIBLE.items()
+        if re.search(r"\\usepackage(?:\[[^\]]*\])?\{" + re.escape(pkg) + r"\}", tex)
+    }
+    if not fonts_present:
+        return tex
+
+    out_lines: list[str] = []
+    fontspec_injected = False
+    for line in tex.splitlines(keepends=True):
+        match = _USEPACKAGE_RE.search(line)
+        if match:
+            pkgs = [p.strip() for p in match.group(1).split(",")]
+            # Drop legacy encoding packages entirely.
+            if any(p in _LEGACY_ENCODING_PKGS for p in pkgs):
+                continue
+            # Convert a known font package to the fontspec path.
+            font_hit = next((p for p in pkgs if p in fonts_present), None)
+            if font_hit is not None:
+                newline = "\n" if line.endswith("\n") else ""
+                prefix = "" if fontspec_injected else "\\usepackage{fontspec}\n"
+                fontspec_injected = True
+                out_lines.append(
+                    f"{prefix}\\setmainfont{{{fonts_present[font_hit]}}}{newline}"
+                )
+                continue
+        out_lines.append(line)
+    return "".join(out_lines)
+
+
 def render(
     original_tex: str,
     identity_ledger: IdentityLedger,
@@ -166,7 +234,9 @@ def render(
     education sections are left verbatim. Only the ``\\begin{itemize}...
     \\end{itemize}`` block immediately following each role's anchor is replaced
     with the writer's optimised bullets. pdfTeX-only directives that break
-    tectonic are stripped before returning.
+    tectonic are stripped, and a pdfLaTeX font setup (e.g. XCharter + T1
+    fontenc) is converted to the fontspec path so bold faces survive compilation.
     """
     patched = patch_bullets(original_tex, identity_ledger, writer_output)
-    return _strip_tectonic_incompatible(patched)
+    patched = _strip_tectonic_incompatible(patched)
+    return _normalize_fonts_for_tectonic(patched)

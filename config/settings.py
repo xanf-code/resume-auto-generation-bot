@@ -30,8 +30,12 @@ RUBRIC_WEIGHTS = {
 }
 
 # --- Model identifiers --------------------------------------------------------
-MODEL_STRONG = "openai/gpt-4o"
-MODEL_FAST = "gpt-4o-mini"
+# OpenRouter-namespaced slugs (provider/model). MODEL_STRONG drives the writer,
+# recruiter panel, and aggregator; MODEL_FAST drives extraction (parser, JD
+# analyzer, gap analyzer). Both must be valid OpenRouter slugs — see the pricing
+# table in src/benchmark.py for the supported set.
+MODEL_STRONG = "anthropic/claude-opus-4-8"
+MODEL_FAST = "google/gemini-2.5-flash"
 
 _API_KEY_ENV = "OPENROUTER_API_KEY"
 
