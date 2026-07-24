@@ -16,7 +16,7 @@ Four Opus personas, **run concurrently**, each returns a `PanelScore` via
 | **Technical Screener** | Technical coherence; would this survive a phone screen | rendered LaTeX, jd_vector |
 | **Skeptic** | Adversarial traceability; flags overstatement & un-sourced tools | rendered LaTeX, jd_vector, **`resume_struct`** |
 
-- Rubric dimensions (each 0–100): `keyword_match`, `impact_quality`, `coherence`,
+- Rubric dimensions (each 0-100): `keyword_match`, `impact_quality`, `coherence`,
   `plausibility`, `formatting` + free-text `notes` (specific, actionable).
 - **Skeptic is prompted to refute, not confirm** — for each bullet it checks
   traceability to `source_evidence` and defaults to a low plausibility score when

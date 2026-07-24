@@ -95,8 +95,8 @@ def compile_node(state: PipelineState) -> dict:
                     f"PAGE OVERFLOW: the resume compiled to {pages} pages but MUST fit "
                     f"exactly 1 page. Shorten bullets NOW — this is a hard constraint. "
                     f"ACTION: reduce every LONG bullet (>140 chars) to MEDIUM or SHORT. "
-                    f"Cut words from the 'by' details clause first; preserve the outcome "
-                    f"and the word 'by'. "
+                    f"Cut words from the mechanism/details clause first; preserve the "
+                    f"outcome and its result so the cause-and-effect survives. "
                     f"Target per role: 1-2 SHORT (≤90 chars), 2-3 MEDIUM (91-140 chars), "
                     f"0-1 LONG (141-180 chars). Do NOT add new content — only remove."
                 ),

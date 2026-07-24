@@ -20,7 +20,7 @@ and speaks in Pydantic models that double as `messages.parse()` schemas.
   `name`, `contact`. This is the immutable source of truth.
 - `ResumeStruct` — roles (each with ledger identity + `source_evidence: list[str]`
   of original bullets), `education`, `skills`.
-- `JDVector` — `weighted_skills: list[SkillWeight]` (name + 0–1 weight),
+- `JDVector` — `weighted_skills: list[SkillWeight]` (name + 0-1 weight),
   `ats_keywords: list[str]` (literal match strings), `seniority`,
   `must_mirror: list[str]` (top-5 phrases).
 - `ReframingTarget` — `competency`, `weight`, `host_role_index`,
@@ -28,7 +28,7 @@ and speaks in Pydantic models that double as `messages.parse()` schemas.
 - `WriterOutput` — `roles: list[RoleBullets]` (index + `bullets: list[str]` ONLY),
   `skills: list[str]`, `summary: str`. **No identity fields exist in this schema.**
 - `PanelScore` — `persona`, `keyword_match`, `impact_quality`, `coherence`,
-  `plausibility`, `formatting` (all int 0–100), `notes: str`.
+  `plausibility`, `formatting` (all int 0-100), `notes: str`.
 
 > Structured-output constraint: schemas must use `additionalProperties: false`
 > and avoid min/max numeric bounds (validate ranges in code). The SDK strips

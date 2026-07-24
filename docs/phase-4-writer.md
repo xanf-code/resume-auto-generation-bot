@@ -22,7 +22,7 @@ they're not even in the schema).
    - ✅ "Integrated CRM data via REST APIs, mapping customer records across systems"
    - ❌ "Administered Salesforce" — unless Salesforce is literally in the source.
 4. **Never invent metrics.** Quantify only where the source provides numbers.
-5. Strong action verbs, 1–2 lines per bullet, ATS-safe glyphs only.
+5. Strong action verbs, 1-2 lines per bullet, ATS-safe glyphs only.
 6. Apply each `ReframingTarget.framing_guidance` to its `host_role_index`, drawing
    strictly from that target's `real_evidence`.
 

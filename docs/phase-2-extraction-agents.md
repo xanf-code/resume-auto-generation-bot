@@ -16,7 +16,7 @@ optimizes against.
 ## JD Analyzer (`src/agents/jd_analyzer.py`)
 
 - Input: `jd_raw`. Output: `JDVector`.
-- Rank required skills with 0–1 weights. Extract **literal ATS keyword strings**
+- Rank required skills with 0-1 weights. Extract **literal ATS keyword strings**
   (what an ATS substring-matches, e.g. "REST APIs", "ETL pipelines", "Salesforce").
 - Identify seniority signals and the top-5 "must mirror" phrases.
 
