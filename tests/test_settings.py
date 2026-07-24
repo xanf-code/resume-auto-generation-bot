@@ -20,7 +20,7 @@ def test_constant_values():
     assert settings.MAX_ITERATIONS == 6
     assert settings.MAX_COMPILE_RETRIES == 4
     assert settings.PLAUSIBILITY_FLOOR == 20
-    assert settings.MODEL_STRONG == "anthropic/claude-sonnet-4-6"
+    assert settings.MODEL_STRONG == "anthropic/claude-opus-4-8"
     assert settings.MODEL_FAST == "google/gemini-2.5-flash"
 
 

@@ -30,8 +30,8 @@ RUBRIC_WEIGHTS = {
 }
 
 # --- Model identifiers --------------------------------------------------------
-MODEL_STRONG = "anthropic/claude-opus-4-8"
-MODEL_FAST = "google/gemini-2.5-flash"
+MODEL_STRONG = "openai/gpt-4o"
+MODEL_FAST = "gpt-4o-mini"
 
 _API_KEY_ENV = "OPENROUTER_API_KEY"
 
