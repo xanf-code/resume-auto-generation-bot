@@ -362,7 +362,7 @@ def main(argv: list[str] | None = None) -> int:
     bench_path = out_dir / "benchmark.json"
     bench_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
 
-    # Print all three ranked tables + grid.
+    # Print all four ranked tables + grid.
     _print_performance_table(results)
     _print_cost_table(results)
     _print_fabrication_table(results)

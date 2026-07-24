@@ -34,8 +34,8 @@ RUBRIC_WEIGHTS = {
 # recruiter panel, and aggregator; MODEL_FAST drives extraction (parser, JD
 # analyzer, gap analyzer). Both must be valid OpenRouter slugs — see the pricing
 # table in src/benchmark.py for the supported set.
-MODEL_STRONG = "anthropic/claude-opus-4-8"
-MODEL_FAST = "google/gemini-2.5-flash"
+MODEL_STRONG = "anthropic/claude-sonnet-5"
+MODEL_FAST = "openai/gpt-4o-mini"
 
 _API_KEY_ENV = "OPENROUTER_API_KEY"
 

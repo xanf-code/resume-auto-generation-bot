@@ -19,7 +19,7 @@ HARD RULES (violating any of these corrupts the whole pipeline):
    "Acme Corp", you write "Acme Corp" — never "ACME Corporation".
 2. Split start and end from a date range exactly as written. For a range like
    "Jan 2021 -- Present", start is "Jan 2021" and end is "Present".
-3. 3. Capture EACH role's existing bullet points verbatim as source material for
+3. Capture EACH role's existing bullet points verbatim as source material for
    the Writer to build from. Preserve the real wording (you may keep or strip
    LaTeX markup for readability, but do not invent, merge, or embellish bullets
    at this stage).

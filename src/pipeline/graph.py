@@ -41,6 +41,7 @@ from src.compiler.identity_check import check_identity
 from src.compiler.renderer import render
 from src.compiler.tectonic import compile_tex, count_pdf_pages
 from src.pipeline.emit import emit_node
+from src.pipeline.score_report import score_report_node
 from src.pipeline.state import PipelineState
 
 
@@ -212,8 +213,11 @@ def route_after_aggregator(state: PipelineState) -> str:
 # --- graph assembly -----------------------------------------------------------
 
 
-def build_graph():
+def build_graph(enable_scoring: bool = False):
     """Build and compile the pipeline ``StateGraph``.
+
+    Args:
+        enable_scoring: If True, wire the score_report node after emit
 
     Returns a compiled graph exposing ``.invoke(state, config)``. Node function
     references are looked up on this module at wire-time so tests can monkeypatch
@@ -270,6 +274,13 @@ def build_graph():
         {"emit": "emit", "writer": "writer"},
     )
 
-    builder.add_edge("emit", END)
+    # Conditionally wire score_report node if scoring is enabled
+    if enable_scoring:
+        builder.add_node("score_report", score_report_node)
+        builder.add_edge("emit", "score_report")
+        builder.add_edge("score_report", END)
+    else:
+        # emit goes directly to END when scoring is disabled
+        builder.add_edge("emit", END)
 
     return builder.compile()

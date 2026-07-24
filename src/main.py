@@ -55,6 +55,7 @@ _KEY_TO_NODE: dict[str, str] = {
     "best_score":         "bookkeep",
     "cap_hit":            "bookkeep",
     "output_pdf":         "emit",
+    "score_report_md":    "score_report",
 }
 
 
@@ -75,6 +76,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--resume", required=True, help="Path to the source .tex resume.")
     parser.add_argument("--jd", required=True, help="Path to the target job description (.txt).")
     parser.add_argument("--out", default="out", help="Output directory (default: out/).")
+    parser.add_argument(
+        "--score",
+        action="store_true",
+        default=False,
+        help="Enable resume scoring report generation (default: disabled).",
+    )
     return parser
 
 
@@ -105,7 +112,7 @@ def _print_progress(state: dict) -> None:
         print(f"  aggregate = {agg:.2f}   →   {verdict}")
 
 
-def run(resume_path: str, jd_path: str, out_dir: str) -> dict:
+def run(resume_path: str, jd_path: str, out_dir: str, enable_scoring: bool = False) -> dict:
     """Execute the pipeline. Requires the API key (fires the fail-fast gate)."""
     require_api_key()  # fail fast before any node runs
 
@@ -120,9 +127,10 @@ def run(resume_path: str, jd_path: str, out_dir: str) -> dict:
         "identity_retries": 0,
         "out_dir": out_dir,
         "jd_name": Path(jd_path).stem,
+        "enable_scoring": enable_scoring,
     }
 
-    graph = build_graph()
+    graph = build_graph(enable_scoring=enable_scoring)
     config = {"recursion_limit": _RECURSION_LIMIT}
 
     final_state: dict = {}
@@ -167,8 +175,11 @@ def _print_summary(state: dict) -> None:
         print(f"Best aggregate score: {state['best_score']:.2f}")
     pdf = state.get("output_pdf")
     report = state.get("output_report")
-    print(f"PDF:    {pdf if pdf else '(none — compile never succeeded)'}")
-    print(f"Report: {report}")
+    score_md = state.get("score_report_md")
+    print(f"PDF:          {pdf if pdf else '(none — compile never succeeded)'}")
+    print(f"Score Report: {report}")
+    if score_md:
+        print(f"Score MD:     {score_md}")
     print("=" * 52)
 
 
@@ -182,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
     """CLI main. Returns a process exit code."""
     args = build_parser().parse_args(argv)
     try:
-        state = run(args.resume, args.jd, args.out)
+        state = run(args.resume, args.jd, args.out, enable_scoring=args.score)
     except Exception as exc:
         # GraphRecursionError subclasses RuntimeError — check it first.
         if _GraphRecursionError is not None and isinstance(exc, _GraphRecursionError):

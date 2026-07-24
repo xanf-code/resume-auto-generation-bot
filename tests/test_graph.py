@@ -20,9 +20,70 @@ from src.pipeline import graph as graph_mod
 
 def test_build_graph_compiles():
     """build_graph() returns a compiled graph object with an invoke method."""
-    compiled = graph_mod.build_graph()
+    compiled = graph_mod.build_graph(enable_scoring=False)
     assert compiled is not None
     assert hasattr(compiled, "invoke")
+
+
+def test_build_graph_with_scoring_enabled():
+    """build_graph(enable_scoring=True) wires the score_report node."""
+    compiled = graph_mod.build_graph(enable_scoring=True)
+    assert compiled is not None
+    assert hasattr(compiled, "invoke")
+
+
+def test_end_to_end_with_scoring_enabled(monkeypatch):
+    """When enable_scoring=True, score_report_node runs after emit."""
+    def agg_pass(state):
+        return {"passed": True, "aggregate_score": 95.0, "panel_scores": []}
+
+    _install_fake_nodes(monkeypatch, aggregator_behaviour=agg_pass)
+
+    # Mock score_report_node to track that it ran
+    score_report_called = {"called": False}
+
+    def fake_score_report(state):
+        score_report_called["called"] = True
+        return {"score_report_md": "/tmp/report.md"}
+
+    monkeypatch.setattr(graph_mod, "score_report_node", fake_score_report)
+
+    compiled = graph_mod.build_graph(enable_scoring=True)
+    result = compiled.invoke(
+        {"resume_tex_raw": "R", "jd_raw": "J", "iteration": 1, "compile_retries": 0, "enable_scoring": True},
+        {"recursion_limit": 100},
+    )
+
+    assert result.get("emitted") is True
+    assert score_report_called["called"] is True
+    assert result.get("score_report_md") == "/tmp/report.md"
+
+
+def test_end_to_end_without_scoring_skips_score_report(monkeypatch):
+    """When enable_scoring=False (default), score_report_node does NOT run."""
+    def agg_pass(state):
+        return {"passed": True, "aggregate_score": 95.0, "panel_scores": []}
+
+    _install_fake_nodes(monkeypatch, aggregator_behaviour=agg_pass)
+
+    # Mock score_report_node to track that it should NOT be called
+    score_report_called = {"called": False}
+
+    def fake_score_report(state):
+        score_report_called["called"] = True
+        return {"score_report_md": "/tmp/report.md"}
+
+    monkeypatch.setattr(graph_mod, "score_report_node", fake_score_report)
+
+    compiled = graph_mod.build_graph(enable_scoring=False)
+    result = compiled.invoke(
+        {"resume_tex_raw": "R", "jd_raw": "J", "iteration": 1, "compile_retries": 0, "enable_scoring": False},
+        {"recursion_limit": 100},
+    )
+
+    assert result.get("emitted") is True
+    assert score_report_called["called"] is False
+    assert "score_report_md" not in result
 
 
 # --- route_after_identity -----------------------------------------------------
@@ -284,9 +345,9 @@ def test_end_to_end_pass_path_reaches_emit(monkeypatch):
 
     _install_fake_nodes(monkeypatch, aggregator_behaviour=agg_pass)
 
-    compiled = graph_mod.build_graph()
+    compiled = graph_mod.build_graph(enable_scoring=False)
     result = compiled.invoke(
-        {"resume_tex_raw": "R", "jd_raw": "J", "iteration": 1, "compile_retries": 0},
+        {"resume_tex_raw": "R", "jd_raw": "J", "iteration": 1, "compile_retries": 0, "enable_scoring": False},
         {"recursion_limit": 100},
     )
     assert result.get("emitted") is True
@@ -309,9 +370,9 @@ def test_end_to_end_fail_then_pass_loops_at_least_once(monkeypatch):
 
     _install_fake_nodes(monkeypatch, aggregator_behaviour=agg_flip)
 
-    compiled = graph_mod.build_graph()
+    compiled = graph_mod.build_graph(enable_scoring=False)
     result = compiled.invoke(
-        {"resume_tex_raw": "R", "jd_raw": "J", "iteration": 1, "compile_retries": 0},
+        {"resume_tex_raw": "R", "jd_raw": "J", "iteration": 1, "compile_retries": 0, "enable_scoring": False},
         {"recursion_limit": 100},
     )
     assert result.get("emitted") is True
@@ -337,9 +398,9 @@ def test_end_to_end_compile_fail_exhausts_retries_and_emits(monkeypatch):
 
     monkeypatch.setattr(graph_mod, "compile_node", failing_compile)
 
-    compiled = graph_mod.build_graph()
+    compiled = graph_mod.build_graph(enable_scoring=False)
     result = compiled.invoke(
-        {"resume_tex_raw": "R", "jd_raw": "J", "iteration": 1, "compile_retries": 0},
+        {"resume_tex_raw": "R", "jd_raw": "J", "iteration": 1, "compile_retries": 0, "enable_scoring": False},
         {"recursion_limit": 100},
     )
     assert result.get("emitted") is True
