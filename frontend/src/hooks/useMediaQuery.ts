@@ -25,3 +25,6 @@ export const DESKTOP_MQ = '(min-width: 1024px)';
 
 /** Side-by-side manuscript / proof / skills (needs ~1280px). */
 export const WIDE_MQ = '(min-width: 1280px)';
+
+/** OS-level reduced motion preference. */
+export const REDUCED_MOTION_MQ = '(prefers-reduced-motion: reduce)';

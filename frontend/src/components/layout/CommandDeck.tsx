@@ -17,6 +17,8 @@ export function CommandDeck() {
   const mobileNavOpen = useStore((s) => s.mobileNavOpen);
   const closeMobileNav = useStore((s) => s.closeMobileNav);
   const hasJobRoute = useMatch('/jobs/:jobId');
+  const hasAbRoute = useMatch('/ab-testing');
+  const showOutlet = Boolean(hasJobRoute) || Boolean(hasAbRoute);
   const [loadFailed, setLoadFailed] = useState(false);
   const isDesktop = useMediaQuery(DESKTOP_MQ);
 
@@ -68,7 +70,7 @@ export function CommandDeck() {
         {isDesktop && hasJobRoute && <JobRail mode="sidebar" />}
 
         <main className="flex-1 overflow-hidden bg-paper min-w-0 min-h-0">
-          {hasJobRoute ? (
+          {showOutlet ? (
             <Outlet />
           ) : (
             <JobGrid loadFailed={loadFailed} onOpenModal={openModal} />

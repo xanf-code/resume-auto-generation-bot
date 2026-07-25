@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { useStore } from '../../store';
 import { DESKTOP_MQ, useMediaQuery } from '../../hooks/useMediaQuery';
 
@@ -87,9 +87,29 @@ export function TopBar({ showNavToggle = false }: Props) {
         >
           Resume Builder<span className="text-accent">.</span>
         </Link>
+        <nav className="hidden sm:flex items-center gap-4 ml-2">
+          <NavLink
+            to="/ab-testing"
+            className={({ isActive }) =>
+              `eyebrow hover:text-ink transition-colors ${
+                isActive ? 'text-ink border-b-2 border-accent pb-0.5' : ''
+              }`
+            }
+          >
+            A/B Testing
+          </NavLink>
+        </nav>
       </div>
 
       <div className="flex items-center gap-3 sm:gap-5 shrink-0">
+        <NavLink
+          to="/ab-testing"
+          className={({ isActive }) =>
+            `sm:hidden text-[13px] font-medium ${isActive ? 'text-ink' : 'text-ink-soft'}`
+          }
+        >
+          A/B
+        </NavLink>
         <span className="flex items-center gap-2" title={meta.label}>
           <span
             className="inline-block w-1.5 h-1.5 rounded-full"
