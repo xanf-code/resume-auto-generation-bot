@@ -5,7 +5,7 @@ Usage::
     python -m src.main --resume examples/sample_resume.tex \\
         --jd examples/sample_jd.txt --out out/
 
-Fails fast (before any LLM call) if ``ANTHROPIC_API_KEY`` is missing. Reads the
+Fails fast (before any LLM call) if ``OPENROUTER_API_KEY`` is missing. Reads the
 resume/JD files into the initial state, invokes the compiled graph, streams
 per-iteration progress to stdout, and writes outputs via the emit node.
 
@@ -16,6 +16,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+from typing import Callable
 
 from config.settings import MAX_ITERATIONS, require_api_key
 from src.pipeline.graph import build_graph
@@ -118,15 +119,25 @@ def _print_progress(state: dict) -> None:
         print(f"  aggregate = {agg:.2f}   →   {verdict}")
 
 
-def run(
-    resume_path: str,
-    jd_path: str,
+def stream_pipeline(
+    resume_tex_raw: str,
+    jd_raw: str,
     out_dir: str,
+    jd_name: str,
     enable_scoring: bool = False,
     resume_struct: ResumeStruct | None = None,
     identity_ledger: IdentityLedger | None = None,
+    on_step: Callable[[dict, dict], None] | None = None,
 ) -> dict:
-    """Execute the pipeline. Requires the API key (fires the fail-fast gate).
+    """Run the pipeline from raw content, streaming per-node progress.
+
+    Content-based, callback-driven core shared by the CLI (:func:`run`) and the
+    web layer. Accepts the resume/JD as in-memory strings (no file paths), calls
+    :func:`require_api_key` first (fail-fast, before any node runs), then streams
+    the compiled graph. ``on_step(flat_delta, accumulated_state)`` — when given —
+    is invoked once per streamed node with that node's state delta and the
+    running accumulated state. Does no file I/O and prints nothing; returns the
+    accumulated ``final_state``.
 
     ``resume_struct``/``identity_ledger`` let a caller that already parsed this
     exact resume (e.g. batch mode, running one resume against many JDs) skip
@@ -134,17 +145,14 @@ def run(
     """
     require_api_key()  # fail fast before any node runs
 
-    resume_tex_raw = _read_text(resume_path)
-    jd_raw = _read_text(jd_path)
-
-    initial_state = {
+    initial_state: dict = {
         "resume_tex_raw": resume_tex_raw,
         "jd_raw": jd_raw,
         "iteration": 1,
         "compile_retries": 0,
         "identity_retries": 0,
         "out_dir": out_dir,
-        "jd_name": Path(jd_path).stem,
+        "jd_name": jd_name,
         "enable_scoring": enable_scoring,
     }
     if resume_struct is not None:
@@ -156,9 +164,6 @@ def run(
     config = {"recursion_limit": _RECURSION_LIMIT}
 
     final_state: dict = {}
-    last_printed_agg: float | None = None
-    log.info("main         | pipeline starting — max_iterations=%d", MAX_ITERATIONS)
-    print("Running resume-bot pipeline…")
     for step in graph.stream(initial_state, config, stream_mode="updates"):
         # stream_mode="updates" yields {node_name: {state_updates}} — flatten one level.
         flat: dict = {}
@@ -166,18 +171,62 @@ def run(
             if isinstance(node_updates, dict):
                 flat.update(node_updates)
         final_state.update(flat)
+        if on_step is not None:
+            on_step(flat, final_state)
+    return final_state
+
+
+def _stdout_step_printer() -> Callable[[dict, dict], None]:
+    """Build the CLI's per-node progress printer (stateful over the run)."""
+    last_printed_agg: list[float | None] = [None]
+
+    def on_step(flat: dict, final_state: dict) -> None:
         # Identify which node just ran by matching a known state key.
-        node_name = next(
-            (v for k, v in _KEY_TO_NODE.items() if k in flat), None
-        )
+        node_name = next((v for k, v in _KEY_TO_NODE.items() if k in flat), None)
         if node_name:
             log.info("─── node: %-18s keys=%s", node_name, list(flat.keys()))
         # Print the full scoreboard only when a fresh aggregate arrives.
         if "aggregate_score" in flat:
             agg = final_state.get("aggregate_score")
-            if agg != last_printed_agg:
-                last_printed_agg = agg
+            if agg != last_printed_agg[0]:
+                last_printed_agg[0] = agg
                 _print_progress(final_state)
+
+    return on_step
+
+
+def run(
+    resume_path: str,
+    jd_path: str,
+    out_dir: str,
+    enable_scoring: bool = False,
+    resume_struct: ResumeStruct | None = None,
+    identity_ledger: IdentityLedger | None = None,
+) -> dict:
+    """Execute the pipeline from files (CLI path). Fail-fast on missing API key.
+
+    Thin wrapper over :func:`stream_pipeline`: reads the resume/JD files, streams
+    the pipeline while printing per-iteration progress to stdout, then prints the
+    terminal summary.
+    """
+    require_api_key()  # fail fast before any node runs (before file I/O too)
+
+    resume_tex_raw = _read_text(resume_path)
+    jd_raw = _read_text(jd_path)
+
+    log.info("main         | pipeline starting — max_iterations=%d", MAX_ITERATIONS)
+    print("Running resume-bot pipeline…")
+
+    final_state = stream_pipeline(
+        resume_tex_raw,
+        jd_raw,
+        out_dir=out_dir,
+        jd_name=Path(jd_path).stem,
+        enable_scoring=enable_scoring,
+        resume_struct=resume_struct,
+        identity_ledger=identity_ledger,
+        on_step=_stdout_step_printer(),
+    )
 
     _print_summary(final_state)
     return final_state
