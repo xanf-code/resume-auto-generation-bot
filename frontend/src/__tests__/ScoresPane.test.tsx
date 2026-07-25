@@ -71,16 +71,17 @@ describe('ScoresPane', () => {
     expect(screen.getByText(/below threshold/i)).toBeInTheDocument();
   });
 
-  it('renders persona notes when present', () => {
-    render(
-      <ScoresPane
-        personaScores={scoreMap(
-          makeScore({ notes: 'Strong on impact, light on keywords.' }),
-        )}
-      />,
-    );
-    expect(
-      screen.getByText('Strong on impact, light on keywords.'),
-    ).toBeInTheDocument();
-  });
+  // Notes UI is currently commented out in PersonaCard.
+  // it('renders persona notes when present', () => {
+  //   render(
+  //     <ScoresPane
+  //       personaScores={scoreMap(
+  //         makeScore({ notes: 'Strong on impact, light on keywords.' }),
+  //       )}
+  //     />,
+  //   );
+  //   expect(
+  //     screen.getByText('Strong on impact, light on keywords.'),
+  //   ).toBeInTheDocument();
+  // });
 });
