@@ -34,7 +34,7 @@ class ResumeRepository:
     # ------------------------------------------------------------------
 
     def create(self, record: JobRecord) -> None:
-        """Insert a new job row.  Silently succeeds on duplicate (upsert)."""
+        """Insert a new job row.  Raises on duplicate job_id."""
         row = record_to_row(record)
         self._client.table(self.TABLE).insert(row).execute()
 

@@ -6,8 +6,6 @@ don't require a real Supabase project.
 """
 from __future__ import annotations
 
-import os
-import tempfile
 from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytest
@@ -191,57 +189,39 @@ async def test_pdf_served_from_storage_when_key_set(client_with_repo, monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_pdf_falls_back_to_disk_when_no_key(client_no_repo):
-    """GET /api/jobs/{id}/pdf must fall back to disk when pdf_object_key is None."""
+async def test_pdf_returns_404_when_no_key(client_no_repo):
+    """GET /api/jobs/{id}/pdf returns 404 when pdf_object_key is not set."""
     submit = await client_no_repo.post("/api/jobs", json=_job_payload())
     job_id = submit.json()["job_id"]
 
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
-        f.write(b"%PDF-1.4 from-disk")
-        pdf_path = f.name
+    app = _get_app(client_no_repo)
+    job = app.state.manager.get(job_id)
+    job.status = JobStatus.DONE
+    # pdf_object_key is None (default) — no Storage key means no PDF
 
-    try:
-        app = _get_app(client_no_repo)
-        job = app.state.manager.get(job_id)
-        job.status = JobStatus.DONE
-        job.output_pdf = pdf_path
-        # pdf_object_key is None (default) → should use disk
-
-        resp = await client_no_repo.get(f"/api/jobs/{job_id}/pdf")
-        assert resp.status_code == 200
-        assert "application/pdf" in resp.headers["content-type"]
-    finally:
-        os.unlink(pdf_path)
+    resp = await client_no_repo.get(f"/api/jobs/{job_id}/pdf")
+    assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_pdf_storage_download_failure_falls_back_to_disk(client_with_repo, monkeypatch):
-    """GET /api/jobs/{id}/pdf falls back to disk if Storage download fails."""
+async def test_pdf_storage_download_failure_returns_404(client_with_repo, monkeypatch):
+    """GET /api/jobs/{id}/pdf returns 404 when Storage download returns no bytes."""
     submit = await client_with_repo.post("/api/jobs", json=_job_payload())
     job_id = submit.json()["job_id"]
 
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
-        f.write(b"%PDF-1.4 fallback")
-        pdf_path = f.name
+    app = _get_app(client_with_repo)
+    job = app.state.manager.get(job_id)
+    job.status = JobStatus.DONE
+    job.pdf_object_key = f"{job_id}/resume.pdf"
 
-    try:
-        app = _get_app(client_with_repo)
-        job = app.state.manager.get(job_id)
-        job.status = JobStatus.DONE
-        job.pdf_object_key = f"{job_id}/resume.pdf"
-        job.output_pdf = pdf_path
+    # Storage download returns None (simulating a miss/error)
+    monkeypatch.setattr(
+        "src.web.routers.jobs.download_pdf_bytes",
+        lambda key, client, bucket: None,
+    )
 
-        # Storage download returns None (simulating a miss/error)
-        monkeypatch.setattr(
-            "src.web.routers.jobs.download_pdf_bytes",
-            lambda key, client, bucket: None,
-        )
-
-        resp = await client_with_repo.get(f"/api/jobs/{job_id}/pdf")
-        assert resp.status_code == 200
-        assert "application/pdf" in resp.headers["content-type"]
-    finally:
-        os.unlink(pdf_path)
+    resp = await client_with_repo.get(f"/api/jobs/{job_id}/pdf")
+    assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------

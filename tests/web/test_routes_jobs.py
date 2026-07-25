@@ -1,10 +1,6 @@
 """Phase 10 RED tests - HTTP route tests for /api/jobs endpoints."""
 from __future__ import annotations
 
-import json
-import os
-import tempfile
-
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
@@ -134,33 +130,31 @@ async def test_get_latex_done_job_returns_200(client):
 
 
 # ---------------------------------------------------------------------------
-# Test 7: GET /api/jobs/{id}/pdf on DONE job with real temp PDF → 200
+# Test 7: GET /api/jobs/{id}/pdf on DONE job with pdf_object_key → 200
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_get_pdf_done_job_returns_200(client):
+async def test_get_pdf_done_job_returns_200(client, monkeypatch):
     submit = await client.post("/api/jobs", json=_job_payload())
     job_id = submit.json()["job_id"]
 
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
-        f.write(b"%PDF-1.4 fake pdf content")
-        pdf_path = f.name
+    app = _get_app_from_client(client)
+    job = app.state.manager.get(job_id)
+    job.status = JobStatus.DONE
+    job.pdf_object_key = f"{job_id}/resume.pdf"
 
-    try:
-        app = _get_app_from_client(client)
-        job = app.state.manager.get(job_id)
-        job.status = JobStatus.DONE
-        job.output_pdf = pdf_path
+    monkeypatch.setattr(
+        "src.web.routers.jobs.download_pdf_bytes",
+        lambda key, client, bucket: b"%PDF-1.4 fake pdf content",
+    )
 
-        resp = await client.get(f"/api/jobs/{job_id}/pdf")
-        assert resp.status_code == 200
-        assert "application/pdf" in resp.headers["content-type"]
-    finally:
-        os.unlink(pdf_path)
+    resp = await client.get(f"/api/jobs/{job_id}/pdf")
+    assert resp.status_code == 200
+    assert "application/pdf" in resp.headers["content-type"]
 
 
 # ---------------------------------------------------------------------------
-# Test 8: GET /api/jobs/{id}/skills on DONE job with valid JSON → 200
+# Test 8: GET /api/jobs/{id}/skills on DONE job → 200 from in-memory dict
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -174,85 +168,36 @@ async def test_get_skills_done_job_returns_200(client):
         "database": [],
         "ai_tools": [],
     }
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".json", delete=False, encoding="utf-8"
-    ) as f:
-        json.dump(skills_data, f)
-        skills_path = f.name
-
-    try:
-        app = _get_app_from_client(client)
-        job = app.state.manager.get(job_id)
-        job.status = JobStatus.DONE
-        job.output_skills = skills_path
-
-        resp = await client.get(f"/api/jobs/{job_id}/skills")
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["total"] == 1
-        assert "Python" in body["language_and_framework"]
-    finally:
-        os.unlink(skills_path)
-
-
-@pytest.mark.asyncio
-async def test_get_skills_falls_back_to_package_on_disk(client, tmp_path):
-    """When output_skills is unset (LangGraph channel drop), discover skills.json."""
-    submit = await client.post("/api/jobs", json=_job_payload(label="vestwell"))
-    job_id = submit.json()["job_id"]
-
     app = _get_app_from_client(client)
     job = app.state.manager.get(job_id)
     job.status = JobStatus.DONE
-    job.output_skills = None  # simulate the dropped-channel bug
-    job.out_dir = str(tmp_path / job_id)
-    job.jd_name = "vestwell"
-
-    pkg = tmp_path / job_id / "vestwell"
-    pkg.mkdir(parents=True)
-    (pkg / "skills.json").write_text(
-        json.dumps(
-            {
-                "language_and_framework": ["TypeScript"],
-                "infrastructure": ["AWS"],
-                "database": [],
-                "ai_tools": [],
-            }
-        ),
-        encoding="utf-8",
-    )
+    job.output_skills = skills_data
 
     resp = await client.get(f"/api/jobs/{job_id}/skills")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["total"] == 2
-    assert body["language_and_framework"] == ["TypeScript"]
-
-    detail = await client.get(f"/api/jobs/{job_id}")
-    assert detail.json()["has_skills"] is True
+    assert body["total"] == 1
+    assert "Python" in body["language_and_framework"]
 
 
 # ---------------------------------------------------------------------------
-# Test 8b: GET /api/jobs/{id} on a DONE job surfaces the recruiter panel's
-# scores straight from score_report.json - so a job opened after it finished
-# (or after a server restart) still shows a verdict, not an empty panel.
+# Test 8b: GET /api/jobs/{id} surfaces persona scores from in-memory score_report.
+# Both current runs (cached at completion) and rehydrated restarts (restored
+# from the DB column) go through job.score_report — no disk reads.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_get_detail_includes_persona_scores_from_report(client, tmp_path):
+async def test_get_detail_includes_persona_scores_from_report(client):
     submit = await client.post("/api/jobs", json=_job_payload())
     job_id = submit.json()["job_id"]
 
     app = _get_app_from_client(client)
     job = app.state.manager.get(job_id)
     job.status = JobStatus.DONE
-    job.out_dir = str(tmp_path / job_id)
-    os.makedirs(job.out_dir)
-    # In-memory score fields dropped (e.g. after a restart) - must fall back to disk.
+    # Simulate rehydrate: aggregate/passed come from DB row; score_report from DB column.
     job.aggregate_score = None
     job.passed = None
-
-    report = {
+    job.score_report = {
         "passed": True,
         "aggregate_score": 87.625,
         "personas": [
@@ -276,8 +221,6 @@ async def test_get_detail_includes_persona_scores_from_report(client, tmp_path):
             },
         ],
     }
-    with open(os.path.join(job.out_dir, "score_report.json"), "w", encoding="utf-8") as f:
-        json.dump(report, f)
 
     resp = await client.get(f"/api/jobs/{job_id}")
     assert resp.status_code == 200
@@ -295,27 +238,23 @@ async def test_get_detail_includes_persona_scores_from_report(client, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Test 8c: GET /api/jobs (the list endpoint) carries the recruiter verdict on
-# each summary, falling back to score_report.json when the in-memory fields are
-# gone. Without this the home grid/rail render finished jobs with no score badge
-# until the user opens each one's detail.
+# Test 8c: GET /api/jobs carries the recruiter verdict on each summary from the
+# in-memory score_report (restored from DB on startup).
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_list_jobs_includes_verdict_from_report(client, tmp_path):
+async def test_list_jobs_includes_verdict_from_report(client):
     submit = await client.post("/api/jobs", json=_job_payload())
     job_id = submit.json()["job_id"]
 
     app = _get_app_from_client(client)
     job = app.state.manager.get(job_id)
     job.status = JobStatus.DONE
-    job.out_dir = str(tmp_path / job_id)
-    os.makedirs(job.out_dir)
-    # In-memory score fields dropped (e.g. after a restart) - must fall back to disk.
+    # Simulate rehydrated state: aggregate/passed not in individual columns,
+    # but score_report dict is restored from the DB column.
     job.aggregate_score = None
     job.passed = None
-    with open(os.path.join(job.out_dir, "score_report.json"), "w", encoding="utf-8") as f:
-        json.dump({"passed": True, "aggregate_score": 87.625}, f)
+    job.score_report = {"passed": True, "aggregate_score": 87.625}
 
     resp = await client.get("/api/jobs")
     assert resp.status_code == 200
@@ -326,29 +265,21 @@ async def test_list_jobs_includes_verdict_from_report(client, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Test 8d: emit writes the report to the per-JD PACKAGE folder
-# (``out_dir/{jd_name}/score_report.json``), not ``out_dir`` directly. The
-# report loader must resolve that nested layout - the same way the skills loader
-# already does - or the detail panel and list badge stay empty for every real
-# web job (which always carries a jd_name = label).
+# Test 8d: score_report and verdict are served consistently from the in-memory
+# dict across the detail endpoint, list endpoint, and raw report endpoint.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_report_resolved_from_per_jd_package_dir(client, tmp_path):
+async def test_report_served_consistently_across_endpoints(client):
     submit = await client.post("/api/jobs", json=_job_payload(label="TestJob"))
     job_id = submit.json()["job_id"]
 
     app = _get_app_from_client(client)
     job = app.state.manager.get(job_id)
     job.status = JobStatus.DONE
-    job.jd_name = "TestJob"
-    job.out_dir = str(tmp_path / job_id)
     job.aggregate_score = None
     job.passed = None
-    # Write where emit actually writes: out_dir/{jd_name}/score_report.json.
-    pkg_dir = os.path.join(job.out_dir, job.jd_name)
-    os.makedirs(pkg_dir)
-    report = {
+    job.score_report = {
         "passed": True,
         "aggregate_score": 91.0,
         "personas": [
@@ -363,17 +294,15 @@ async def test_report_resolved_from_per_jd_package_dir(client, tmp_path):
             }
         ],
     }
-    with open(os.path.join(pkg_dir, "score_report.json"), "w", encoding="utf-8") as f:
-        json.dump(report, f)
 
-    # Detail panel: persona scores + verdict resolve from the nested package.
+    # Detail panel: persona scores + verdict.
     detail = (await client.get(f"/api/jobs/{job_id}")).json()
     assert detail["has_report"] is True
     assert detail["aggregate_score"] == 91.0
     assert detail["passed"] is True
     assert [s["persona"] for s in detail["persona_scores"]] == ["ATS Matcher"]
 
-    # List badge: same verdict, same nested resolution.
+    # List badge: same verdict.
     listed = next(
         j for j in (await client.get("/api/jobs")).json()["jobs"]
         if j["job_id"] == job_id
@@ -381,22 +310,21 @@ async def test_report_resolved_from_per_jd_package_dir(client, tmp_path):
     assert listed["aggregate_score"] == 91.0
     assert listed["passed"] is True
 
-    # Raw report endpoint resolves the nested package too.
+    # Raw report endpoint.
     raw = await client.get(f"/api/jobs/{job_id}/report")
     assert raw.status_code == 200
     assert raw.json()["aggregate_score"] == 91.0
 
 
 @pytest.mark.asyncio
-async def test_get_detail_without_report_has_no_scores(client, tmp_path):
+async def test_get_detail_without_report_has_no_scores(client):
     submit = await client.post("/api/jobs", json=_job_payload())
     job_id = submit.json()["job_id"]
 
     app = _get_app_from_client(client)
     job = app.state.manager.get(job_id)
     job.status = JobStatus.DONE
-    job.out_dir = str(tmp_path / job_id)
-    os.makedirs(job.out_dir)
+    # score_report is None by default — no report was produced.
 
     resp = await client.get(f"/api/jobs/{job_id}")
     assert resp.status_code == 200

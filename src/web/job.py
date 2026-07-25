@@ -73,13 +73,16 @@ class Job:
 
     # Pipeline artifacts (populated on completion)
     best_latex: str | None = None
-    output_pdf: str | None = None
-    output_skills: str | None = None
+    output_pdf: str | None = None          # local path used only for the Storage upload
     score_report_md: str | None = None
     aggregate_score: float | None = None
     passed: bool | None = None
+    # JSON artifacts cached in-memory and persisted to Supabase Postgres columns.
+    # These are the authoritative read source — disk files are not read by the web layer.
+    score_report: dict | None = None
+    output_skills: dict | None = None
     # Supabase Storage object key for the compiled PDF, set after upload.
-    # When set, GET /jobs/{id}/pdf streams bytes from Storage rather than disk.
+    # GET /jobs/{id}/pdf streams bytes from Storage using this key.
     pdf_object_key: str | None = None
 
     # Per-job SSE replay buffer (set by job_manager at creation)

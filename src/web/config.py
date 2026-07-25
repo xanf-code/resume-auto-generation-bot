@@ -26,6 +26,7 @@ class WebSettings:
     event_buffer_max: int = 500
     host: str = "127.0.0.1"
     port: int = 8000
+    cors_origins: tuple[str, ...] = ("http://localhost:5173",)
 
 
 def _optional_db_settings():
@@ -50,10 +51,17 @@ def _optional_db_settings():
 
 def load_settings() -> WebSettings:
     """Build ``WebSettings`` from environment variables (all optional)."""
+    raw_origins = os.environ.get("RESUMEBOT_CORS_ORIGINS", "").strip()
+    cors_origins: tuple[str, ...] = (
+        tuple(o.strip() for o in raw_origins.split(",") if o.strip())
+        if raw_origins
+        else ("http://localhost:5173",)
+    )
     return WebSettings(
         max_concurrent_jobs=_env_int("RESUMEBOT_MAX_CONCURRENT_JOBS", 3),
         out_root=os.environ.get("RESUMEBOT_OUT_ROOT", "out"),
         event_buffer_max=_env_int("RESUMEBOT_EVENT_BUFFER_MAX", 500),
         host=os.environ.get("RESUMEBOT_HOST", "127.0.0.1"),
         port=_env_int("RESUMEBOT_PORT", 8000),
+        cors_origins=cors_origins,
     )

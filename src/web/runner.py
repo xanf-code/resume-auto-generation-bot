@@ -12,10 +12,10 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import src.main as main_module
+from src.pipeline.emit import build_score_report
 from src.pipeline.llm import model_context
 from src.web import events
 from src.web.job import Job
@@ -111,24 +111,23 @@ def run_job(job: Job, manager: "JobManager") -> None:
 
     # --- success path ---
     job.best_latex = final_state.get("best_latex")
-
-    if job.best_latex:
-        try:
-            Path(out_dir, "best.tex").write_text(job.best_latex, encoding="utf-8")
-        except OSError:
-            pass
-
     job.output_pdf = final_state.get("output_pdf")
-    job.output_skills = final_state.get("output_skills")
     job.score_report_md = final_state.get("score_report_md")
     job.aggregate_score = final_state.get("aggregate_score")
     job.passed = final_state.get("passed")
 
+    # Cache JSON artifacts in-memory — DB is the authoritative read source.
+    # These are set here unconditionally so endpoints can serve them for
+    # the current run even when Supabase is not configured.
+    job.score_report = build_score_report(final_state)
+    skill_dump = final_state.get("skill_dump")
+    job.output_skills = skill_dump.model_dump() if skill_dump is not None else None
+
     job.status = JobStatus.DONE
     job.finished_at = _now()
 
-    # Persist artifacts to Supabase if a repo is available.
-    _db_save_artifacts(job, manager, final_state)
+    # Persist to Supabase if configured.
+    _db_save_artifacts(job, manager)
 
     _emit_terminal(job, manager, stage="done")
 
@@ -163,21 +162,18 @@ def _db_set_status(
 def _db_save_artifacts(
     job: "Job",
     manager: "JobManager",
-    final_state: dict,
 ) -> None:
-    """Upload PDF to Storage and persist artifacts to Supabase — no-op when repo is absent."""
+    """Upload PDF to Storage and persist artifacts to Supabase — no-op when repo is absent.
+
+    Reads ``job.score_report`` and ``job.output_skills`` which are already cached
+    in-memory by ``run_job`` before this function is called.
+    """
     if manager._repo is None:
         return
     try:
-        from src.pipeline.emit import build_score_report
         from src.web.config import _optional_db_settings
         from src.db.client import get_client
         from src.db.storage import upload_pdf
-
-        # Build structured artifacts from pipeline state.
-        score_report_dict = build_score_report(final_state)
-        skill_dump = final_state.get("skill_dump")
-        skills_dict = skill_dump.model_dump() if skill_dump is not None else None
 
         # Upload PDF to Storage if it was compiled successfully.
         pdf_object_key: str | None = None
@@ -192,8 +188,8 @@ def _db_save_artifacts(
         manager._repo.save_artifacts(
             job.job_id,
             best_latex=job.best_latex,
-            output_skills=skills_dict,
-            score_report=score_report_dict,
+            output_skills=job.output_skills,
+            score_report=job.score_report,
             aggregate_score=job.aggregate_score,
             passed=job.passed,
             pdf_object_key=pdf_object_key,

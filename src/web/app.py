@@ -59,6 +59,8 @@ def _rehydrate_registry(manager: JobManager, repo) -> None:
                 best_latex=rec.best_latex,
                 aggregate_score=rec.aggregate_score,
                 passed=rec.passed,
+                score_report=rec.score_report,
+                output_skills=rec.output_skills,
                 pdf_object_key=rec.pdf_object_key,
             )
             manager._registry[job.job_id] = job
@@ -98,10 +100,11 @@ def create_app(repo=None) -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS - allow the Vite dev server during local development.
+    # CORS - configurable via RESUMEBOT_CORS_ORIGINS (comma-separated).
+    # Defaults to the Vite dev origin; set the env var for split-host deploys.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173"],
+        allow_origins=list(settings.cors_origins),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

@@ -44,10 +44,6 @@ export async function getJobPdf(id: string): Promise<Blob> {
   return res.blob();
 }
 
-export function getJobReport(id: string): Promise<unknown> {
-  return apiJson(`/api/jobs/${id}/report`);
-}
-
 export function renameJob(id: string, label: string): Promise<JobSummary> {
   return apiJson<JobSummary>(`/api/jobs/${id}`, {
     method: 'PATCH',
