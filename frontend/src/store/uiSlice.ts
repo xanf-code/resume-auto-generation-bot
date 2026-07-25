@@ -5,6 +5,10 @@ export interface UiState {
   jobRailCollapsed: boolean;
   /** Skills sidebar collapsed — editor/proof reclaim the width. */
   skillsSidebarCollapsed: boolean;
+  /** Scores sidebar collapsed — defaults collapsed so the wide split isn't crowded. */
+  scoresSidebarCollapsed: boolean;
+  /** Phone/tablet: applications drawer open over the workspace. */
+  mobileNavOpen: boolean;
 }
 
 export interface UiActions {
@@ -13,33 +17,44 @@ export interface UiActions {
   closeNewJobModal: () => void;
   toggleJobRail: () => void;
   toggleSkillsSidebar: () => void;
+  toggleScoresSidebar: () => void;
+  openMobileNav: () => void;
+  closeMobileNav: () => void;
+  toggleMobileNav: () => void;
 }
 
 const UI_STORAGE_KEY = 'resume-desk:panel-collapse';
 
-export function loadPanelCollapse(): Pick<
+type PanelCollapseState = Pick<
   UiState,
-  'jobRailCollapsed' | 'skillsSidebarCollapsed'
-> {
+  'jobRailCollapsed' | 'skillsSidebarCollapsed' | 'scoresSidebarCollapsed'
+>;
+
+// The scores aside is a review surface that would otherwise crowd the wide
+// three-pane split, so it starts collapsed unless the user has opened it before.
+const DEFAULT_COLLAPSE: PanelCollapseState = {
+  jobRailCollapsed: false,
+  skillsSidebarCollapsed: false,
+  scoresSidebarCollapsed: true,
+};
+
+export function loadPanelCollapse(): PanelCollapseState {
   try {
     const raw = localStorage.getItem(UI_STORAGE_KEY);
-    if (!raw) return { jobRailCollapsed: false, skillsSidebarCollapsed: false };
-    const parsed = JSON.parse(raw) as Partial<{
-      jobRailCollapsed: boolean;
-      skillsSidebarCollapsed: boolean;
-    }>;
+    if (!raw) return { ...DEFAULT_COLLAPSE };
+    const parsed = JSON.parse(raw) as Partial<PanelCollapseState>;
     return {
       jobRailCollapsed: Boolean(parsed.jobRailCollapsed),
       skillsSidebarCollapsed: Boolean(parsed.skillsSidebarCollapsed),
+      scoresSidebarCollapsed:
+        parsed.scoresSidebarCollapsed ?? DEFAULT_COLLAPSE.scoresSidebarCollapsed,
     };
   } catch {
-    return { jobRailCollapsed: false, skillsSidebarCollapsed: false };
+    return { ...DEFAULT_COLLAPSE };
   }
 }
 
-export function persistPanelCollapse(
-  state: Pick<UiState, 'jobRailCollapsed' | 'skillsSidebarCollapsed'>,
-): void {
+export function persistPanelCollapse(state: PanelCollapseState): void {
   try {
     localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(state));
   } catch {

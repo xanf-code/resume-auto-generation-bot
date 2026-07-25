@@ -2,18 +2,23 @@ import { useEffect, useState } from 'react';
 import { Outlet, useMatch } from 'react-router-dom';
 import { TopBar } from './TopBar';
 import { JobRail } from '../rail/JobRail';
+import { JobGrid } from '../home/JobGrid';
 import { NewJobModal } from '../newjob/NewJobModal';
 import { useStore } from '../../store';
 import { listJobs } from '../../api/jobs';
 import { makeEmptyJob } from '../../store/jobsSlice';
 import { Toaster } from 'sonner';
+import { DESKTOP_MQ, useMediaQuery } from '../../hooks/useMediaQuery';
 
 export function CommandDeck() {
   const modalOpen = useStore((s) => s.newJobModalOpen);
   const openModal = useStore((s) => s.openNewJobModal);
   const setJobs = useStore((s) => s.setJobs);
+  const mobileNavOpen = useStore((s) => s.mobileNavOpen);
+  const closeMobileNav = useStore((s) => s.closeMobileNav);
   const hasJobRoute = useMatch('/jobs/:jobId');
   const [loadFailed, setLoadFailed] = useState(false);
+  const isDesktop = useMediaQuery(DESKTOP_MQ);
 
   useEffect(() => {
     listJobs()
@@ -36,54 +41,60 @@ export function CommandDeck() {
       });
   }, [setJobs]);
 
+  // Close the drawer when crossing into desktop, or when leaving a job route.
+  useEffect(() => {
+    if (isDesktop || !hasJobRoute) closeMobileNav();
+  }, [isDesktop, hasJobRoute, closeMobileNav]);
+
+  // Escape closes the mobile applications drawer.
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeMobileNav();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mobileNavOpen, closeMobileNav]);
+
   return (
-    <div className="flex flex-col h-screen bg-paper text-ink">
-      <TopBar />
-      <div className="flex flex-1 overflow-hidden">
-        <JobRail />
-        <main className="flex-1 overflow-hidden bg-paper">
+    <div
+      className="flex flex-col h-dvh bg-paper text-ink"
+      style={{
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}
+    >
+      <TopBar showNavToggle={Boolean(hasJobRoute) && !isDesktop} />
+      <div className="flex flex-1 overflow-hidden min-h-0">
+        {isDesktop && hasJobRoute && <JobRail mode="sidebar" />}
+
+        <main className="flex-1 overflow-hidden bg-paper min-w-0 min-h-0">
           {hasJobRoute ? (
             <Outlet />
-          ) : loadFailed ? (
-            <div className="flex flex-col items-center justify-center h-full text-center px-8">
-              <span className="eyebrow" style={{ color: 'var(--color-fail)' }}>
-                Press offline
-              </span>
-              <p className="mt-2 font-serif text-[26px] leading-snug text-ink max-w-md">
-                The desk can't reach the press.
-              </p>
-              <p className="mt-3 text-[14px] text-ink-soft max-w-md leading-relaxed">
-                Make sure the backend is running, then reload to pick up your
-                applications.
-              </p>
-              <button
-                onClick={() => window.location.reload()}
-                className="mt-6 text-[13px] font-medium text-paper bg-accent hover:bg-accent-deep px-4 h-9 rounded-[3px] transition-colors"
-              >
-                Reload
-              </button>
-            </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-center px-8">
-              <p className="font-serif text-[26px] leading-snug text-ink max-w-md">
-                A clean desk for tailoring your résumé.
-              </p>
-              <p className="mt-3 text-[14px] text-ink-soft max-w-md leading-relaxed">
-                Select an application from the left, or open a new one to feed a
-                job description and your&nbsp;
-                <span className="font-mono text-[13px] text-ink">main.tex</span> into
-                the press.
-              </p>
-              <button
-                onClick={openModal}
-                className="mt-6 text-[13px] font-medium text-paper bg-accent hover:bg-accent-deep px-4 h-9 rounded-[3px] transition-colors"
-              >
-                ＋ New résumé
-              </button>
-            </div>
+            <JobGrid loadFailed={loadFailed} onOpenModal={openModal} />
           )}
         </main>
       </div>
+
+      {!isDesktop && mobileNavOpen && hasJobRoute && (
+        <div className="fixed inset-0 z-40 flex" id="applications-drawer">
+          <button
+            type="button"
+            className="absolute inset-0 bg-ink/40 backdrop-blur-[2px]"
+            aria-label="Dismiss applications"
+            onClick={closeMobileNav}
+          />
+          <div
+            className="relative z-10 h-full pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] shadow-[8px_0_32px_rgba(28,27,25,0.18)]"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Applications"
+          >
+            <JobRail mode="drawer" onNavigate={closeMobileNav} />
+          </div>
+        </div>
+      )}
+
       {modalOpen && <NewJobModal />}
       <Toaster
         position="bottom-right"

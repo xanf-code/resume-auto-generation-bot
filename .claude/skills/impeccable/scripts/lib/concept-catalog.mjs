@@ -58,7 +58,7 @@ export function validateConceptEntry(concept, { existingForms = new Map() } = {}
   if (typeof concept?.lineage !== 'string'
     || concept.lineage.trim().length < 12
     || concept.lineage.trim().length > 200) {
-    errors.push(`concept ${id} needs specific lineage metadata of 12–200 characters`);
+    errors.push(`concept ${id} needs specific lineage metadata of 12-200 characters`);
   }
   if (!CONCEPT_STRENGTHS.has(concept?.strength)) {
     errors.push(`concept ${id} needs a strength of ${[...CONCEPT_STRENGTHS].join(', ')}`);
@@ -71,7 +71,7 @@ export function validateConceptEntry(concept, { existingForms = new Map() } = {}
   if (!Array.isArray(concept?.system)
     || concept.system.length !== SYSTEM_PREFIXES.length
     || concept.system.some(rule => typeof rule !== 'string' || rule.trim().length < 12 || rule.trim().length > 180)) {
-    errors.push(`concept ${id} needs system grammar with exactly five rules of 12–180 characters`);
+    errors.push(`concept ${id} needs system grammar with exactly five rules of 12-180 characters`);
   } else {
     const uniqueRules = new Set(concept.system.map(normalizeConceptForm));
     if (uniqueRules.size !== SYSTEM_PREFIXES.length) {
@@ -84,12 +84,12 @@ export function validateConceptEntry(concept, { existingForms = new Map() } = {}
   if (typeof concept?.spark !== 'string'
     || concept.spark.trim().length < 80
     || concept.spark.trim().length > 320) {
-    errors.push(`concept ${id} needs a vivid creative spark of 80–320 characters`);
+    errors.push(`concept ${id} needs a vivid creative spark of 80-320 characters`);
   }
   if (typeof concept?.webLeverage !== 'string'
     || concept.webLeverage.trim().length < 20
     || concept.webLeverage.trim().length > 240) {
-    errors.push(`concept ${id} needs web leverage of 20–240 characters`);
+    errors.push(`concept ${id} needs web leverage of 20-240 characters`);
   }
   if (/\b(?:live digital system|shared participatory system) modeled on\b/i.test(concept?.form || '')) {
     errors.push(`concept ${id} is a generic wrapper around another artifact`);

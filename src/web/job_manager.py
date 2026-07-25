@@ -64,6 +64,22 @@ class JobManager:
         job.label = label
         return job
 
+    def cancel(self, job_id: str) -> bool:
+        """Request cancellation of a running or queued job.
+
+        Sets the job's cancel event; the worker thread's ``on_step`` callback
+        observes it and aborts at the next node boundary (an in-flight LLM call
+        finishes first — Python threads can't be force-killed). Returns False if
+        the job is missing or already in a terminal state.
+        """
+        job = self._registry.get(job_id)
+        if job is None:
+            return False
+        if job.status in (JobStatus.DONE, JobStatus.FAILED):
+            return False
+        job.cancel_event.set()
+        return True
+
     def delete(self, job_id: str) -> bool:
         """Remove a job from the registry and delete its on-disk artifacts.
 

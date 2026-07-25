@@ -31,7 +31,14 @@ export function FileOrPasteField({ label, value, onChange, placeholder, accept =
 
     const reader = new FileReader();
     reader.onload = (ev) => {
-      onChange((ev.target?.result as string) ?? '');
+      const content = (ev.target?.result as string) ?? '';
+      // An empty read (an empty file, or a binary that decoded to nothing) would
+      // otherwise leave the field looking untouched — name the problem instead.
+      if (content.trim() === '') {
+        setFileError('That file was empty — choose another, or paste the text.');
+        return;
+      }
+      onChange(content);
     };
     reader.onerror = () => {
       setFileError("That file couldn't be read. Try another, or paste the text.");

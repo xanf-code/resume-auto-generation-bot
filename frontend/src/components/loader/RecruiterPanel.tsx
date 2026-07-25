@@ -13,11 +13,11 @@ export function RecruiterPanel({ personaScores, aggregateScore, passed }: Props)
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center gap-6 border border-rule bg-paper-raised rounded-[3px] p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6 border border-rule bg-paper-raised rounded-[3px] p-4 sm:p-5">
         <AggregateGauge score={aggregateScore} />
         <div className="flex flex-col gap-1">
           <span className="eyebrow">The Panel</span>
-          <span className="font-serif text-[17px] text-ink leading-snug">
+          <span className="font-serif text-[16px] sm:text-[17px] text-ink leading-snug">
             {scores.length > 0
               ? `${scores.length} recruiters weighing in`
               : 'Awaiting first read'}

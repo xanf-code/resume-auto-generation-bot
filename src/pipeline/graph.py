@@ -55,7 +55,6 @@ from src.compiler.identity_check import check_identity
 from src.compiler.renderer import render
 from src.compiler.tectonic import compile_tex, count_pdf_pages
 from src.pipeline.emit import emit_node
-from src.pipeline.score_report import score_report_node
 from src.pipeline.state import PipelineState
 
 
@@ -272,12 +271,16 @@ def build_graph(enable_scoring: bool = False):
     """Build and compile the pipeline ``StateGraph``.
 
     Args:
-        enable_scoring: If True, wire the score_report node after emit
+        enable_scoring: Accepted for API compatibility. Persona panel scoring
+            (``score_report.json``) always runs via recruiter_panel → emit.
+            The post-emit ``resume_scorer`` markdown report is never wired.
 
     Returns a compiled graph exposing ``.invoke(state, config)``. Node function
     references are looked up on this module at wire-time so tests can monkeypatch
     them for hermetic end-to-end runs.
     """
+    # enable_scoring kept for API/CLI compatibility; topology ignores it.
+    _ = enable_scoring
     builder = StateGraph(PipelineState)
 
     # Nodes are registered via module-level lookups so monkeypatching the
@@ -338,13 +341,8 @@ def build_graph(enable_scoring: bool = False):
         {"emit": "emit", "writer": "writer"},
     )
 
-    # Conditionally wire score_report node if scoring is enabled
-    if enable_scoring:
-        builder.add_node("score_report", score_report_node)
-        builder.add_edge("emit", "score_report")
-        builder.add_edge("score_report", END)
-    else:
-        # emit goes directly to END when scoring is disabled
-        builder.add_edge("emit", END)
+    # Persona scores land in score_report.json via emit. Do not wire
+    # score_report_node / resume_scorer — that path is intentionally unused.
+    builder.add_edge("emit", END)
 
     return builder.compile()

@@ -19,6 +19,15 @@ if TYPE_CHECKING:
     from src.web.job_manager import JobManager
 
 
+class JobCancelled(Exception):
+    """Raised from within ``on_step`` to abort a running pipeline.
+
+    The stream loop calls ``on_step`` after every node; raising here unwinds
+    ``graph.stream`` cleanly at the next node boundary so an aborted job stops
+    without leaving a worker thread spinning.
+    """
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -32,6 +41,8 @@ def run_job(job: Job, manager: "JobManager") -> None:
     os.makedirs(out_dir, exist_ok=True)
 
     def on_step(flat_delta: dict, state: dict) -> None:
+        if job.cancel_event.is_set():
+            raise JobCancelled()
         event = events.build_progress_event(job.job_id, flat_delta, state)
         if event is not None:
             manager._emit(job, event)
@@ -45,6 +56,12 @@ def run_job(job: Job, manager: "JobManager") -> None:
             enable_scoring=job.enable_scoring,
             on_step=on_step,
         )
+    except JobCancelled:
+        job.status = JobStatus.FAILED
+        job.error = "You stopped this run before it finished."
+        job.finished_at = _now()
+        _emit_terminal(job, manager, stage="failed", human_label="Stopped")
+        return
     except Exception as exc:
         job.status = JobStatus.FAILED
         exc_type_name = type(exc).__name__
@@ -76,14 +93,25 @@ def run_job(job: Job, manager: "JobManager") -> None:
     _emit_terminal(job, manager, stage="done")
 
 
-def _emit_terminal(job: Job, manager: "JobManager", stage: str) -> None:
-    """Emit a synthetic terminal event (done or failed) to all subscribers."""
+def _emit_terminal(
+    job: Job,
+    manager: "JobManager",
+    stage: str,
+    human_label: str | None = None,
+) -> None:
+    """Emit a synthetic terminal event (done or failed) to all subscribers.
+
+    Carries ``job.error`` on failure so subscribers can render the reason
+    without a separate detail fetch.
+    """
+    default_label = "Done" if stage == "done" else "Failed"
     terminal = ProgressEvent(
         job_id=job.job_id,
         stage=stage,
-        human_label="Done" if stage == "done" else "Failed",
+        human_label=human_label or default_label,
         pct=100 if stage == "done" else 0,
         aggregate_score=job.aggregate_score,
         passed=job.passed,
+        error=None if stage == "done" else job.error,
     )
     manager._emit(job, terminal)

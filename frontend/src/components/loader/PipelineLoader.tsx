@@ -5,17 +5,30 @@ import type { JobSlice } from '../../store/jobsSlice';
 
 interface Props {
   job: JobSlice;
+  onAbort: () => void;
+  aborting: boolean;
 }
 
-export function PipelineLoader({ job }: Props) {
+export function PipelineLoader({ job, onAbort, aborting }: Props) {
   return (
     <div className="h-full overflow-y-auto">
-      <div className="flex flex-col gap-8 px-8 py-10">
-        <div className="flex flex-col gap-2">
-          <span className="eyebrow">On the press</span>
-          <h2 className="font-serif text-[28px] leading-tight text-ink">
-            {job.humanLabel ?? 'Setting the type…'}
-          </h2>
+      <div className="flex flex-col gap-6 sm:gap-8 px-4 sm:px-8 py-6 sm:py-10">
+        <div className="flex items-start justify-between gap-3 sm:gap-4">
+          <div className="flex flex-col gap-2 min-w-0">
+            <span className="eyebrow">Generating</span>
+            <h2 className="font-serif text-[22px] sm:text-[28px] leading-tight text-ink">
+              {job.humanLabel ?? 'Getting started…'}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onAbort}
+            disabled={aborting}
+            className="shrink-0 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint hover:text-fail border border-rule hover:border-fail/40 px-2.5 min-h-9 inline-flex items-center rounded-[2px] transition-colors disabled:opacity-50"
+            title="Abort this run"
+          >
+            {aborting ? 'Stopping…' : 'Stop'}
+          </button>
         </div>
 
         <StageStepper currentStage={job.stage ?? 'init'} iteration={job.iteration} />

@@ -274,3 +274,50 @@ def test_rename_and_delete(tmp_path):
     assert manager.get(job.job_id) is None
     assert not out.exists()
     assert manager.delete(job.job_id) is False
+
+
+# ---------------------------------------------------------------------------
+# Test 7: cancel aborts a running job at the next node boundary
+# ---------------------------------------------------------------------------
+
+def test_cancel_aborts_running_job():
+    from src.web.job_manager import JobManager
+
+    settings = _make_settings()
+    manager = JobManager(settings)
+
+    loop = asyncio.new_event_loop()
+    loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
+    loop_thread.start()
+    manager.bind_loop(loop)
+
+    started = threading.Event()
+
+    def looping_pipeline(resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring, on_step=None):
+        started.set()
+        # Emit steps until on_step raises JobCancelled — the cooperative abort path.
+        while True:
+            on_step({"writer_output": "step"}, {"iteration": 1})
+            time.sleep(0.02)
+
+    with patch.object(runner_module.main_module, "stream_pipeline", side_effect=looping_pipeline):
+        job = manager.submit(_make_req())
+        assert _wait_for(started.is_set, timeout=5.0)
+
+        assert manager.cancel(job.job_id) is True
+        finished = _wait_for(lambda: job.status == JobStatus.FAILED, timeout=10.0)
+
+    assert finished
+    assert job.status == JobStatus.FAILED
+    assert "stopped" in (job.error or "").lower()
+    # Cancelling an already-terminal job is a no-op.
+    assert manager.cancel(job.job_id) is False
+
+    loop.call_soon_threadsafe(loop.stop)
+
+
+def test_cancel_unknown_job_returns_false():
+    from src.web.job_manager import JobManager
+
+    manager = JobManager(_make_settings())
+    assert manager.cancel("does-not-exist") is False

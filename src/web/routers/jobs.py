@@ -16,6 +16,7 @@ from src.web.schemas import (
     JobStatus,
     JobSubmitRequest,
     JobSummary,
+    PersonaScoreDTO,
     SkillDumpDTO,
 )
 from src.web import sse as sse_module
@@ -27,7 +28,25 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _resolve_verdict(job, report: dict | None) -> tuple[float | None, bool | None]:
+    """Resolve (aggregate_score, passed) from the job, falling back to *report*.
+
+    The in-memory fields are cleared on a server restart, so a job that finished
+    earlier keeps its verdict only on disk. Reading it back here lets the list
+    endpoint serve score badges without the client opening each job's detail.
+    """
+    aggregate_score = job.aggregate_score
+    passed = job.passed
+    if report is not None:
+        if aggregate_score is None and isinstance(report.get("aggregate_score"), (int, float)):
+            aggregate_score = report["aggregate_score"]
+        if passed is None and isinstance(report.get("passed"), bool):
+            passed = report["passed"]
+    return aggregate_score, passed
+
+
 def _job_summary(job) -> JobSummary:
+    aggregate_score, passed = _resolve_verdict(job, _load_report(job))
     return JobSummary(
         job_id=job.job_id,
         label=job.label,
@@ -36,10 +55,99 @@ def _job_summary(job) -> JobSummary:
         started_at=job.started_at,
         finished_at=job.finished_at,
         error=job.error,
+        aggregate_score=aggregate_score,
+        passed=passed,
     )
 
 
+def _resolve_package_file(job, filename: str) -> str | None:
+    """Return an on-disk path to *filename* in the job's emit package, or None.
+
+    ``emit`` writes deliverables to a per-JD package folder
+    (``out_dir/{jd_name}/``), collapsing to ``out_dir`` itself only when no
+    ``jd_name`` is set. A caller that looks only at ``out_dir/{filename}``
+    therefore misses the file for every web job — which always carries a
+    ``jd_name`` (``JobManager`` sets it from the label). Resolve the nested
+    layout so all deliverables (skills, score report) are found consistently.
+    """
+    if not job.out_dir:
+        return None
+    candidates: list[str] = []
+    if job.jd_name:
+        candidates.append(os.path.join(job.out_dir, job.jd_name, filename))
+    candidates.append(os.path.join(job.out_dir, filename))
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    # Last resort: a single package folder under out_dir, in case the on-disk
+    # jd_name differs from the in-memory value (emit's per-JD layout).
+    try:
+        for name in os.listdir(job.out_dir):
+            nested = os.path.join(job.out_dir, name, filename)
+            if os.path.isfile(nested):
+                return nested
+    except OSError:
+        pass
+    return None
+
+
+def _resolve_skills_path(job) -> str | None:
+    """Return an on-disk skills.json path for *job*, or None.
+
+    Prefers ``job.output_skills`` when set, then falls back to the per-JD
+    package layout via :func:`_resolve_package_file`.
+    """
+    if job.output_skills and os.path.isfile(job.output_skills):
+        return job.output_skills
+    return _resolve_package_file(job, "skills.json")
+
+
+def _load_report(job) -> dict | None:
+    """Parse ``score_report.json`` from the job's emit package, or None.
+
+    Resolves the per-JD package layout (``out_dir/{jd_name}/score_report.json``)
+    — the path ``emit`` actually writes — via :func:`_resolve_package_file`,
+    not just ``out_dir`` directly. Tolerates a missing or malformed file so the
+    panel simply stays empty rather than 500-ing the whole detail request.
+    """
+    path = _resolve_package_file(job, "score_report.json")
+    if not path:
+        return None
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _persona_scores_from_report(report: dict) -> list[PersonaScoreDTO] | None:
+    """Map the report's ``personas`` array to DTOs, skipping malformed entries."""
+    personas = report.get("personas")
+    if not isinstance(personas, list):
+        return None
+    scores: list[PersonaScoreDTO] = []
+    for entry in personas:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            scores.append(PersonaScoreDTO(**entry))
+        except Exception:
+            continue
+    return scores or None
+
+
 def _job_detail(job) -> JobDetail:
+    # The recruiter verdict lives on disk in score_report.json. Read it here so
+    # a job opened after it finished (SSE never replays to a done job) — or after
+    # a server restart that cleared the in-memory score fields — still shows the
+    # panel's scores instead of an empty "recruiters weigh in" placeholder.
+    report = _load_report(job)
+    aggregate_score, passed = _resolve_verdict(job, report)
+    persona_scores: list[PersonaScoreDTO] | None = None
+    if report is not None:
+        persona_scores = _persona_scores_from_report(report)
+
     return JobDetail(
         job_id=job.job_id,
         label=job.label,
@@ -50,13 +158,11 @@ def _job_detail(job) -> JobDetail:
         error=job.error,
         has_pdf=bool(job.output_pdf and os.path.isfile(job.output_pdf)),
         has_latex=bool(job.best_latex),
-        has_skills=bool(job.output_skills and os.path.isfile(job.output_skills)),
-        has_report=bool(
-            job.out_dir
-            and os.path.isfile(os.path.join(job.out_dir, "score_report.json"))
-        ),
-        aggregate_score=job.aggregate_score,
-        passed=job.passed,
+        has_skills=bool(_resolve_skills_path(job)),
+        has_report=report is not None,
+        aggregate_score=aggregate_score,
+        passed=passed,
+        persona_scores=persona_scores,
     )
 
 
@@ -109,6 +215,21 @@ async def rename_job(
     job = manager.rename(job_id, req.label)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
+    return _job_summary(job)
+
+
+# ---------------------------------------------------------------------------
+# POST /jobs/{job_id}/cancel — request abort of a running job
+# ---------------------------------------------------------------------------
+
+@router.post("/{job_id}/cancel", status_code=202, response_model=JobSummary)
+async def cancel_job(job_id: str, request: Request) -> JobSummary:
+    manager = request.app.state.manager
+    job = manager.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if not manager.cancel(job_id):
+        raise HTTPException(status_code=409, detail="Job already finished")
     return _job_summary(job)
 
 
@@ -183,11 +304,12 @@ async def get_skills(job_id: str, request: Request) -> SkillDumpDTO:
     job = manager.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    if job.status != JobStatus.DONE or not job.output_skills:
+    if job.status != JobStatus.DONE:
         raise HTTPException(status_code=404, detail="Skills not available")
-    if not os.path.isfile(job.output_skills):
-        raise HTTPException(status_code=404, detail="Skills file not found")
-    with open(job.output_skills, encoding="utf-8") as fh:
+    skills_path = _resolve_skills_path(job)
+    if not skills_path:
+        raise HTTPException(status_code=404, detail="Skills not available")
+    with open(skills_path, encoding="utf-8") as fh:
         raw = json.load(fh)
     return SkillDumpDTO(**raw)
 
@@ -234,10 +356,8 @@ async def get_report(job_id: str, request: Request) -> dict:
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    report_path = (
-        os.path.join(job.out_dir, "score_report.json") if job.out_dir else None
-    )
-    if not report_path or not os.path.isfile(report_path):
+    report_path = _resolve_package_file(job, "score_report.json")
+    if not report_path:
         raise HTTPException(status_code=404, detail="Score report not found")
 
     with open(report_path, encoding="utf-8") as fh:

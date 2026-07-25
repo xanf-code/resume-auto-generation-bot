@@ -39,6 +39,7 @@ export interface ProgressEvent {
   aggregate_score?: number;
   passed?: boolean;
   persona_scores?: PersonaScore[];
+  error?: string;
 }
 
 export interface CreateJobRequest {

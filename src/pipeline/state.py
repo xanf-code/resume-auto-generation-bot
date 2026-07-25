@@ -99,6 +99,9 @@ class PipelineState(TypedDict, total=False):
     emitted: bool
     output_pdf: str
     output_report: str
+    # Path to skills.json. MUST be declared — LangGraph silently drops updates to
+    # channels absent from this schema (same trap as skill_dump / length_violations).
+    output_skills: str
     # Seeded by the CLI so the emit node knows where to write.
     out_dir: str
     # Stem of the JD file path (e.g. "amazon_sde" from "examples/amazon_sde.txt").

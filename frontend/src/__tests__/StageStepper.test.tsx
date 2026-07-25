@@ -38,4 +38,34 @@ describe('StageStepper', () => {
     render(<StageStepper currentStage="compile" iteration={2} />);
     expect(screen.queryByTestId('iteration-badge')).toBeNull();
   });
+
+  it('maps a fine-grained spine stage onto the "parse" bucket', () => {
+    // Regression: backend streams "generate_skills" mid-spine; the stepper must
+    // light "parse" as current rather than leaving every dot pending.
+    render(<StageStepper currentStage="generate_skills" iteration={1} />);
+    expect(screen.getByText(/parse/).closest('li')).toHaveAttribute(
+      'data-status',
+      'current',
+    );
+    expect(screen.getByText(/init/).closest('li')).toHaveAttribute(
+      'data-status',
+      'done',
+    );
+    expect(screen.getByText(/writer/).closest('li')).toHaveAttribute(
+      'data-status',
+      'pending',
+    );
+  });
+
+  it('maps a fine-grained scoring stage onto the "score" bucket', () => {
+    render(<StageStepper currentStage="recruiter_panel" iteration={1} />);
+    expect(screen.getByText(/score/).closest('li')).toHaveAttribute(
+      'data-status',
+      'current',
+    );
+    expect(screen.getByText(/compile/).closest('li')).toHaveAttribute(
+      'data-status',
+      'done',
+    );
+  });
 });

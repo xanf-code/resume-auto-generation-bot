@@ -2,7 +2,7 @@
 
 **Goal:** Expose the LangGraph pipeline to a web layer via raw string inputs + a per-node progress callback, without duplicating graph logic. This is the **only** edit to core pipeline code.
 
-**Prereq:** none. **Blocks:** Phases 8–12.
+**Prereq:** none. **Blocks:** Phases 8-12.
 
 ## Why
 The web layer must (a) accept resume/JD as in-memory strings (no file paths), and (b) observe each node as it completes to stream live progress. Today `src/main.py:run()` bundles file I/O + the `graph.stream` loop + stdout printing into one function. We split the observable core out and keep `run()` as a thin CLI wrapper so CLI behavior and existing tests are unchanged.

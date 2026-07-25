@@ -94,6 +94,9 @@ class ProgressEvent(BaseModel):
     aggregate_score: float | None = None
     passed: bool | None = None
     persona_scores: list[PersonaScoreDTO] | None = None
+    # Populated only on a terminal ``failed`` frame so clients can surface the
+    # reason (e.g. a user abort) directly from the stream.
+    error: str | None = None
 
 
 class JobStatus(str, Enum):
@@ -104,7 +107,12 @@ class JobStatus(str, Enum):
 
 
 class JobSummary(BaseModel):
-    """Lightweight job representation for the job rail listing."""
+    """Lightweight job representation for the job rail listing.
+
+    Carries the recruiter verdict (``aggregate_score``/``passed``) so the job
+    rail and home grid can render score badges directly from the list endpoint,
+    without opening each job's detail to backfill them.
+    """
 
     job_id: str
     label: str
@@ -113,6 +121,8 @@ class JobSummary(BaseModel):
     started_at: datetime | None = None
     finished_at: datetime | None = None
     error: str | None = None
+    aggregate_score: float | None = None
+    passed: bool | None = None
 
 
 class JobDetail(JobSummary):
@@ -122,8 +132,7 @@ class JobDetail(JobSummary):
     has_latex: bool = False
     has_skills: bool = False
     has_report: bool = False
-    aggregate_score: float | None = None
-    passed: bool | None = None
+    persona_scores: list[PersonaScoreDTO] | None = None
 
 
 class CompileErrorResponse(BaseModel):

@@ -49,6 +49,13 @@ export function LatexEditor({ jobId, initialLatex, onPdfReady }: Props) {
   const [compiling, setCompiling] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
 
+  // Fetch the already-compiled PDF on mount so the preview is immediately available.
+  useEffect(() => {
+    getJobPdf(jobId)
+      .then((blob) => onPdfReady?.(blob))
+      .catch(() => {/* no PDF yet — pane stays empty until user compiles */});
+  }, [jobId]);
+
   useEffect(() => {
     if (!editorRef.current) return;
 

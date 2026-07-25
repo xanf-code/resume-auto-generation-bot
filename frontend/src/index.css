@@ -85,3 +85,28 @@ body,
 ::-webkit-scrollbar-thumb:hover {
   background: #c9bfa9;
 }
+
+/*
+ * Honor the OS "reduce motion" setting for vestibular sensitivity. Motion-only:
+ * the pulsing status dots, stage stepper, and reconnect banner settle instead of
+ * looping; the static paper aesthetic is unchanged.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Coarse pointers: keep primary chrome reachable without hunting hover. */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  a {
+    -webkit-tap-highlight-color: rgba(192, 54, 44, 0.12);
+  }
+}

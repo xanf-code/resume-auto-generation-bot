@@ -1,4 +1,4 @@
-import { STAGE_ORDER, stageIndex } from '../../lib/stages';
+import { STAGE_ORDER, coarseStage, stageIndex } from '../../lib/stages';
 
 interface Props {
   currentStage: string;
@@ -20,13 +20,14 @@ const COLOR: Record<StageStatus, string> = {
 };
 
 export function StageStepper({ currentStage, iteration }: Props) {
-  const currentIdx = stageIndex(currentStage);
+  const coarse = coarseStage(currentStage);
+  const currentIdx = stageIndex(coarse);
 
   return (
     <ol className="flex flex-wrap gap-x-4 gap-y-2 items-center">
       {STAGE_ORDER.map((stage, idx) => {
         const status: StageStatus =
-          idx < currentIdx ? 'done' : stage === currentStage ? 'current' : 'pending';
+          idx < currentIdx ? 'done' : stage === coarse ? 'current' : 'pending';
 
         return (
           <li key={stage} data-status={status} className="flex items-center gap-1.5">

@@ -2,7 +2,7 @@
 
 **Goal:** Stand up the pure (no threading, no HTTP) foundation of `src/web/`: settings, API DTOs, the in-memory job model, and the translation from a pipeline stream-delta to a client `ProgressEvent`.
 
-**Prereq:** Phase 7. **Blocks:** Phases 9–10.
+**Prereq:** Phase 7. **Blocks:** Phases 9-10.
 
 ## Modules (each <500 lines)
 - `src/web/__init__.py`

@@ -177,7 +177,7 @@ colors:
 - **Display** ([weight], [size/clamp], [line-height]): [Purpose; where it appears.]
 - **Headline** ([weight], [size], [line-height]): [Purpose.]
 - **Title** ([weight], [size], [line-height]): [Purpose.]
-- **Body** ([weight], [size], [line-height]): [Purpose. Include max line length like 65–75ch if relevant.]
+- **Body** ([weight], [size], [line-height]): [Purpose. Include max line length like 65-75ch if relevant.]
 - **Label** ([weight], [size], [letter-spacing], [case if uppercase]): [Purpose.]
 
 ### Named Rules (optional)

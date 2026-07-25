@@ -468,7 +468,7 @@ const ANTIPATTERNS = [
     scopes: ['layout'],
     name: 'Cramped padding',
     description:
-      'Text is too close to the edge of its container. Two shapes: (1) an element with its own text where the padding is too low for the font size, and (2) a wrapper with text-bearing children and near-zero padding against a visible boundary (border, outline, or non-transparent background) — children land flush against the boundary line. Add at least 8px (ideally 12–16px) of padding inside bordered, outlined, or colored containers.',
+      'Text is too close to the edge of its container. Two shapes: (1) an element with its own text where the padding is too low for the font size, and (2) a wrapper with text-bearing children and near-zero padding against a visible boundary (border, outline, or non-transparent background) — children land flush against the boundary line. Add at least 8px (ideally 12-16px) of padding inside bordered, outlined, or colored containers.',
     skillSection: 'Layout & Space',
     skillGuideline: 'inside bordered or colored containers',
   },
@@ -675,15 +675,15 @@ const ANTIPATTERNS = [
 function isNeutralColor(color) {
   if (!color || color === 'transparent') return true;
 
-  // rgb/rgba — use channel spread. Threshold 30 ≈ 11.7% of the 0–255 range.
+  // rgb/rgba — use channel spread. Threshold 30 ≈ 11.7% of the 0-255 range.
   const rgb = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
   if (rgb) {
     return (Math.max(+rgb[1], +rgb[2], +rgb[3]) - Math.min(+rgb[1], +rgb[2], +rgb[3])) < 30;
   }
 
   // oklch()/lch() — chroma is the second numeric component.
-  // oklch chroma is ~0–0.4 in sRGB gamut; >= 0.02 reads as tinted, not gray.
-  // lch chroma is ~0–150; >= 3 reads as tinted. jsdom emits both formats
+  // oklch chroma is ~0-0.4 in sRGB gamut; >= 0.02 reads as tinted, not gray.
+  // lch chroma is ~0-150; >= 3 reads as tinted. jsdom emits both formats
   // literally (it does NOT convert them to rgb).
   const oklch = color.match(/oklch\(\s*[\d.]+%?\s*([\d.-]+)/i);
   if (oklch) return parseFloat(oklch[1]) < 0.02;
@@ -1016,8 +1016,8 @@ const HEADING_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
 // decide if the sibling is the canonical "icon-tile-stacked-above-heading" shape.
 //
 // Triggers when ALL of the following hold for the sibling:
-//   • size 32–128px on both axes (not too small, not a hero image)
-//   • aspect ratio 0.7–1.4 (squarish — excludes wide thumbnails / pill badges)
+//   • size 32-128px on both axes (not too small, not a hero image)
+//   • aspect ratio 0.7-1.4 (squarish — excludes wide thumbnails / pill badges)
 //   • has a non-transparent background-color, background-image, OR a visible border
 //     (covers solid colors, white-with-border, gradients — anything that visually
 //      defines a tile)
@@ -1034,7 +1034,7 @@ function checkIconTile(opts) {
   // Don't recurse into nested headings (e.g. h2 above h3 in a section header)
   if (HEADING_TAGS.has(siblingTag)) return [];
 
-  // Size window: 32–128px on each axis
+  // Size window: 32-128px on each axis
   if (!(siblingWidth >= 32 && siblingWidth <= 128)) return [];
   if (!(siblingHeight >= 32 && siblingHeight <= 128)) return [];
 

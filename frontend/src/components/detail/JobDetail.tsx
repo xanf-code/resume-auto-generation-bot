@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../../store';
 import { PipelineLoader } from '../loader/PipelineLoader';
 import { ThreePane } from './ThreePane';
 import { LatexEditor } from './editor/LatexEditor';
 import { PdfPane } from './pdf/PdfPane';
 import { SkillsSidebar } from './skills/SkillsSidebar';
-import { deleteJob, getJob, getJobLatex, renameJob } from '../../api/jobs';
+import { ScoresPane } from './scores/ScoresPane';
+import { cancelJob, deleteJob, getJob, getJobLatex, renameJob } from '../../api/jobs';
 import { StreamManager } from '../../sse/StreamManager';
 import type { StreamStatus } from '../../sse/JobStream';
-import { useCompletionAlert } from '../../lib/useCompletionAlert';
 import { ErrorBoundary } from '../ErrorBoundary';
 import type { JobSlice } from '../../store/jobsSlice';
 
@@ -83,9 +83,17 @@ function WorkspaceHeader({
   };
 
   return (
-    <header className="flex items-center justify-between px-6 py-4 border-b border-rule bg-paper shrink-0 gap-4">
+    <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-rule bg-paper shrink-0 gap-3 sm:gap-4">
       <div className="flex flex-col min-w-0 flex-1">
-        <span className="eyebrow">Application</span>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/"
+            className="lg:hidden font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint hover:text-ink min-h-9 inline-flex items-center"
+          >
+            ← Desk
+          </Link>
+          <span className="eyebrow hidden lg:inline">Application</span>
+        </div>
         {editing ? (
           <input
             ref={inputRef}
@@ -102,21 +110,21 @@ function WorkspaceHeader({
                 setEditing(false);
               }
             }}
-            className="mt-1 font-serif text-[18px] leading-tight text-ink bg-paper-raised border border-rule px-2 py-1 rounded-[2px] focus:outline-none focus:border-accent/60 max-w-xl w-full"
+            className="mt-1 font-serif text-[17px] sm:text-[18px] leading-tight text-ink bg-paper-raised border border-rule px-2 py-1 rounded-[2px] focus:outline-none focus:border-accent/60 max-w-xl w-full"
             aria-label="Rename application"
           />
         ) : (
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="font-serif text-[18px] leading-tight text-ink truncate mt-1 text-left hover:text-accent-deep transition-colors"
+            className="font-serif text-[17px] sm:text-[18px] leading-tight text-ink truncate mt-1 text-left hover:text-accent-deep transition-colors"
             title="Click to rename"
           >
             {job.label}
           </button>
         )}
       </div>
-      <div className="flex items-center gap-5 shrink-0">
+      <div className="flex items-center gap-3 sm:gap-5 shrink-0 flex-wrap">
         {job.aggregateScore !== undefined && (
           <div className="flex items-baseline gap-1.5">
             <span className="eyebrow text-[10px]">Score</span>
@@ -143,7 +151,7 @@ function WorkspaceHeader({
           type="button"
           disabled={busy}
           onClick={() => void handleDelete()}
-          className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint hover:text-fail border border-rule hover:border-fail/40 px-2.5 py-1.5 rounded-[2px] transition-colors disabled:opacity-50"
+          className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint hover:text-fail border border-rule hover:border-fail/40 px-2.5 min-h-9 inline-flex items-center rounded-[2px] transition-colors disabled:opacity-50"
         >
           Delete
         </button>
@@ -158,15 +166,19 @@ export function JobDetail() {
   const job = useStore((s) => (jobId ? s.jobs[jobId] : undefined));
   const applyEvent = useStore((s) => s.applyEvent);
   const syncJob = useStore((s) => s.syncJob);
-  const markFinishedNotified = useStore((s) => s.markFinishedNotified);
   const renameInStore = useStore((s) => s.renameJob);
   const removeInStore = useStore((s) => s.removeJob);
 
   const [latex, setLatex] = useState<string | null>(null);
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [connState, setConnState] = useState<StreamStatus>('open');
+  const [aborting, setAborting] = useState(false);
 
-  useCompletionAlert(job, markFinishedNotified);
+  // Reset the abort-in-progress flag when switching between applications so a
+  // pending abort on one job never bleeds into the view of another.
+  useEffect(() => {
+    setAborting(false);
+  }, [jobId]);
 
   useEffect(() => {
     if (!job || !jobId) return;
@@ -212,6 +224,22 @@ export function JobDetail() {
     }
   }, [job?.status]);
 
+  // A job that was already finished when this view opened never receives the
+  // SSE frames that carry the recruiter panel's verdict, so its scores stay
+  // empty. Pull the authoritative detail once to hydrate persona scores +
+  // aggregate + pass/fail from score_report.json on disk. Guarded on an empty
+  // panel so a job we watched finish live (already populated via SSE) is left
+  // untouched and never refetched.
+  useEffect(() => {
+    if (!jobId || job?.status !== 'done') return;
+    if (Object.keys(job.personaScores).length > 0) return;
+    getJob(jobId)
+      .then(syncJob)
+      .catch(() => {
+        /* scores stay empty — the panel keeps its placeholder */
+      });
+  }, [jobId, job?.status]);
+
   if (!job) {
     return (
       <div className="flex items-center justify-center h-full font-serif italic text-[16px] text-ink-faint">
@@ -230,8 +258,21 @@ export function JobDetail() {
     if (!jobId) return;
     streamManager.stop(jobId);
     await deleteJob(jobId);
+    navigate('/', { replace: true });
     removeInStore(jobId);
-    navigate('/');
+  };
+
+  // Request abort; the backend stops at the next node boundary and pushes a
+  // terminal "failed" frame, which flips this view to the stopped state. Keep
+  // `aborting` set on success so the button stays disabled until that arrives.
+  const handleAbort = async () => {
+    if (!jobId) return;
+    setAborting(true);
+    try {
+      await cancelJob(jobId);
+    } catch {
+      setAborting(false);
+    }
   };
 
   const isDone = job.status === 'done';
@@ -256,7 +297,7 @@ export function JobDetail() {
       Loading manuscript…
     </div>
   ) : (
-    <PipelineLoader job={job} />
+    <PipelineLoader job={job} onAbort={() => void handleAbort()} aborting={aborting} />
   );
 
   const reconnecting = connState === 'reconnecting' && !isDone && !isFailed;
@@ -265,7 +306,7 @@ export function JobDetail() {
     <div className="flex flex-col h-full min-h-0">
       <WorkspaceHeader job={job} onRename={handleRename} onDelete={handleDelete} />
       {reconnecting && (
-        <div className="flex items-center gap-2 px-6 py-1.5 bg-accent-wash border-b border-rule shrink-0">
+        <div className="flex items-center gap-2 px-4 sm:px-6 py-1.5 bg-accent-wash border-b border-rule shrink-0">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
           <span className="text-[12px] text-ink-soft">
             Lost contact with the press — reconnecting…
@@ -277,6 +318,15 @@ export function JobDetail() {
         proof={
           <ErrorBoundary title="Proof error" message="This proof couldn't be displayed.">
             <PdfPane pdfBlob={pdfBlob} running={!isDone && !isFailed} />
+          </ErrorBoundary>
+        }
+        scores={
+          <ErrorBoundary title="Scores error" message="These scores couldn't be displayed.">
+            <ScoresPane
+              personaScores={job.personaScores}
+              aggregateScore={job.aggregateScore}
+              passed={job.passed}
+            />
           </ErrorBoundary>
         }
         skills={<SkillsSidebar jobId={jobId!} ready={isDone} />}

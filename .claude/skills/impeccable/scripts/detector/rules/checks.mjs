@@ -223,8 +223,8 @@ const HEADING_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
 // decide if the sibling is the canonical "icon-tile-stacked-above-heading" shape.
 //
 // Triggers when ALL of the following hold for the sibling:
-//   • size 32–128px on both axes (not too small, not a hero image)
-//   • aspect ratio 0.7–1.4 (squarish — excludes wide thumbnails / pill badges)
+//   • size 32-128px on both axes (not too small, not a hero image)
+//   • aspect ratio 0.7-1.4 (squarish — excludes wide thumbnails / pill badges)
 //   • has a non-transparent background-color, background-image, OR a visible border
 //     (covers solid colors, white-with-border, gradients — anything that visually
 //      defines a tile)
@@ -241,7 +241,7 @@ function checkIconTile(opts) {
   // Don't recurse into nested headings (e.g. h2 above h3 in a section header)
   if (HEADING_TAGS.has(siblingTag)) return [];
 
-  // Size window: 32–128px on each axis
+  // Size window: 32-128px on each axis
   if (!(siblingWidth >= 32 && siblingWidth <= 128)) return [];
   if (!(siblingHeight >= 32 && siblingHeight <= 128)) return [];
 

@@ -33,7 +33,9 @@ export function getJobSkills(id: string): Promise<SkillsResponse> {
 }
 
 export async function getJobPdf(id: string): Promise<Blob> {
-  const res = await fetch(`/api/jobs/${id}/pdf`);
+  // Route through apiFetch (not bare fetch) so VITE_API_BASE_URL is honored on
+  // split-host deploys, exactly like every other call in this module.
+  const res = await apiFetch(`/api/jobs/${id}/pdf`);
   if (!res.ok) {
     // Without this guard a 404/500 resolves to an HTML error page that would be
     // downloaded (or rendered) as a corrupt "PDF".
@@ -55,6 +57,14 @@ export function renameJob(id: string, label: string): Promise<JobSummary> {
 
 export async function deleteJob(id: string): Promise<void> {
   const res = await apiFetch(`/api/jobs/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API ${res.status}: ${text}`);
+  }
+}
+
+export async function cancelJob(id: string): Promise<void> {
+  const res = await apiFetch(`/api/jobs/${id}/cancel`, { method: 'POST' });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`API ${res.status}: ${text}`);

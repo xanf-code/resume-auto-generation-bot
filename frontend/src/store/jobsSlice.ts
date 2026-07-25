@@ -15,7 +15,6 @@ export interface JobSlice {
   passed?: boolean;
   error?: string;
   finishedAt?: string;
-  finishedNotified: boolean;
 }
 
 export type JobsMap = Record<string, JobSlice>;
@@ -28,7 +27,6 @@ export interface JobsActions {
   addJob: (job: Pick<JobSlice, 'job_id' | 'label'>) => void;
   applyEvent: (event: ProgressEvent) => void;
   syncJob: (detail: JobDetail) => void;
-  markFinishedNotified: (jobId: string) => void;
   setJobs: (jobs: JobSlice[]) => void;
   renameJob: (jobId: string, label: string) => void;
   removeJob: (jobId: string) => void;
@@ -45,7 +43,6 @@ export function makeEmptyJob(
     iteration: 0,
     pct: 0,
     personaScores: {},
-    finishedNotified: false,
   };
 }
 
@@ -65,6 +62,7 @@ export function applyEvent(jobs: JobsMap, event: ProgressEvent): JobsMap {
     updated.status = 'failed';
     updated.stage = 'failed';
     updated.humanLabel = event.human_label;
+    updated.error = event.error ?? updated.error;
     updated.finishedAt = new Date().toISOString();
   } else {
     updated.status = 'running';
@@ -103,13 +101,19 @@ export function reconcileJob(jobs: JobsMap, detail: JobDetail): JobsMap {
   const existing = jobs[detail.job_id];
   if (!existing) return jobs;
 
+  // The HTTP detail snapshot omits the live-only fields (stage/human_label/
+  // iteration/pct), so coalesce each against what we already have rather than
+  // letting `undefined` poison the slice (e.g. Math.max(n, undefined) → NaN).
   const updated: JobSlice = {
     ...existing,
     status: detail.status,
     stage: detail.stage ?? existing.stage,
     humanLabel: detail.human_label ?? existing.humanLabel,
-    iteration: Math.max(existing.iteration, detail.iteration),
-    pct: detail.status === 'done' ? 100 : Math.max(existing.pct, detail.pct),
+    iteration: Math.max(existing.iteration, detail.iteration ?? 0),
+    pct:
+      detail.status === 'done'
+        ? 100
+        : Math.max(existing.pct, detail.pct ?? 0),
     aggregateScore: detail.aggregate_score ?? existing.aggregateScore,
     passed: detail.passed ?? existing.passed,
     error: detail.error ?? existing.error,

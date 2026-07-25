@@ -4,6 +4,7 @@ import { PanelCollapseButton } from '../../layout/PanelCollapseButton';
 import { getJobSkills } from '../../../api/jobs';
 import type { SkillsResponse } from '../../../api/types';
 import { useStore } from '../../../store';
+import { WIDE_MQ, useMediaQuery } from '../../../hooks/useMediaQuery';
 
 interface Props {
   jobId: string;
@@ -12,17 +13,20 @@ interface Props {
 
 function Shell({ children }: { children: React.ReactNode }) {
   const toggleSkills = useStore((s) => s.toggleSkillsSidebar);
+  const isWide = useMediaQuery(WIDE_MQ);
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="px-3 py-2.5 border-b border-rule bg-paper shrink-0 flex items-center justify-between gap-2">
-        <span className="eyebrow pl-1">Skills to dump</span>
-        <PanelCollapseButton
-          direction="right"
-          collapsed={false}
-          onToggle={toggleSkills}
-          label="Collapse skills"
-        />
+      <div className="px-3 py-2.5 border-b border-rule bg-paper shrink-0 flex items-center justify-between gap-2 min-h-11">
+        <span className="eyebrow pl-1">Skills</span>
+        {isWide && (
+          <PanelCollapseButton
+            direction="right"
+            collapsed={false}
+            onToggle={toggleSkills}
+            label="Collapse skills"
+          />
+        )}
       </div>
       {children}
     </div>
@@ -38,7 +42,7 @@ export function SkillsSidebar({ jobId, ready }: Props) {
     let active = true;
     getJobSkills(jobId)
       .then((s) => active && setSkills(s))
-      .catch(() => active && setError('No skills dump was produced for this run.'));
+      .catch(() => active && setError('No skills were generated for this run.'));
     return () => {
       active = false;
     };
@@ -49,8 +53,7 @@ export function SkillsSidebar({ jobId, ready }: Props) {
       <Shell>
         <div className="flex-1 flex items-center justify-center px-4 text-center">
           <p className="font-serif italic text-[14px] leading-relaxed text-ink-faint">
-            The skills dump is set alongside the résumé — ready when the press
-            finishes.
+            Skills will appear here once the resume is ready.
           </p>
         </div>
       </Shell>
@@ -73,7 +76,7 @@ export function SkillsSidebar({ jobId, ready }: Props) {
     return (
       <Shell>
         <div className="p-5 font-serif italic text-[14px] text-ink-faint">
-          Gathering skills…
+          Loading skills…
         </div>
       </Shell>
     );

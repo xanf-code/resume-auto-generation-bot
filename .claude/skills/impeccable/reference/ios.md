@@ -11,7 +11,7 @@ Would a fluent iPhone user trust this app, or pause at off-spec controls? The te
 ## Layout & structure
 
 - **Safe area.** Lay out inside the safe-area insets. No controls under the notch, Dynamic Island, home indicator, or rounded corners.
-- **System navigation.** Tab bar for 2–5 top-level sections (sections, never actions), navigation stack for hierarchy, sheet for self-contained tasks. No custom global nav, no mixed metaphors.
+- **System navigation.** Tab bar for 2-5 top-level sections (sections, never actions), navigation stack for hierarchy, sheet for self-contained tasks. No custom global nav, no mixed metaphors.
 - **Edge-swipe back stays alive.** The left-edge back gesture is muscle memory; never disable or overlay it.
 - **Large titles** on top-level screens, collapsing to inline on scroll. Deep detail screens stay inline.
 

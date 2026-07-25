@@ -69,7 +69,7 @@ export function PdfViewer({ blob }: Props) {
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex items-center justify-between px-5 py-3 border-b border-rule bg-paper shrink-0">
-        <span className="eyebrow">Proof</span>
+        <span className="eyebrow">Preview</span>
         <div className="flex items-center gap-3 font-mono text-[12px] text-ink-faint">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -98,7 +98,7 @@ export function PdfViewer({ blob }: Props) {
       >
         {failed ? (
           <p className="font-serif italic text-[14px] leading-relaxed text-fail mt-8 max-w-[240px] text-center px-4">
-            This proof couldn't be read. Recompile to pull a fresh one.
+            Preview couldn't be loaded. Try recompiling.
           </p>
         ) : (
           <Document
@@ -107,12 +107,12 @@ export function PdfViewer({ blob }: Props) {
             onLoadError={() => setFailed(true)}
             loading={
               <span className="font-serif italic text-[14px] text-ink-faint mt-8">
-                Developing…
+                Loading…
               </span>
             }
             error={
               <p className="font-serif italic text-[14px] leading-relaxed text-fail mt-8 max-w-[240px] text-center px-4">
-                This proof couldn't be read. Recompile to pull a fresh one.
+                Preview couldn't be loaded. Try recompiling.
               </p>
             }
           >

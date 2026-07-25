@@ -7,6 +7,7 @@ Both are pure data structures — no threading or HTTP concerns here.
 from __future__ import annotations
 
 import asyncio
+import threading
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
@@ -74,3 +75,8 @@ class Job:
 
     # Live SSE subscribers — each is an asyncio.Queue owned by one SSE connection
     subscribers: set[asyncio.Queue] = field(default_factory=set)
+
+    # Cooperative cancellation. Set from the request thread (via JobManager.cancel);
+    # read by the worker thread's on_step callback, which aborts at the next node
+    # boundary. A threading.Event is the safe cross-thread signalling primitive.
+    cancel_event: threading.Event = field(default_factory=threading.Event)

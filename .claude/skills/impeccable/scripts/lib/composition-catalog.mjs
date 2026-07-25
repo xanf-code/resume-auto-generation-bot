@@ -52,7 +52,7 @@ export function validateCompositionEntry(composition, { existingForms = new Map(
   if (typeof composition?.lineage !== 'string'
     || composition.lineage.trim().length < 12
     || composition.lineage.trim().length > 200) {
-    errors.push(`composition ${id} needs lineage metadata of 12–200 characters`);
+    errors.push(`composition ${id} needs lineage metadata of 12-200 characters`);
   }
   if (!COMPOSITION_SURFACES.has(composition?.surface)) {
     errors.push(`composition ${id} needs a surface of ${[...COMPOSITION_SURFACES].join(', ')}`);
@@ -65,7 +65,7 @@ export function validateCompositionEntry(composition, { existingForms = new Map(
   if (!Array.isArray(composition?.grammar)
     || composition.grammar.length !== COMPOSITION_GRAMMAR_PREFIXES.length
     || composition.grammar.some(rule => typeof rule !== 'string' || rule.trim().length < 12 || rule.trim().length > 180)) {
-    errors.push(`composition ${id} needs grammar with exactly four rules of 12–180 characters`);
+    errors.push(`composition ${id} needs grammar with exactly four rules of 12-180 characters`);
   } else {
     const unique = new Set(composition.grammar.map(normalizeConceptForm));
     if (unique.size !== COMPOSITION_GRAMMAR_PREFIXES.length) {
@@ -78,12 +78,12 @@ export function validateCompositionEntry(composition, { existingForms = new Map(
   if (typeof composition?.spark !== 'string'
     || composition.spark.trim().length < 80
     || composition.spark.trim().length > 320) {
-    errors.push(`composition ${id} needs a vivid spark of 80–320 characters`);
+    errors.push(`composition ${id} needs a vivid spark of 80-320 characters`);
   }
   if (typeof composition?.webLeverage !== 'string'
     || composition.webLeverage.trim().length < 20
     || composition.webLeverage.trim().length > 240) {
-    errors.push(`composition ${id} needs web leverage of 20–240 characters`);
+    errors.push(`composition ${id} needs web leverage of 20-240 characters`);
   }
   return errors;
 }

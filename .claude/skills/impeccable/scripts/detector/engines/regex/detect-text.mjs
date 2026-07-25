@@ -322,7 +322,7 @@ const REGEX_ANALYZERS = [
   // a model that writes `&mdash;`, `&#8212;`, or `&#x2014;` renders an em-dash
   // the counter never saw. Decode the em-dash entities (named, zero-padded
   // decimal, upper/lower hex) to the literal glyph first. En-dash entities are
-  // deliberately left alone: the rule counts em-dashes, and the literal `–`
+  // deliberately left alone: the rule counts em-dashes, and the literal `-`
   // was never counted either.
   (content, filePath) => {
     const text = stripHtmlToText(content)

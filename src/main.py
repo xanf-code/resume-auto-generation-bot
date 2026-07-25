@@ -87,7 +87,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--score",
         action="store_true",
         default=False,
-        help="Enable resume scoring report generation (default: disabled).",
+        help=(
+            "Deprecated no-op. Persona panel scoring (score_report.json) always "
+            "runs; resume_scorer is not invoked."
+        ),
     )
     return parser
 

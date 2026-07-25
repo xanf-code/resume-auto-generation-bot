@@ -42,27 +42,18 @@ def test_build_graph_compiles():
 
 
 def test_build_graph_with_scoring_enabled():
-    """build_graph(enable_scoring=True) wires the score_report node."""
+    """build_graph(enable_scoring=True) still compiles; flag is a no-op."""
     compiled = graph_mod.build_graph(enable_scoring=True)
     assert compiled is not None
     assert hasattr(compiled, "invoke")
 
 
-def test_end_to_end_with_scoring_enabled(monkeypatch):
-    """When enable_scoring=True, score_report_node runs after emit."""
+def test_end_to_end_never_runs_resume_scorer_score_report(monkeypatch):
+    """enable_scoring must not wire score_report_node / resume_scorer."""
     def agg_pass(state):
         return {"passed": True, "aggregate_score": 95.0, "panel_scores": []}
 
     _install_fake_nodes(monkeypatch, aggregator_behaviour=agg_pass)
-
-    # Mock score_report_node to track that it ran
-    score_report_called = {"called": False}
-
-    def fake_score_report(state):
-        score_report_called["called"] = True
-        return {"score_report_md": "/tmp/report.md"}
-
-    monkeypatch.setattr(graph_mod, "score_report_node", fake_score_report)
 
     compiled = graph_mod.build_graph(enable_scoring=True)
     result = compiled.invoke(
@@ -71,35 +62,9 @@ def test_end_to_end_with_scoring_enabled(monkeypatch):
     )
 
     assert result.get("emitted") is True
-    assert score_report_called["called"] is True
-    assert result.get("score_report_md") == "/tmp/report.md"
-
-
-def test_end_to_end_without_scoring_skips_score_report(monkeypatch):
-    """When enable_scoring=False (default), score_report_node does NOT run."""
-    def agg_pass(state):
-        return {"passed": True, "aggregate_score": 95.0, "panel_scores": []}
-
-    _install_fake_nodes(monkeypatch, aggregator_behaviour=agg_pass)
-
-    # Mock score_report_node to track that it should NOT be called
-    score_report_called = {"called": False}
-
-    def fake_score_report(state):
-        score_report_called["called"] = True
-        return {"score_report_md": "/tmp/report.md"}
-
-    monkeypatch.setattr(graph_mod, "score_report_node", fake_score_report)
-
-    compiled = graph_mod.build_graph(enable_scoring=False)
-    result = compiled.invoke(
-        {"resume_tex_raw": "R", "jd_raw": "J", "iteration": 1, "compile_retries": 0, "enable_scoring": False},
-        {"recursion_limit": 100},
-    )
-
-    assert result.get("emitted") is True
-    assert score_report_called["called"] is False
     assert "score_report_md" not in result
+    # emit → END; persona JSON comes from emit, not resume_scorer
+    assert "score_report" not in compiled.get_graph().nodes
 
 
 # --- route_after_bullet_check -------------------------------------------------
@@ -897,3 +862,71 @@ def test_generate_skills_runs_exactly_once_across_multiple_iterations(monkeypatc
     )
     # The skill_dump from the first (and only) skills call must be in the final state.
     assert result.get("skill_dump") is canned_dump
+
+
+# --- emit output_skills survives compiled-graph channels ----------------------
+#
+# Same bug class as length_violations / skill_dump: emit wrote skills.json to
+# disk and returned output_skills, but PipelineState never declared the channel,
+# so LangGraph dropped it. The web runner then saw None and GET /skills 404'd
+# even though the file existed.
+
+
+def test_output_skills_persists_through_compiled_graph_channels(monkeypatch):
+    """Regression: emit's output_skills path must survive real channel plumbing."""
+    skills_path = "/tmp/fake-skills.json"
+
+    monkeypatch.setattr(
+        graph_mod, "parse_resume",
+        lambda s: {"resume_struct": "RS", "identity_ledger": "LEDGER"},
+    )
+    monkeypatch.setattr(graph_mod, "analyze_jd", lambda s: {"jd_vector": "JD"})
+    monkeypatch.setattr(graph_mod, "gap_analysis", lambda s: {"gap_targets": []})
+    monkeypatch.setattr(
+        graph_mod, "generate_skills", lambda s: {"skill_dump": SkillDump()}
+    )
+    monkeypatch.setattr(graph_mod, "write_resume", lambda s: {"writer_output": "WO"})
+    monkeypatch.setattr(
+        graph_mod, "check_bullet_lengths", lambda s: {"length_violations": None}
+    )
+    monkeypatch.setattr(graph_mod, "render_node", lambda s: {"latex_rendered": "LATEX"})
+    monkeypatch.setattr(
+        graph_mod, "identity_check_node", lambda s: {"identity_violations": []}
+    )
+    monkeypatch.setattr(
+        graph_mod, "compile_node",
+        lambda s: {
+            "compile_ok": True,
+            "compile_errors": "",
+            "pdf_path": "/tmp/x.pdf",
+            "compile_retries": 0,
+        },
+    )
+    monkeypatch.setattr(graph_mod, "recruiter_panel", lambda s: {"panel_scores": []})
+    monkeypatch.setattr(
+        graph_mod, "aggregator",
+        lambda s: {"passed": True, "aggregate_score": 95.0, "panel_scores": []},
+    )
+    monkeypatch.setattr(
+        graph_mod,
+        "emit_node",
+        lambda s: {
+            "emitted": True,
+            "output_pdf": "/tmp/x.pdf",
+            "output_report": "/tmp/report.json",
+            "output_skills": skills_path,
+        },
+    )
+
+    compiled = graph_mod.build_graph(enable_scoring=False)
+    result = compiled.invoke(
+        {"resume_tex_raw": "R", "jd_raw": "J", "iteration": 1, "compile_retries": 0},
+        {"recursion_limit": 100},
+    )
+
+    assert result.get("emitted") is True
+    assert result.get("output_skills") == skills_path, (
+        "output_skills must survive the compiled graph — if this is None, "
+        "the channel is missing from PipelineState again"
+    )
+    assert result.get("output_pdf") == "/tmp/x.pdf"

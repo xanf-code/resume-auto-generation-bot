@@ -2,7 +2,7 @@
 
 **Goal:** Expose the job manager and raw compile over HTTP + SSE. Add web dependencies.
 
-**Prereq:** Phase 9. **Blocks:** Phases 11–12.
+**Prereq:** Phase 9. **Blocks:** Phases 11-12.
 
 ## Dependencies (append to `requirements.txt`)
 `fastapi>=0.110`, `uvicorn[standard]>=0.29`, `sse-starlette>=2.1`. (No `python-multipart` — jobs submit as JSON strings.) Reuse existing `pydantic`, `pytest-asyncio`.

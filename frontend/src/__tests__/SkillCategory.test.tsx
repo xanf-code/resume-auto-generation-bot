@@ -25,16 +25,29 @@ describe('SkillCategory', () => {
     expect(screen.getByText('TypeScript')).toBeInTheDocument();
   });
 
-  it('calls clipboard.writeText with comma-joined skills on copy click', () => {
+  it('calls clipboard.writeText with comma-joined skills on copy click', async () => {
     render(
       <SkillCategory
         name="Languages"
         skills={['Python', 'Go', 'TypeScript']}
       />,
     );
-    const copyBtn = screen.getByRole('button', { name: /copy/i });
-    fireEvent.click(copyBtn);
+    fireEvent.click(screen.getByRole('button', { name: /copy/i }));
+    expect(await screen.findByText('Copied')).toBeInTheDocument();
     expect(writeText).toHaveBeenCalledWith('Python, Go, TypeScript');
+  });
+
+  it('dedupes repeated skills in both the list and the copied string', async () => {
+    render(<SkillCategory name="Languages" skills={['Go', 'Go', 'Python']} />);
+    expect(screen.getAllByText('Go')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: /copy/i }));
+    expect(await screen.findByText('Copied')).toBeInTheDocument();
+    expect(writeText).toHaveBeenCalledWith('Go, Python');
+  });
+
+  it('renders nothing when there are no skills', () => {
+    const { container } = render(<SkillCategory name="Languages" skills={[]} />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it('renders the category name', () => {

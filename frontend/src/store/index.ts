@@ -14,15 +14,10 @@ import {
   type UiState,
   type UiActions,
 } from './uiSlice';
-import type {
-  NotificationsState,
-  NotificationsActions,
-  Notification,
-} from './notificationsSlice';
 import type { ProgressEvent, JobDetail } from '../api/types';
 
-type StoreState = JobsState & UiState & NotificationsState;
-type StoreActions = JobsActions & UiActions & NotificationsActions;
+type StoreState = JobsState & UiState;
+type StoreActions = JobsActions & UiActions;
 
 export type AppStore = StoreState & StoreActions;
 
@@ -47,18 +42,6 @@ export const useStore = create<AppStore>((set) => ({
     set((state) => ({
       jobs: reconcileJobFn(state.jobs, detail),
     })),
-
-  markFinishedNotified: (jobId: string) =>
-    set((state) => {
-      const job = state.jobs[jobId];
-      if (!job) return {};
-      return {
-        jobs: {
-          ...state.jobs,
-          [jobId]: { ...job, finishedNotified: true },
-        },
-      };
-    }),
 
   setJobs: (jobList: JobSlice[]) =>
     set(() => {
@@ -93,6 +76,7 @@ export const useStore = create<AppStore>((set) => ({
   // --- UI ---
   activeJobId: null,
   ...loadPanelCollapse(),
+  mobileNavOpen: false,
 
   setActiveJobId: (id) => set({ activeJobId: id }),
 
@@ -108,6 +92,7 @@ export const useStore = create<AppStore>((set) => ({
       persistPanelCollapse({
         jobRailCollapsed: next.jobRailCollapsed,
         skillsSidebarCollapsed: state.skillsSidebarCollapsed,
+        scoresSidebarCollapsed: state.scoresSidebarCollapsed,
       });
       return next;
     }),
@@ -118,24 +103,26 @@ export const useStore = create<AppStore>((set) => ({
       persistPanelCollapse({
         jobRailCollapsed: state.jobRailCollapsed,
         skillsSidebarCollapsed: next.skillsSidebarCollapsed,
+        scoresSidebarCollapsed: state.scoresSidebarCollapsed,
       });
       return next;
     }),
 
-  // --- Notifications ---
-  notifications: [] as Notification[],
+  toggleScoresSidebar: () =>
+    set((state) => {
+      const next = { scoresSidebarCollapsed: !state.scoresSidebarCollapsed };
+      persistPanelCollapse({
+        jobRailCollapsed: state.jobRailCollapsed,
+        skillsSidebarCollapsed: state.skillsSidebarCollapsed,
+        scoresSidebarCollapsed: next.scoresSidebarCollapsed,
+      });
+      return next;
+    }),
 
-  addNotification: (n) =>
-    set((state) => ({
-      notifications: [
-        ...state.notifications,
-        {
-          ...n,
-          id: crypto.randomUUID(),
-          at: new Date().toISOString(),
-        },
-      ],
-    })),
+  openMobileNav: () => set({ mobileNavOpen: true }),
 
-  clearNotifications: () => set({ notifications: [] }),
+  closeMobileNav: () => set({ mobileNavOpen: false }),
+
+  toggleMobileNav: () =>
+    set((state) => ({ mobileNavOpen: !state.mobileNavOpen })),
 }));

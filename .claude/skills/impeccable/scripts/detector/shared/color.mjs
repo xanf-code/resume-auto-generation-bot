@@ -3,15 +3,15 @@
 function isNeutralColor(color) {
   if (!color || color === 'transparent') return true;
 
-  // rgb/rgba — use channel spread. Threshold 30 ≈ 11.7% of the 0–255 range.
+  // rgb/rgba — use channel spread. Threshold 30 ≈ 11.7% of the 0-255 range.
   const rgb = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
   if (rgb) {
     return (Math.max(+rgb[1], +rgb[2], +rgb[3]) - Math.min(+rgb[1], +rgb[2], +rgb[3])) < 30;
   }
 
   // oklch()/lch() — chroma is the second numeric component.
-  // oklch chroma is ~0–0.4 in sRGB gamut; >= 0.02 reads as tinted, not gray.
-  // lch chroma is ~0–150; >= 3 reads as tinted. jsdom emits both formats
+  // oklch chroma is ~0-0.4 in sRGB gamut; >= 0.02 reads as tinted, not gray.
+  // lch chroma is ~0-150; >= 3 reads as tinted. jsdom emits both formats
   // literally (it does NOT convert them to rgb).
   const oklch = color.match(/oklch\(\s*[\d.]+%?\s*([\d.-]+)/i);
   if (oklch) return parseFloat(oklch[1]) < 0.02;

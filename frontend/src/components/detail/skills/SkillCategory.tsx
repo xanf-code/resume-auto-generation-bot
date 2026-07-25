@@ -6,9 +6,13 @@ interface Props {
 }
 
 export function SkillCategory({ name, skills }: Props) {
-  const joined = skills.join(', ');
+  // The extractor can surface the same skill twice (or under two categories);
+  // dedupe so React keys stay unique and the copied string doesn't repeat.
+  // Order-preserving.
+  const unique = Array.from(new Set(skills));
+  const joined = unique.join(', ');
 
-  if (skills.length === 0) return null;
+  if (unique.length === 0) return null;
 
   return (
     <div className="mb-4 pb-4 border-b border-rule last:border-b-0">
@@ -17,7 +21,7 @@ export function SkillCategory({ name, skills }: Props) {
         <CopyButton text={joined} />
       </div>
       <ul className="flex flex-wrap gap-1.5">
-        {skills.map((skill) => (
+        {unique.map((skill) => (
           <li
             key={skill}
             className="text-[11px] font-mono text-ink-soft bg-paper-raised border border-rule px-2 py-0.5 rounded-[2px]"

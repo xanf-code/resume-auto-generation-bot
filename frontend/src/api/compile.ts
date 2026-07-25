@@ -1,3 +1,4 @@
+import { apiFetch } from './client';
 import type { CompileErrorResponse } from './types';
 
 export type CompileResult =
@@ -5,9 +6,10 @@ export type CompileResult =
   | { ok: false; errors: string[] };
 
 export async function compileLatex(resumeTex: string): Promise<CompileResult> {
-  const res = await fetch('/api/compile', {
+  // Route through apiFetch (not bare fetch) so VITE_API_BASE_URL is honored on
+  // split-host deploys. apiFetch already sets the JSON Content-Type header.
+  const res = await apiFetch('/api/compile', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ resume_tex: resumeTex }),
   });
 

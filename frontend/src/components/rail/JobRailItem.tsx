@@ -151,7 +151,7 @@ export function JobRailItem({
         )}
       </div>
       {!editing && (
-        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+        <div className="flex items-center gap-0.5 shrink-0 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
           <button
             type="button"
             disabled={busy}
@@ -159,7 +159,7 @@ export function JobRailItem({
               e.stopPropagation();
               setEditing(true);
             }}
-            className="font-mono text-[10px] uppercase tracking-wider text-ink-faint hover:text-ink px-1.5 py-1"
+            className="font-mono text-[10px] uppercase tracking-wider text-ink-faint hover:text-ink px-1.5 min-h-9 min-w-9 inline-flex items-center justify-center"
             aria-label={`Rename ${job.label}`}
             title="Rename"
           >
@@ -169,7 +169,7 @@ export function JobRailItem({
             type="button"
             disabled={busy}
             onClick={handleDelete}
-            className="font-mono text-[10px] uppercase tracking-wider text-ink-faint hover:text-fail px-1.5 py-1"
+            className="font-mono text-[10px] uppercase tracking-wider text-ink-faint hover:text-fail px-1.5 min-h-9 min-w-9 inline-flex items-center justify-center"
             aria-label={`Delete ${job.label}`}
             title="Delete"
           >
@@ -179,7 +179,7 @@ export function JobRailItem({
       )}
       {job.aggregateScore !== undefined && !editing && (
         <span
-          className="font-mono text-[13px] tabular-nums shrink-0 group-hover:hidden"
+          className="font-mono text-[13px] tabular-nums shrink-0 [@media(hover:hover)]:group-hover:hidden"
           style={{
             color: job.passed === false ? 'var(--color-fail)' : 'var(--color-ink-soft)',
           }}
