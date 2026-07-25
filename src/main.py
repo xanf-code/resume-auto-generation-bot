@@ -10,7 +10,7 @@ resume/JD files into the initial state, invokes the compiled graph, streams
 per-iteration progress to stdout, and writes outputs via the emit node.
 
 Outputs are packaged per-JD: a run against ``examples/JD1.txt`` writes
-``out/JD1/`` containing ``resume.pdf``, ``score_report.json``, and ``skills.mdx``.
+``out/JD1/`` containing ``resume.pdf``, ``score_report.json``, and ``skills.json``.
 """
 import argparse
 import logging
@@ -252,7 +252,7 @@ def _print_summary(state: dict) -> None:
         print(f"Package:      {Path(report).parent}/")
     print(f"PDF:          {pdf if pdf else '(none — compile never succeeded)'}")
     print(f"Score Report: {report}")
-    print(f"Skills MDX:   {skills}")
+    print(f"Skills JSON:  {skills}")
     if score_md:
         print(f"Score MD:     {score_md}")
     print("=" * 52)

@@ -254,7 +254,7 @@ def test_emit_jd_name_folder_used_for_best_pdf_path_too(tmp_path):
     assert pdf_out.read_bytes() == b"%PDF best"
 
 
-# --- per-JD package layout + skills.mdx ----------------------------------------
+# --- per-JD package layout + skills.json ---------------------------------------
 
 
 def _skill_dump() -> SkillDump:
@@ -267,7 +267,7 @@ def _skill_dump() -> SkillDump:
 
 
 def test_emit_package_folder_contains_all_three_deliverables(tmp_path):
-    """out/{jd_name}/ holds resume.pdf, score_report.json, and skills.mdx."""
+    """out/{jd_name}/ holds resume.pdf, score_report.json, and skills.json."""
     out_dir = tmp_path / "out"
     state = _make_state(tmp_path)
     state["jd_name"] = "JD1"
@@ -278,11 +278,12 @@ def test_emit_package_folder_contains_all_three_deliverables(tmp_path):
     pkg = out_dir / "JD1"
     assert (pkg / "resume.pdf").is_file()
     assert (pkg / "score_report.json").is_file()
-    assert (pkg / "skills.mdx").is_file()
-    assert result["output_skills"] == str(pkg / "skills.mdx")
+    assert (pkg / "skills.json").is_file()
+    assert result["output_skills"] == str(pkg / "skills.json")
 
 
-def test_skills_mdx_has_frontmatter_category_sections_and_copy_paste(tmp_path):
+def test_skills_json_has_four_buckets_in_writer_order(tmp_path):
+    """skills.json is valid JSON with all four buckets, preserving writer order."""
     out_dir = tmp_path / "out"
     state = _make_state(tmp_path)
     state["jd_name"] = "JD1"
@@ -290,25 +291,33 @@ def test_skills_mdx_has_frontmatter_category_sections_and_copy_paste(tmp_path):
 
     emit_mod.emit(state, out_dir=str(out_dir))
 
-    mdx = (out_dir / "JD1" / "skills.mdx").read_text()
-    assert mdx.startswith("---\n")
-    assert "jd: JD1" in mdx
-    assert "generated:" in mdx
-    assert "skill_count: 8" in mdx
-    # All four fixed category headers render, in order.
-    for header in ("## Language & Framework", "## Infrastructure",
-                   "## Database", "## AI Tools"):
-        assert header in mdx
-    assert mdx.index("## Language & Framework") < mdx.index("## Infrastructure") \
-        < mdx.index("## Database") < mdx.index("## AI Tools")
-    # Skills render as bullets and per-category copy-paste lines.
-    assert "- Python" in mdx
-    assert "Copy-paste: `Python, TypeScript`" in mdx
-    assert "Copy-paste: `LangChain, RAG`" in mdx
+    raw = json.loads((out_dir / "JD1" / "skills.json").read_text())
+    assert raw == {
+        "language_and_framework": ["Python", "TypeScript"],
+        "infrastructure": ["AWS", "Docker"],
+        "database": ["PostgreSQL", "Kafka"],
+        "ai_tools": ["LangChain", "RAG"],
+    }
 
 
-def test_skills_mdx_uses_skill_dump_from_state(tmp_path):
-    """skill_dump on state is the single source of truth for the MDX."""
+def test_skills_json_parses_into_skill_dump(tmp_path):
+    """The emitted JSON round-trips cleanly back into a SkillDump."""
+    out_dir = tmp_path / "out"
+    state = _make_state(tmp_path)
+    state["jd_name"] = "JD1"
+    state["skill_dump"] = SkillDump(language_and_framework=["Zebra", "Apple", "Mango"])
+
+    emit_mod.emit(state, out_dir=str(out_dir))
+
+    raw = json.loads((out_dir / "JD1" / "skills.json").read_text())
+    dump = SkillDump(**raw)
+    # Writer order within a bucket is preserved (never re-sorted).
+    assert dump.language_and_framework == ["Zebra", "Apple", "Mango"]
+    assert dump.total() == 3
+
+
+def test_skills_json_uses_skill_dump_from_state(tmp_path):
+    """skill_dump on state is the single source of truth for the JSON."""
     out_dir = tmp_path / "out"
     state = _make_state(tmp_path)
     state["jd_name"] = "JD1"
@@ -316,12 +325,12 @@ def test_skills_mdx_uses_skill_dump_from_state(tmp_path):
 
     emit_mod.emit(state, out_dir=str(out_dir))
 
-    mdx = (out_dir / "JD1" / "skills.mdx").read_text()
-    assert "canonical-skill" in mdx
+    raw = json.loads((out_dir / "JD1" / "skills.json").read_text())
+    assert raw["language_and_framework"] == ["canonical-skill"]
 
 
-def test_skills_mdx_all_none_when_skill_dump_absent(tmp_path):
-    """No skill_dump in state → empty SkillDump → all four buckets show _None._."""
+def test_skills_json_empty_when_skill_dump_absent(tmp_path):
+    """No skill_dump in state → empty SkillDump → all four buckets empty lists."""
     out_dir = tmp_path / "out"
     state = _make_state(tmp_path)
     state["jd_name"] = "JD1"
@@ -329,34 +338,10 @@ def test_skills_mdx_all_none_when_skill_dump_absent(tmp_path):
 
     emit_mod.emit(state, out_dir=str(out_dir))
 
-    mdx = (out_dir / "JD1" / "skills.mdx").read_text()
-    assert mdx.count("_None._") == 4
-
-
-def test_build_skills_mdx_preserves_order_within_category(tmp_path):
-    """The builder keeps writer order within a bucket and never re-sorts."""
-    dump = SkillDump(language_and_framework=["Zebra", "Apple", "Mango"])
-    mdx = emit_mod.build_skills_mdx(dump, "role")
-    assert "Copy-paste: `Zebra, Apple, Mango`" in mdx
-    assert "skill_count: 3" in mdx
-
-
-def test_build_skills_mdx_handles_empty_dump(tmp_path):
-    """No skills → valid MDX, count 0, every category shows _None_, no crash."""
-    mdx = emit_mod.build_skills_mdx(SkillDump(), "")
-    assert "skill_count: 0" in mdx
-    assert mdx.count("_None._") == 4
-
-
-def test_skills_mdx_empty_category_renders_none(tmp_path):
-    """A populated dump with one empty bucket still renders that bucket as _None_."""
-    out_dir = tmp_path / "out"
-    state = _make_state(tmp_path)
-    state["jd_name"] = "JD1"
-    state["skill_dump"] = SkillDump(language_and_framework=["Python"])  # others empty
-
-    emit_mod.emit(state, out_dir=str(out_dir))
-
-    mdx = (out_dir / "JD1" / "skills.mdx").read_text()
-    assert "- Python" in mdx
-    assert "_None._" in mdx  # e.g. AI Tools bucket is empty
+    raw = json.loads((out_dir / "JD1" / "skills.json").read_text())
+    assert raw == {
+        "language_and_framework": [],
+        "infrastructure": [],
+        "database": [],
+        "ai_tools": [],
+    }

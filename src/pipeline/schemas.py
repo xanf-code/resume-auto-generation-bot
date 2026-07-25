@@ -118,7 +118,7 @@ class SkillDump(BaseModel):
     """The writer's categorized skill dump — a standalone deliverable.
 
     Skills are NOT rendered into the resume LaTeX; this structure is emitted to
-    ``skills.mdx`` for the user to dump manually. The four buckets are FIXED (the
+    ``skills.json`` for the user to dump manually. The four buckets are FIXED (the
     writer sorts every skill into one) so the MDX renders under stable headers.
     Fields default to empty lists so partial dumps and test fixtures stay ergonomic;
     the OpenAI strict-schema path still forces the model to return all four.

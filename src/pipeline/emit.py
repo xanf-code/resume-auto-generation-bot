@@ -9,9 +9,11 @@ For a JD file ``JD1.txt`` the pipeline writes ``out/JD1/`` containing:
   warning on cap-hit). Includes a TRUE-GAPS section — the competencies the Gap
   Analyzer flagged ``no_evidence=True`` — so the user sees what the resume
   genuinely cannot claim.
-- ``skills.mdx`` — the writer's optimized, JD-tailored skill list for the user to
-  dump manually (LinkedIn / ATS skill fields / portal). Skills are NOT rendered
-  into the resume LaTeX; this file is the sole skills deliverable.
+- ``skills.json`` — the writer's optimized, JD-tailored skill list as four
+  machine-readable buckets. Skills are NOT rendered into the resume LaTeX; this
+  file is the sole skills deliverable, consumed both by the CLI and by the web
+  layer's ``GET /jobs/{id}/skills`` endpoint (the frontend renders the buckets
+  from this).
 
 When ``jd_name`` is absent the package collapses to ``out_dir`` itself and the
 PDF keeps the legacy ``resume_optimized.pdf`` name.
@@ -22,7 +24,6 @@ a NEW dict with the paths it wrote (never mutates input state).
 import json
 import logging
 import shutil
-from datetime import date
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -32,15 +33,7 @@ from src.pipeline.schemas import PanelScore, ReframingTarget, SkillDump
 _PDF_NAME_DEFAULT = "resume_optimized.pdf"
 _PDF_NAME_PACKAGE = "resume.pdf"
 _REPORT_NAME = "score_report.json"
-_SKILLS_NAME = "skills.mdx"
-
-# (SkillDump attribute, display header) — fixed order for the MDX sections.
-_SKILL_CATEGORIES: tuple[tuple[str, str], ...] = (
-    ("language_and_framework", "Language & Framework"),
-    ("infrastructure", "Infrastructure"),
-    ("database", "Database"),
-    ("ai_tools", "AI Tools"),
-)
+_SKILLS_NAME = "skills.json"
 
 _CAP_HIT_WARNING = (
     "Iteration cap reached without clearing the score threshold. Emitting the "
@@ -92,42 +85,6 @@ def build_score_report(state: dict) -> dict:
     return report
 
 
-def build_skills_mdx(skills: SkillDump, jd_name: str) -> str:
-    """Build the categorized skill-dump MDX artifact (pure).
-
-    Frontmatter + one section per fixed category (``## Language & Framework``,
-    ``## Infrastructure``, ``## Database``, ``## AI Tools``), each with a bulleted
-    list and a per-category copy-paste line. Skills arrive already ordered by the
-    writer (highest JD relevance first) within each bucket; order is preserved.
-    MDX is a superset of Markdown, so plain Markdown content is valid MDX.
-    """
-    title = jd_name or "resume"
-    lines = [
-        "---",
-        f"jd: {title}",
-        f"generated: {date.today().isoformat()}",
-        f"skill_count: {skills.total()}",
-        "---",
-        "",
-        f"# Skills to Dump — {title}",
-        "",
-        "Grouped by category, ordered by relevance to the target JD. Paste each "
-        "group into the application's skills field.",
-        "",
-    ]
-    for attr, header in _SKILL_CATEGORIES:
-        items: list[str] = getattr(skills, attr)
-        lines.append(f"## {header}")
-        if items:
-            lines.extend(f"- {s}" for s in items)
-            lines.append("")
-            lines.append(f"Copy-paste: `{', '.join(items)}`")
-        else:
-            lines.append("_None._")
-        lines.append("")
-    return "\n".join(lines)
-
-
 def _skills_from_state(state: dict) -> SkillDump:
     """Resolve the skill dump: generated once by generate_skills, stable across iterations."""
     dump = state.get("skill_dump")
@@ -154,7 +111,7 @@ def emit(state: dict, out_dir: str = "out") -> dict:
 
     Returns:
         A NEW dict with ``output_pdf`` (str | None), ``output_report`` (str), and
-        ``output_skills`` (str) — the paths written.
+        ``output_skills`` (str, the JSON skill dump) — the paths written.
     """
     jd_name = state.get("jd_name", "").strip()
     # Package the run into a per-JD folder so outputs never collide across JDs.
@@ -167,9 +124,13 @@ def emit(state: dict, out_dir: str = "out") -> dict:
     report_path = pkg_dir / _REPORT_NAME
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
-    skills_mdx = build_skills_mdx(_skills_from_state(state), jd_name)
+    # Four skill buckets as JSON — the sole skills deliverable, parsed by the CLI
+    # and by GET /jobs/{id}/skills into a DTO the frontend renders.
+    skills = _skills_from_state(state)
     skills_path = pkg_dir / _SKILLS_NAME
-    skills_path.write_text(skills_mdx, encoding="utf-8")
+    skills_path.write_text(
+        json.dumps(skills.model_dump(), indent=2), encoding="utf-8"
+    )
 
     # Prefer the best-scoring PDF over the last-compiled PDF.
     # Fallback chain: best_pdf_path → pdf_path → None (no PDF copied).

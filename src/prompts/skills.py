@@ -1,7 +1,7 @@
 """System prompt for the one-shot Skill Dump node (gpt-4o-mini).
 
 The skill dump is generated exactly once per pipeline run, independently of the
-writer revision loop. It is emitted to ``skills.mdx`` — NOT rendered into the
+writer revision loop. It is emitted to ``skills.json`` — NOT rendered into the
 resume PDF — so it has no length cap and never competes with bullets for space.
 """
 
