@@ -1,4 +1,5 @@
 import { StageStepper } from './StageStepper';
+import { ActivityLog } from './ActivityLog';
 import { IterationCounter } from './IterationCounter';
 import { RecruiterPanel } from './RecruiterPanel';
 import type { JobSlice } from '../../store/jobsSlice';
@@ -47,6 +48,8 @@ export function PipelineLoader({ job, onAbort, aborting }: Props) {
           </div>
           <IterationCounter iteration={job.iteration} />
         </div>
+
+        <ActivityLog entries={job.activityLog} />
 
         <RecruiterPanel
           personaScores={job.personaScores}

@@ -129,6 +129,7 @@ def _emit_terminal(
     without a separate detail fetch.
     """
     default_label = "Done" if stage == "done" else "Failed"
+    detail = "Run complete - artifacts ready" if stage == "done" else job.error
     terminal = ProgressEvent(
         job_id=job.job_id,
         stage=stage,
@@ -136,6 +137,7 @@ def _emit_terminal(
         pct=100 if stage == "done" else 0,
         aggregate_score=job.aggregate_score,
         passed=job.passed,
+        detail=detail,
         error=None if stage == "done" else job.error,
     )
     manager._emit(job, terminal)

@@ -77,6 +77,82 @@ def pct_estimate(stage: str, iteration: int, max_iterations: int = MAX_ITERATION
 
 
 # ---------------------------------------------------------------------------
+# Activity detail - the live "what is actually happening" text feed
+# ---------------------------------------------------------------------------
+
+# Straightforward one-liners for the spine + non-branching nodes. The branching
+# nodes (writer / compile / identity_check / bookkeep) are handled below because
+# their message depends on *why* they ran.
+_SPINE_DETAIL: dict[str, str] = {
+    "parse_resume":    "Parsed resume into identity + work history",
+    "analyze_jd":      "Analyzed the job description",
+    "gap_analysis":    "Mapped gaps against the target role",
+    "generate_skills": "Built the skill dump",
+    "render":          "Patched bullets into the LaTeX template",
+    "recruiter_panel": "Recruiter panel scored the draft",
+    "emit":            "Emitting final artifacts",
+    "score_report":    "Writing the score report",
+}
+
+
+def activity_detail(stage: str, flat_delta: dict, state: dict) -> str | None:
+    """Return a concrete activity line for *stage*, or None if unremarkable.
+
+    Pure: reads only the node's ``flat_delta`` and the accumulated ``state``.
+    Surfaces the control-flow decisions the stepper hides - most importantly the
+    page-overflow / compile-fail bounces back to the writer.
+    """
+    iteration = int(state.get("iteration", 1))
+
+    if stage == "compile":
+        if flat_delta.get("compile_ok"):
+            return "Compiled to a single page ✓"
+        errors = flat_delta.get("compile_errors") or ""
+        if errors.startswith("PAGE OVERFLOW"):
+            return "Page overflow - resume spilled past 1 page, bouncing back to the writer"
+        return "Compile failed - sending LaTeX errors back to the writer"
+
+    if stage == "identity_check":
+        violations = flat_delta.get("identity_violations")
+        if violations:
+            n = len(violations)
+            field = "field" if n == 1 else "fields"
+            return f"Identity mismatch on {n} {field} - bouncing back to the writer"
+        return "Identity verified against the ledger ✓"
+
+    if stage == "writer":
+        errors = state.get("compile_errors") or ""
+        if errors.startswith("PAGE OVERFLOW"):
+            return f"Rewriting to shed a page (iteration {iteration})"
+        if errors:
+            return f"Rewriting to fix compile errors (iteration {iteration})"
+        if state.get("identity_violations"):
+            return f"Rewriting to restore identity fields (iteration {iteration})"
+        if iteration > 1:
+            return f"Revising bullets from panel feedback (iteration {iteration})"
+        return "Drafting the first pass"
+
+    if stage == "bookkeep":
+        if state.get("passed"):
+            agg = state.get("aggregate_score")
+            return f"Passed - aggregate {agg:.1f}" if agg is not None else "Passed the panel"
+        if flat_delta.get("cap_hit"):
+            best = flat_delta.get("best_score")
+            tail = f" (best {best:.1f})" if isinstance(best, (int, float)) else ""
+            return f"Iteration cap reached - emitting the best draft so far{tail}"
+        nxt = flat_delta.get("iteration")
+        if nxt:
+            return f"Below the bar - looping back to the writer (iteration {nxt})"
+        return None
+
+    if stage == "aggregator":
+        agg = state.get("aggregate_score")
+        return f"Panel aggregate: {agg:.1f}" if agg is not None else None
+
+    return _SPINE_DETAIL.get(stage)
+
+
+# ---------------------------------------------------------------------------
 # Delta → ProgressEvent
 # ---------------------------------------------------------------------------
 
@@ -134,4 +210,5 @@ def build_progress_event(
         aggregate_score=state.get("aggregate_score"),
         passed=state.get("passed"),
         persona_scores=persona_scores,
+        detail=activity_detail(stage, flat_delta, state),
     )

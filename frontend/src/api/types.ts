@@ -42,6 +42,8 @@ export interface ProgressEvent {
   aggregate_score?: number;
   passed?: boolean;
   persona_scores?: PersonaScore[];
+  // A concrete "what just happened" line for the live activity feed.
+  detail?: string;
   error?: string;
 }
 

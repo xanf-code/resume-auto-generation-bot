@@ -2,6 +2,13 @@ import type { ProgressEvent, PersonaScore, JobDetail } from '../api/types';
 
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed';
 
+// One line in the live activity feed shown under the pipeline stepper.
+export interface ActivityEntry {
+  seq: number;
+  stage: string;
+  text: string;
+}
+
 export interface JobSlice {
   job_id: string;
   label: string;
@@ -13,6 +20,9 @@ export interface JobSlice {
   personaScores: Record<string, PersonaScore>;
   aggregateScore?: number;
   passed?: boolean;
+  // Chronological "what is happening" feed, newest last. Populated from each
+  // ProgressEvent.detail so the UI can show the control-flow the stepper hides.
+  activityLog: ActivityEntry[];
   error?: string;
   finishedAt?: string;
 }
@@ -43,6 +53,7 @@ export function makeEmptyJob(
     iteration: 0,
     pct: 0,
     personaScores: {},
+    activityLog: [],
   };
 }
 
@@ -89,6 +100,18 @@ export function applyEvent(jobs: JobsMap, event: ProgressEvent): JobsMap {
 
   if (event.passed !== undefined) {
     updated.passed = event.passed;
+  }
+
+  // Append the activity line, skipping empties and consecutive duplicates so a
+  // node that emits the same message twice (e.g. a retried compile) reads once.
+  if (event.detail) {
+    const prev = updated.activityLog[updated.activityLog.length - 1];
+    if (!prev || prev.text !== event.detail) {
+      updated.activityLog = [
+        ...updated.activityLog,
+        { seq: event.seq, stage: event.stage, text: event.detail },
+      ];
+    }
   }
 
   return { ...jobs, [event.job_id]: updated };

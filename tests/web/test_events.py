@@ -85,3 +85,98 @@ def test_pct_estimate_zero_budget_does_not_crash():
     from src.web.events import pct_estimate
 
     assert 0 <= pct_estimate("writer", 1, 0) <= 100
+
+
+# --- activity detail: live "what is happening" text feed --------------------
+
+
+def test_compile_ok_detail_reports_single_page():
+    from src.web.events import build_progress_event
+    ev = build_progress_event(
+        "j", {"compile_ok": True, "compile_errors": ""}, {"iteration": 1}
+    )
+    assert ev.stage == "compile"
+    assert ev.detail is not None
+    assert "page" in ev.detail.lower()
+
+
+def test_compile_page_overflow_detail_mentions_bouncing_to_writer():
+    from src.web.events import build_progress_event
+    delta = {
+        "compile_ok": False,
+        "compile_errors": "PAGE OVERFLOW: the resume compiled to 2 pages…",
+    }
+    ev = build_progress_event("j", delta, {"iteration": 2})
+    assert ev.stage == "compile"
+    assert ev.detail is not None
+    d = ev.detail.lower()
+    assert "overflow" in d
+    assert "writer" in d
+
+
+def test_compile_error_detail_mentions_writer():
+    from src.web.events import build_progress_event
+    delta = {"compile_ok": False, "compile_errors": "! Undefined control sequence."}
+    ev = build_progress_event("j", delta, {"iteration": 1})
+    assert ev.detail is not None
+    assert "writer" in ev.detail.lower()
+    assert "overflow" not in ev.detail.lower()
+
+
+def test_identity_violation_detail_counts_fields_and_bounces():
+    from src.web.events import build_progress_event
+    ev = build_progress_event(
+        "j", {"identity_violations": ["email", "phone"]}, {"iteration": 1}
+    )
+    assert ev.stage == "identity_check"
+    assert ev.detail is not None
+    d = ev.detail.lower()
+    assert "2" in d and "writer" in d
+
+
+def test_identity_clean_detail():
+    from src.web.events import build_progress_event
+    ev = build_progress_event("j", {"identity_violations": []}, {"iteration": 1})
+    assert ev.stage == "identity_check"
+    assert ev.detail is not None
+    assert "verif" in ev.detail.lower()
+
+
+def test_bookkeep_cap_hit_detail():
+    from src.web.events import build_progress_event
+    ev = build_progress_event(
+        "j",
+        {"cap_hit": True, "best_score": 78.0},
+        {"iteration": 4, "passed": False, "aggregate_score": 77.0},
+    )
+    assert ev.stage == "bookkeep"
+    assert ev.detail is not None
+    assert "cap" in ev.detail.lower() or "best" in ev.detail.lower()
+
+
+def test_bookkeep_loop_detail_mentions_writer():
+    from src.web.events import build_progress_event
+    ev = build_progress_event(
+        "j",
+        {"iteration": 3, "best_score": 60.0},
+        {"iteration": 3, "passed": False, "aggregate_score": 59.0},
+    )
+    assert ev.stage == "bookkeep"
+    assert ev.detail is not None
+    assert "writer" in ev.detail.lower()
+
+
+def test_writer_detail_reflects_page_overflow_retry():
+    from src.web.events import build_progress_event
+    state = {"iteration": 2, "compile_errors": "PAGE OVERFLOW: 2 pages…"}
+    ev = build_progress_event("j", {"writer_output": object()}, state)
+    assert ev.stage == "writer"
+    assert ev.detail is not None
+    assert "page" in ev.detail.lower()
+
+
+def test_writer_first_pass_detail():
+    from src.web.events import build_progress_event
+    ev = build_progress_event("j", {"writer_output": object()}, {"iteration": 1})
+    assert ev.stage == "writer"
+    assert ev.detail is not None

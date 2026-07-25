@@ -107,4 +107,42 @@ describe('applyEvent', () => {
     const result = applyEvent(jobs, event);
     expect(result).toBe(jobs);
   });
+
+  it('appends event.detail onto the activity log with stage + sequence', () => {
+    const jobs = baseMap();
+    const event = makeEvent({
+      stage: 'compile',
+      detail: 'Page overflow - bouncing back to the writer',
+      seq: 7,
+    });
+    const result = applyEvent(jobs, event);
+    const log = result['job-1'].activityLog;
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatchObject({
+      seq: 7,
+      stage: 'compile',
+      text: 'Page overflow - bouncing back to the writer',
+    });
+  });
+
+  it('accumulates multiple detail lines in arrival order', () => {
+    let jobs = baseMap();
+    jobs = applyEvent(jobs, makeEvent({ stage: 'writer', detail: 'Drafting the first pass', seq: 1 }));
+    jobs = applyEvent(jobs, makeEvent({ stage: 'compile', detail: 'Compiled to a single page', seq: 2 }));
+    const log = jobs['job-1'].activityLog;
+    expect(log.map((e) => e.text)).toEqual(['Drafting the first pass', 'Compiled to a single page']);
+  });
+
+  it('does not append when detail is absent', () => {
+    const jobs = baseMap();
+    const result = applyEvent(jobs, makeEvent({ stage: 'writer', detail: undefined }));
+    expect(result['job-1'].activityLog).toHaveLength(0);
+  });
+
+  it('skips a detail identical to the previous entry (dedupe consecutive repeats)', () => {
+    let jobs = baseMap();
+    jobs = applyEvent(jobs, makeEvent({ stage: 'compile', detail: 'Compile failed', seq: 1 }));
+    jobs = applyEvent(jobs, makeEvent({ stage: 'compile', detail: 'Compile failed', seq: 2 }));
+    expect(jobs['job-1'].activityLog).toHaveLength(1);
+  });
 });
