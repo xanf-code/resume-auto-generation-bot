@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import { EditorView, lineNumbers, highlightActiveLine } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { history, historyKeymap } from '@codemirror/commands';
@@ -9,6 +15,7 @@ import { EditorToolbar } from './EditorToolbar';
 import { compileLatex } from '../../../api/compile';
 import { getJobPdf } from '../../../api/jobs';
 import { downloadBlob } from '../../../lib/download';
+import { findInLatex } from '../../../lib/findInLatex';
 import { toast } from 'sonner';
 
 interface Props {
@@ -16,6 +23,11 @@ interface Props {
   initialLatex: string;
   onPdfReady?: (blob: Blob) => void;
 }
+
+export type LatexEditorHandle = {
+  /** Scroll to and select the best match for PDF text. Returns false if none. */
+  jumpToText: (query: string) => boolean;
+};
 
 // Light "paper" theme — mono is legitimate here because this is code.
 const paperTheme = EditorView.theme(
@@ -43,11 +55,36 @@ const paperTheme = EditorView.theme(
   { dark: false },
 );
 
-export function LatexEditor({ jobId, initialLatex, onPdfReady }: Props) {
+export const LatexEditor = forwardRef<LatexEditorHandle, Props>(function LatexEditor(
+  { jobId, initialLatex, onPdfReady },
+  ref,
+) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [compiling, setCompiling] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      jumpToText(query: string) {
+        const view = viewRef.current;
+        if (!view) return false;
+        const match = findInLatex(view.state.doc.toString(), query);
+        if (!match) {
+          toast.message('No matching LaTeX for that text');
+          return false;
+        }
+        view.dispatch({
+          selection: { anchor: match.from, head: match.to },
+          effects: EditorView.scrollIntoView(match.from, { y: 'center' }),
+        });
+        view.focus();
+        return true;
+      },
+    }),
+    [],
+  );
 
   // Fetch the already-compiled PDF on mount so the preview is immediately available.
   useEffect(() => {
@@ -137,4 +174,4 @@ export function LatexEditor({ jobId, initialLatex, onPdfReady }: Props) {
       )}
     </div>
   );
-}
+});

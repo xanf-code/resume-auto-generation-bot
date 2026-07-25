@@ -3,9 +3,11 @@ import { PdfViewer } from './PdfViewer';
 interface Props {
   pdfBlob: Blob | null;
   running?: boolean;
+  /** Double-click PDF text → jump to matching LaTeX in the editor. */
+  onSyncToSource?: (text: string) => void;
 }
 
-export function PdfPane({ pdfBlob, running = false }: Props) {
+export function PdfPane({ pdfBlob, running = false, onSyncToSource }: Props) {
   if (!pdfBlob) {
     return (
       <div className="flex flex-col h-full">
@@ -23,5 +25,5 @@ export function PdfPane({ pdfBlob, running = false }: Props) {
     );
   }
 
-  return <PdfViewer blob={pdfBlob} />;
+  return <PdfViewer blob={pdfBlob} onSyncToSource={onSyncToSource} />;
 }

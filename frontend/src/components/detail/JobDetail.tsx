@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../../store';
 import { PipelineLoader } from '../loader/PipelineLoader';
 import { ThreePane } from './ThreePane';
-import { LatexEditor } from './editor/LatexEditor';
+import { LatexEditor, type LatexEditorHandle } from './editor/LatexEditor';
 import { PdfPane } from './pdf/PdfPane';
 import { SkillsSidebar } from './skills/SkillsSidebar';
 import { ScoresPane } from './scores/ScoresPane';
@@ -12,6 +12,7 @@ import { StreamManager } from '../../sse/StreamManager';
 import type { StreamStatus } from '../../sse/JobStream';
 import { ErrorBoundary } from '../ErrorBoundary';
 import type { JobSlice } from '../../store/jobsSlice';
+import type { PaneId } from './ThreePane';
 
 const streamManager = new StreamManager();
 
@@ -173,6 +174,11 @@ export function JobDetail() {
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [connState, setConnState] = useState<StreamStatus>('open');
   const [aborting, setAborting] = useState(false);
+  const [focusRequest, setFocusRequest] = useState<{
+    pane: PaneId;
+    token: number;
+  } | null>(null);
+  const editorRef = useRef<LatexEditorHandle>(null);
 
   // Reset the abort-in-progress flag when switching between applications so a
   // pending abort on one job never bleeds into the view of another.
@@ -278,6 +284,15 @@ export function JobDetail() {
   const isDone = job.status === 'done';
   const isFailed = job.status === 'failed';
 
+  // PDF text-layer dblclick → reveal Editor tab (narrow) and select the match.
+  const handleSyncToSource = (text: string) => {
+    setFocusRequest({ pane: 'main', token: Date.now() });
+    // Let the tab switch commit before focusing CodeMirror.
+    window.requestAnimationFrame(() => {
+      editorRef.current?.jumpToText(text);
+    });
+  };
+
   const main = isFailed ? (
     <div className="p-8 max-w-2xl mx-auto">
       <span className="eyebrow" style={{ color: 'var(--color-fail)' }}>
@@ -291,7 +306,12 @@ export function JobDetail() {
       </p>
     </div>
   ) : isDone && latex !== null ? (
-    <LatexEditor jobId={jobId!} initialLatex={latex} onPdfReady={setPdfBlob} />
+    <LatexEditor
+      ref={editorRef}
+      jobId={jobId!}
+      initialLatex={latex}
+      onPdfReady={setPdfBlob}
+    />
   ) : isDone ? (
     <div className="flex items-center justify-center h-full font-serif italic text-[16px] text-ink-faint">
       Loading manuscript…
@@ -314,10 +334,15 @@ export function JobDetail() {
         </div>
       )}
       <ThreePane
+        focusRequest={focusRequest}
         main={<ErrorBoundary>{main}</ErrorBoundary>}
         proof={
           <ErrorBoundary title="Proof error" message="This proof couldn't be displayed.">
-            <PdfPane pdfBlob={pdfBlob} running={!isDone && !isFailed} />
+            <PdfPane
+              pdfBlob={pdfBlob}
+              running={!isDone && !isFailed}
+              onSyncToSource={isDone ? handleSyncToSource : undefined}
+            />
           </ErrorBoundary>
         }
         scores={

@@ -3,6 +3,8 @@ import { PanelCollapseButton } from '../layout/PanelCollapseButton';
 import { useStore } from '../../store';
 import { WIDE_MQ, useMediaQuery } from '../../hooks/useMediaQuery';
 
+export type PaneId = 'main' | 'proof' | 'scores' | 'skills';
+
 interface Props {
   /** Largest column: live pipeline while running, LaTeX editor when done. */
   main: ReactNode;
@@ -12,9 +14,12 @@ interface Props {
   scores: ReactNode;
   /** Narrow column: the copy-paste skills dump. */
   skills: ReactNode;
+  /**
+   * Narrow layout only: bump ``token`` to force a tab switch (e.g. PDF →
+   * source sync lands on the Editor tab).
+   */
+  focusRequest?: { pane: PaneId; token: number } | null;
 }
-
-type PaneId = 'main' | 'proof' | 'scores' | 'skills';
 
 const TABS: { id: PaneId; label: string }[] = [
   { id: 'main', label: 'Editor' },
@@ -28,7 +33,7 @@ const TABS: { id: PaneId; label: string }[] = [
  * segmented control — phones and tablets can't usefully show LaTeX + PDF +
  * skills side by side.
  */
-export function ThreePane({ main, proof, scores, skills }: Props) {
+export function ThreePane({ main, proof, scores, skills, focusRequest }: Props) {
   const skillsCollapsed = useStore((s) => s.skillsSidebarCollapsed);
   const toggleSkills = useStore((s) => s.toggleSkillsSidebar);
   const scoresCollapsed = useStore((s) => s.scoresSidebarCollapsed);
@@ -40,6 +45,11 @@ export function ThreePane({ main, proof, scores, skills }: Props) {
   useEffect(() => {
     if (!isWide) setPane('main');
   }, [isWide]);
+
+  useEffect(() => {
+    if (!focusRequest || isWide) return;
+    setPane(focusRequest.pane);
+  }, [focusRequest?.token, focusRequest?.pane, isWide]);
 
   if (!isWide) {
     return (

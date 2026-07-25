@@ -10,13 +10,15 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 
 interface Props {
   blob: Blob;
+  /** Fired with the selected PDF text after a double-click (jump-to-source). */
+  onSyncToSource?: (text: string) => void;
 }
 
 const PAGE_GUTTER = 48; // horizontal padding around the page in the scroll area
 const MIN_PAGE_WIDTH = 240;
 const MAX_PAGE_WIDTH = 720;
 
-export function PdfViewer({ blob }: Props) {
+export function PdfViewer({ blob, onSyncToSource }: Props) {
   const [numPages, setNumPages] = useState<number>(0);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<Uint8Array | null>(null);
@@ -66,6 +68,15 @@ export function PdfViewer({ blob }: Props) {
 
   const file = useMemo(() => (data ? { data } : null), [data]);
 
+  const handleDoubleClick = () => {
+    if (!onSyncToSource) return;
+    // Browser finishes the word-select from dblclick on the next tick.
+    window.setTimeout(() => {
+      const text = window.getSelection()?.toString().replace(/\s+/g, ' ').trim();
+      if (text) onSyncToSource(text);
+    }, 0);
+  };
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex items-center justify-between px-5 py-3 border-b border-rule bg-paper shrink-0">
@@ -95,6 +106,8 @@ export function PdfViewer({ blob }: Props) {
       <div
         ref={viewportRef}
         className="flex-1 min-h-0 overflow-auto flex justify-center bg-paper-sunk py-6"
+        onDoubleClick={handleDoubleClick}
+        title={onSyncToSource ? 'Double-click text to jump to LaTeX source' : undefined}
       >
         {failed ? (
           <p className="font-serif italic text-[14px] leading-relaxed text-fail mt-8 max-w-[240px] text-center px-4">

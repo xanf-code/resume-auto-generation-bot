@@ -68,6 +68,36 @@ describe('ThreePane — Scores tab', () => {
       // Scores content is present in the DOM even while the manuscript tab is active.
       expect(screen.getByText('SCORES_CONTENT')).toBeInTheDocument();
     });
+
+    it('switches to the Editor tab when focusRequest bumps', () => {
+      const { rerender } = render(
+        <ThreePane
+          main={<div>MAIN_CONTENT</div>}
+          proof={<div>PROOF_CONTENT</div>}
+          scores={<div>SCORES_CONTENT</div>}
+          skills={<div>SKILLS_CONTENT</div>}
+        />,
+      );
+      fireEvent.click(screen.getByRole('tab', { name: 'Proof' }));
+      expect(screen.getByRole('tab', { name: 'Proof' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+
+      rerender(
+        <ThreePane
+          main={<div>MAIN_CONTENT</div>}
+          proof={<div>PROOF_CONTENT</div>}
+          scores={<div>SCORES_CONTENT</div>}
+          skills={<div>SKILLS_CONTENT</div>}
+          focusRequest={{ pane: 'main', token: 1 }}
+        />,
+      );
+      expect(screen.getByRole('tab', { name: 'Editor' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+    });
   });
 
   describe('wide layout (side-by-side panes)', () => {
