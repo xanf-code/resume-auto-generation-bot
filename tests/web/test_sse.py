@@ -1,4 +1,4 @@
-"""Phase 9 RED tests — SSE event_stream async generator."""
+"""Phase 9 RED tests - SSE event_stream async generator."""
 from __future__ import annotations
 
 import asyncio
@@ -165,7 +165,7 @@ async def test_subscriber_removed_on_aclose():
     await asyncio.sleep(0.05)
     assert len(job.subscribers) == 1
 
-    # Cancel the consuming task — the finally block inside event_stream must run
+    # Cancel the consuming task - the finally block inside event_stream must run
     task.cancel()
     try:
         await task

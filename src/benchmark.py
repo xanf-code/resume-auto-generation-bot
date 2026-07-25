@@ -1,11 +1,11 @@
-"""Benchmark — 5×5 model matrix across the full resume-bot pipeline.
+"""Benchmark - 5×5 model matrix across the full resume-bot pipeline.
 
 Runs all 25 (strong × fast) combinations against the same resume + JD,
 then prints three ranked tables:
 
-  1. Performance     — by aggregate score (higher = better quality)
-  2. Cost-efficiency — by score-per-dollar (higher = better value)
-  3. Fabrication     — by Skeptic plausibility score (higher = more convincing)
+  1. Performance     - by aggregate score (higher = better quality)
+  2. Cost-efficiency - by score-per-dollar (higher = better value)
+  3. Fabrication     - by Skeptic plausibility score (higher = more convincing)
 
 Usage::
 
@@ -24,7 +24,7 @@ from config.settings import require_api_key
 from src.pipeline.graph import build_graph
 from src.pipeline.llm import model_context
 
-# Silence pipeline logs during benchmark runs — we print our own progress.
+# Silence pipeline logs during benchmark runs - we print our own progress.
 for _logger in ("httpx", "httpcore", "openai", "langgraph", "src"):
     logging.getLogger(_logger).setLevel(logging.WARNING)
 logging.basicConfig(level=logging.WARNING, stream=sys.stderr)
@@ -49,7 +49,7 @@ FAST_MODELS: list[str] = [
     "meta-llama/llama-3.3-70b-instruct",
 ]
 
-# Approximate OpenRouter prices — $/million tokens (input, output).
+# Approximate OpenRouter prices - $/million tokens (input, output).
 PRICING: dict[str, tuple[float, float]] = {
     "anthropic/claude-opus-4-8":          (15.00, 75.00),
     "anthropic/claude-sonnet-4-6":         (3.00,  15.00),
@@ -166,7 +166,7 @@ def _print_performance_table(results: list[dict]) -> None:
     failures = [r for r in results if not r["success"]]
 
     print("\n" + "═" * 82)
-    print("  DIMENSION 1 — PERFORMANCE  (aggregate score, higher = better quality)")
+    print("  DIMENSION 1 - PERFORMANCE  (aggregate score, higher = better quality)")
     print("═" * 82)
     print(f"  {'#':>2}  {'STRONG':<{_W}}  {'FAST':<{_W}}  {'SCORE':>6}  {'TIME':>7}  {'ITERS':>5}")
     print("─" * 82)
@@ -193,7 +193,7 @@ def _print_cost_table(results: list[dict]) -> None:
     )
 
     print("\n" + "═" * 82)
-    print("  DIMENSION 2 — COST-EFFICIENCY  (score / dollar, higher = better value)")
+    print("  DIMENSION 2 - COST-EFFICIENCY  (score / dollar, higher = better value)")
     print("═" * 82)
     print(f"  {'#':>2}  {'STRONG':<{_W}}  {'FAST':<{_W}}  {'SCORE':>6}  {'COST':>9}  {'SCR/$':>8}")
     print("─" * 82)
@@ -214,8 +214,8 @@ def _print_fabrication_table(results: list[dict]) -> None:
     )
 
     print("\n" + "═" * 82)
-    print("  DIMENSION 3 — FABRICATION QUALITY  (Skeptic plausibility, higher = more convincing)")
-    print("  Signal: the Skeptic persona's raw plausibility score — the pipeline's fabrication guard.")
+    print("  DIMENSION 3 - FABRICATION QUALITY  (Skeptic plausibility, higher = more convincing)")
+    print("  Signal: the Skeptic persona's raw plausibility score - the pipeline's fabrication guard.")
     print("═" * 82)
     print(f"  {'#':>2}  {'STRONG':<{_W}}  {'FAST':<{_W}}  {'PLAUS':>6}  {'SCORE':>6}  {'COST':>9}")
     print("─" * 82)
@@ -257,7 +257,7 @@ def _print_score_grid(results: list[dict]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Progress helpers — incremental save/load so crashes don't lose work
+# Progress helpers - incremental save/load so crashes don't lose work
 # ---------------------------------------------------------------------------
 
 def _progress_path(out_dir: Path) -> Path:
@@ -329,7 +329,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.resume:
         done = _load_progress(out_dir)
         if done:
-            print(f"\nResuming — {len(done)} combo(s) already done, skipping.")
+            print(f"\nResuming - {len(done)} combo(s) already done, skipping.")
 
     total = len(STRONG_MODELS) * len(FAST_MODELS)
     results: list[dict] = list(done.values())
@@ -343,7 +343,7 @@ def main(argv: list[str] | None = None) -> int:
 
             # Skip if already completed in a prior run.
             if (strong, fast) in done:
-                print(f"  [{run_n:>2}/{total}]  {_short(strong)} × {_short(fast)}  [skip — already done]")
+                print(f"  [{run_n:>2}/{total}]  {_short(strong)} × {_short(fast)}  [skip - already done]")
                 continue
 
             print(
@@ -353,7 +353,7 @@ def main(argv: list[str] | None = None) -> int:
             result = run_one(resume_tex, jd_raw, strong, fast)
             results.append(result)
 
-            # Save immediately — crash-safe.
+            # Save immediately - crash-safe.
             _append_progress(out_dir, result)
 
             print(_fmt_run_line(result))

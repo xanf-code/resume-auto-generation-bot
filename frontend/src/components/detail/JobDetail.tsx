@@ -211,7 +211,7 @@ export function JobDetail() {
           }
         })
         .catch(() => {
-          /* backend still unreachable — keep retrying until the stream recovers */
+          /* backend still unreachable - keep retrying until the stream recovers */
         });
     };
     reconcile();
@@ -242,7 +242,7 @@ export function JobDetail() {
     getJob(jobId)
       .then(syncJob)
       .catch(() => {
-        /* scores stay empty — the panel keeps its placeholder */
+        /* scores stay empty - the panel keeps its placeholder */
       });
   }, [jobId, job?.status]);
 
@@ -329,7 +329,7 @@ export function JobDetail() {
         <div className="flex items-center gap-2 px-4 sm:px-6 py-1.5 bg-accent-wash border-b border-rule shrink-0">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
           <span className="text-[12px] text-ink-soft">
-            Lost contact with the press — reconnecting…
+            Lost contact with the press - reconnecting…
           </span>
         </div>
       )}

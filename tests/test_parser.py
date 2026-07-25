@@ -1,4 +1,4 @@
-"""Tests for src.agents.parser — resume parsing + ledger derivation.
+"""Tests for src.agents.parser - resume parsing + ledger derivation.
 
 `parse_fast` is mocked: NO live API calls. The mock returns a fixed
 ``ResumeStruct`` so we can assert the node's derivation logic in isolation.
@@ -103,7 +103,7 @@ def test_parse_resume_does_not_mutate_input_state(monkeypatch):
 
 def test_parse_resume_skips_llm_call_when_cached(monkeypatch):
     """When resume_struct + identity_ledger are already in state (seeded by a
-    caller that parsed this resume once — e.g. a batch run reusing the parse
+    caller that parsed this resume once - e.g. a batch run reusing the parse
     across multiple JDs), parse_resume must NOT call parse_fast and must
     return the cached pair unchanged."""
     called = {"n": 0}
@@ -132,7 +132,7 @@ def test_parse_resume_skips_llm_call_when_cached(monkeypatch):
 
 def test_parse_resume_cache_requires_both_fields(monkeypatch):
     """A partially-seeded state (only one of the two cached fields) must still
-    parse via the LLM — the cache short-circuit only fires when BOTH are present."""
+    parse via the LLM - the cache short-circuit only fires when BOTH are present."""
     struct = _fixed_struct()
     captured = {}
 

@@ -1,4 +1,4 @@
-"""Compile router — POST /compile for raw tectonic compile.
+"""Compile router - POST /compile for raw tectonic compile.
 
 Uses a small dedicated ThreadPoolExecutor so editor compile requests never
 starve real pipeline jobs running in the main executor.
@@ -18,7 +18,7 @@ from src.web.schemas import CompileErrorResponse, CompileRequest
 
 router = APIRouter(prefix="/compile", tags=["compile"])
 
-# Dedicated pool — small so compile never starves the main pipeline executor.
+# Dedicated pool - small so compile never starves the main pipeline executor.
 _compile_pool = ThreadPoolExecutor(max_workers=2)
 
 
@@ -52,7 +52,7 @@ async def compile_resume(req: CompileRequest) -> FileResponse:
         # For a production service you'd register a background cleanup task.
         return FileResponse(pdf_path, media_type="application/pdf")
 
-    # Compile failed — clean up and return structured error.
+    # Compile failed - clean up and return structured error.
     shutil.rmtree(workdir, ignore_errors=True)
     raise HTTPException(
         status_code=422,

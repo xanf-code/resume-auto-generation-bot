@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileOrPasteField } from './FileOrPasteField';
+import { TuningControls } from './TuningControls';
 import { createJob } from '../../api/jobs';
+import { DEFAULT_TUNING, type Tuning } from '../../lib/tuning';
 import { useStore } from '../../store';
 
 export function NewJobModal() {
@@ -13,6 +15,7 @@ export function NewJobModal() {
   const [resumeTex, setResumeTex] = useState('');
   const [jdText, setJdText] = useState('');
   const [enableScoring, setEnableScoring] = useState(false);
+  const [tuning, setTuning] = useState<Tuning>(DEFAULT_TUNING);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -27,7 +30,7 @@ export function NewJobModal() {
     return () => restoreTo?.focus?.();
   }, []);
 
-  // Escape closes and Tab is trapped inside the dialog — but never while a
+  // Escape closes and Tab is trapped inside the dialog - but never while a
   // submission is in flight, since the job has already been created and losing
   // the modal would strand the user off the navigation.
   useEffect(() => {
@@ -74,6 +77,7 @@ export function NewJobModal() {
         resume_tex: resumeTex,
         jd_text: jdText,
         enable_scoring: enableScoring,
+        tuning,
       });
       addJob({ job_id: job.job_id, label: job.label });
       closeModal();
@@ -135,7 +139,7 @@ export function NewJobModal() {
               value={label}
               maxLength={200}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder="e.g. Vestwell — Backend Engineer"
+              placeholder="e.g. Vestwell - Backend Engineer"
               className="bg-paper-raised border border-rule text-ink text-[14px] px-3 py-2.5 rounded-[3px] focus:outline-none focus:border-accent/60 placeholder:text-ink-faint"
             />
           </div>
@@ -165,6 +169,8 @@ export function NewJobModal() {
             />
             Enable recruiter persona scoring
           </label>
+
+          <TuningControls tuning={tuning} onChange={setTuning} />
 
           {error && (
             <p className="text-[13px] text-fail border border-fail/30 bg-[#fbeeec] px-3 py-2 rounded-[3px] break-words">

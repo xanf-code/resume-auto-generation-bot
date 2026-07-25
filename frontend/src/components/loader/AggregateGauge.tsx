@@ -9,7 +9,7 @@ const RADIUS = 40;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export function AggregateGauge({ score }: Props) {
-  // Guard non-finite (NaN/Infinity from a malformed frame) and clamp both ends —
+  // Guard non-finite (NaN/Infinity from a malformed frame) and clamp both ends -
   // a negative or >100 score would otherwise sweep the arc past a full turn.
   const hasScore = score !== undefined && Number.isFinite(score);
   const pct = hasScore ? Math.max(0, Math.min(score / 100, 1)) : 0;
@@ -43,7 +43,7 @@ export function AggregateGauge({ score }: Props) {
           fontFamily="Fraunces, Georgia, serif"
           fontWeight="600"
         >
-          {hasScore ? Math.round(score) : '—'}
+          {hasScore ? Math.round(score) : '-'}
         </text>
       </svg>
       <span className="eyebrow text-[10px]">Min score · {THRESHOLD}</span>

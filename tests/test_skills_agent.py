@@ -1,4 +1,4 @@
-"""Tests for src.agents.skills — the one-shot skill dump generator.
+"""Tests for src.agents.skills - the one-shot skill dump generator.
 
 ``parse_skills`` is mocked; NO live API calls. Tests pin:
 - build_skills_user_message includes resume skills, JD vector, and gap competencies.
@@ -101,7 +101,7 @@ def test_message_includes_active_gap_competencies():
     msg = skills_mod.build_skills_user_message(
         _resume_struct(), _jd_vector(), _gap_targets()
     )
-    assert "Salesforce" in msg      # no_evidence=False — active
+    assert "Salesforce" in msg      # no_evidence=False - active
     assert "Kubernetes" not in msg.split("GAP-REFRAME")[1].split("\n")[1]  # no_evidence=True
 
 
@@ -137,7 +137,7 @@ def test_generate_skills_calls_parse_skills_once(monkeypatch):
 
 
 def test_generate_skills_idempotent_when_dump_already_present(monkeypatch):
-    """If skill_dump is already a SkillDump, returns {} — no parse_skills call."""
+    """If skill_dump is already a SkillDump, returns {} - no parse_skills call."""
     existing = SkillDump(language_and_framework=["Go"])
     called = {"called": False}
 
@@ -155,7 +155,7 @@ def test_generate_skills_idempotent_when_dump_already_present(monkeypatch):
 
 
 def test_generate_skills_graceful_on_failure(monkeypatch):
-    """If parse_skills raises, returns an empty SkillDump — no exception escapes."""
+    """If parse_skills raises, returns an empty SkillDump - no exception escapes."""
     def boom(*args, **kwargs):
         raise RuntimeError("API call failed")
 

@@ -1,4 +1,4 @@
-"""Gap Analyzer agent — resume_struct + jd_vector -> list[ReframingTarget].
+"""Gap Analyzer agent - resume_struct + jd_vector -> list[ReframingTarget].
 
 Finds JD competencies the resume underrepresents and, for each, decides whether
 genuine adjacent evidence exists to honestly reframe it in the JD's vocabulary.

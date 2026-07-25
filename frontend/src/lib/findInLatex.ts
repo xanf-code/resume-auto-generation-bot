@@ -1,7 +1,7 @@
 /**
  * Locate PDF-visible text inside a LaTeX source string.
  *
- * Reverse SyncTeX without a .synctex.gz — resumes are mostly literal body
+ * Reverse SyncTeX without a .synctex.gz - resumes are mostly literal body
  * text, so a text-layer match is accurate enough for jump-to-source.
  */
 

@@ -1,4 +1,4 @@
-"""Skills agent — one-shot categorized skill dump generator.
+"""Skills agent - one-shot categorized skill dump generator.
 
 Runs exactly once per pipeline run, between gap_analysis and writer, using
 MODEL_SKILLS (gpt-4o-mini). Skills are stable across every revision iteration
@@ -35,7 +35,7 @@ def build_skills_user_message(
         "## RESUME SKILLS (declared in the source resume)\n"
         + "\n".join(f"- {s}" for s in struct.skills)
         + "\n\n"
-        "## JOB DESCRIPTION (vector — draw vocabulary from here)\n"
+        "## JOB DESCRIPTION (vector - draw vocabulary from here)\n"
         + vector.model_dump_json(indent=2)
         + "\n\n"
         "## GAP-REFRAME COMPETENCIES (skills with real evidence being surfaced)\n"
@@ -62,8 +62,8 @@ def generate_skills(state: PipelineState) -> dict:
     try:
         msg = build_skills_user_message(struct, vector, targets)
         dump = parse_skills(SKILLS_SYSTEM, msg, SkillDump)
-        log.info("skills       | done — %d skills across 4 buckets", dump.total())
+        log.info("skills       | done - %d skills across 4 buckets", dump.total())
         return {"skill_dump": dump}
     except Exception as exc:
-        log.warning("skills       | call failed (%s) — emitting empty dump", exc)
+        log.warning("skills       | call failed (%s) - emitting empty dump", exc)
         return {"skill_dump": SkillDump()}

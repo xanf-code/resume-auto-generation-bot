@@ -18,12 +18,12 @@ describe('AggregateGauge', () => {
 
   it('shows a placeholder when no score is present', () => {
     const { getByText } = render(<AggregateGauge score={undefined} />);
-    expect(getByText('—')).toBeInTheDocument();
+    expect(getByText('-')).toBeInTheDocument();
   });
 
   it('treats a non-finite score as no score', () => {
     const { getByText } = render(<AggregateGauge score={NaN} />);
-    expect(getByText('—')).toBeInTheDocument();
+    expect(getByText('-')).toBeInTheDocument();
   });
 
   it('clamps a negative score so the arc empties rather than inverting', () => {

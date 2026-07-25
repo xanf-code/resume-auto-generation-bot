@@ -1,11 +1,11 @@
 export interface UiState {
   activeJobId: string | null;
   newJobModalOpen: boolean;
-  /** Applications rail collapsed — editor/proof reclaim the width (Overleaf-style). */
+  /** Applications rail collapsed - editor/proof reclaim the width (Overleaf-style). */
   jobRailCollapsed: boolean;
-  /** Skills sidebar collapsed — editor/proof reclaim the width. */
+  /** Skills sidebar collapsed - editor/proof reclaim the width. */
   skillsSidebarCollapsed: boolean;
-  /** Scores sidebar collapsed — defaults collapsed so the wide split isn't crowded. */
+  /** Scores sidebar collapsed - defaults collapsed so the wide split isn't crowded. */
   scoresSidebarCollapsed: boolean;
   /** Phone/tablet: applications drawer open over the workspace. */
   mobileNavOpen: boolean;
@@ -58,6 +58,6 @@ export function persistPanelCollapse(state: PanelCollapseState): void {
   try {
     localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(state));
   } catch {
-    /* private mode / quota — collapse still works in-session */
+    /* private mode / quota - collapse still works in-session */
   }
 }

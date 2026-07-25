@@ -1,4 +1,4 @@
-"""Phase 10 RED tests — POST /api/compile route tests."""
+"""Phase 10 RED tests - POST /api/compile route tests."""
 from __future__ import annotations
 
 import os
@@ -72,13 +72,13 @@ async def test_compile_failure_returns_422(client, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Test 3: Integration — real tectonic compile (skip if not installed)
+# Test 3: Integration - real tectonic compile (skip if not installed)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 @pytest.mark.integration
 async def test_compile_real_tectonic(client):
-    """Actually calls tectonic — skip if not installed on PATH."""
+    """Actually calls tectonic - skip if not installed on PATH."""
     import shutil
     if shutil.which("tectonic") is None:
         pytest.skip("tectonic not installed")

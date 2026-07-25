@@ -1,8 +1,8 @@
-"""Tests for the bullet length validator — deterministic backstop for Writer output.
+"""Tests for the bullet length validator - deterministic backstop for Writer output.
 
 The validator runs post-Writer and pre-Renderer, catching bullets outside the
 195-210 character band (min 195, max 210). Violations route back to Writer via
-``length_violations``. NO live API calls — pure Python char counting.
+``length_violations``. NO live API calls - pure Python char counting.
 """
 from src.agents.validators import (
     BULLET_HI,

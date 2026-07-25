@@ -1,8 +1,8 @@
-"""Tests for src.agents.writer — the Writer (Opus) node and its user-message builder.
+"""Tests for src.agents.writer - the Writer (Opus) node and its user-message builder.
 
 ``parse_strong`` is mocked to return a canned ``WriterOutput``; NO live API calls
 (ANTHROPIC_API_KEY is intentionally unset). These tests pin the DETERMINISTIC
-message-construction behaviour — the core of the Writer's testable surface — plus
+message-construction behaviour - the core of the Writer's testable surface - plus
 the node's contract: it writes ``writer_output`` and never mutates input state.
 """
 import logging
@@ -269,7 +269,7 @@ def test_write_resume_writes_output_and_uses_correct_schema(monkeypatch):
 
     # It parsed against WriterOutput on the strong model.
     assert captured["schema"] is WriterOutput
-    # Effort is NOT passed at the call site — it defers to parse_strong's
+    # Effort is NOT passed at the call site - it defers to parse_strong's
     # own default (config.settings.EFFORT_STRONG), so retuning reasoning
     # depth only requires a settings change, not a writer.py edit.
     assert "effort" not in captured["kwargs"]
@@ -279,7 +279,7 @@ def test_write_resume_writes_output_and_uses_correct_schema(monkeypatch):
 
 def test_write_resume_logs_configured_effort(monkeypatch, caplog):
     """The log line reports the ACTUAL configured effort from settings, not a
-    hardcoded literal — so log output stays truthful if EFFORT_STRONG changes."""
+    hardcoded literal - so log output stays truthful if EFFORT_STRONG changes."""
     monkeypatch.setattr(writer, "parse_strong", lambda *a, **k: _writer_output())
 
     with caplog.at_level(logging.INFO, logger="src.agents.writer"):
@@ -293,7 +293,7 @@ def test_write_resume_strips_char_annotations(monkeypatch):
     """The [chars: N] self-verification tags must NEVER reach the output.
 
     The Writer prompt asks the model to append ``[chars: N]`` to each bullet so
-    it can self-check length. Those tags are for the model only — they must be
+    it can self-check length. Those tags are for the model only - they must be
     stripped before the validator counts chars and before the renderer injects
     the bullet into the PDF.
     """
@@ -367,7 +367,7 @@ def test_writer_system_caps_bullet_count_flexibly():
 
 
 def test_writer_system_does_not_mention_summary():
-    """Summary is removed from the app — the Writer must not emit one."""
+    """Summary is removed from the app - the Writer must not emit one."""
     from src.prompts.writer import WRITER_SYSTEM
 
     assert "summary" not in WRITER_SYSTEM.lower()

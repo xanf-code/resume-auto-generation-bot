@@ -1,4 +1,4 @@
-"""Tests for the LaTeX renderer — integrity guarantee #1 (structural).
+"""Tests for the LaTeX renderer - integrity guarantee #1 (structural).
 
 The renderer patches the original .tex in-place: only the itemize bullet
 blocks are replaced; everything else (fonts, formatting, sections) is preserved.
@@ -96,7 +96,7 @@ def test_latex_escape_plain_text_unchanged():
 
 
 def test_render_injects_locked_identity_fields_verbatim():
-    # Identity fields come from original_tex verbatim — patch leaves them untouched.
+    # Identity fields come from original_tex verbatim - patch leaves them untouched.
     out = render(_original_tex(), _ledger(), _writer())
     assert "Ada Lovelace" in out
     assert "ada@example.com | 555-0100" in out
@@ -334,7 +334,7 @@ def test_legacy_encoding_packages_dropped_on_conversion():
 
 
 def test_fontspec_loaded_before_setmainfont():
-    r"""\setmainfont is undefined until fontspec loads — order matters."""
+    r"""\setmainfont is undefined until fontspec loads - order matters."""
     out = render(_xcharter_tex(), _xcharter_ledger(), _xcharter_writer())
     assert out.index(r"\usepackage{fontspec}") < out.index(r"\setmainfont{XCharter}")
 

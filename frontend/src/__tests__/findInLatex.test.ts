@@ -3,7 +3,7 @@ import { findInLatex } from '../lib/findInLatex';
 
 const SAMPLE = String.raw`
 \section{Experience}
-\subsection{Acme Corp — Software Engineer}
+\subsection{Acme Corp - Software Engineer}
 \begin{itemize}
   \item Built APIs in Python \& Go for 2M users
   \item Owned the C++ runtime on Linux

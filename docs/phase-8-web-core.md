@@ -1,4 +1,4 @@
-# Phase 8 — Web Core: Config, DTOs, Job Model, Event Translation
+# Phase 8 - Web Core: Config, DTOs, Job Model, Event Translation
 
 **Goal:** Stand up the pure (no threading, no HTTP) foundation of `src/web/`: settings, API DTOs, the in-memory job model, and the translation from a pipeline stream-delta to a client `ProgressEvent`.
 
@@ -6,10 +6,10 @@
 
 ## Modules (each <500 lines)
 - `src/web/__init__.py`
-- `src/web/config.py` — `WebSettings` read from env: `MAX_CONCURRENT_JOBS=3`, `OUT_ROOT="out"`, `EVENT_BUFFER_MAX=500`, `HOST`, `PORT`.
-- `src/web/schemas.py` — Pydantic DTOs at the API boundary (separate from pipeline schemas): `JobSubmitRequest` (label, resume_tex, jd_text, enable_scoring=False; validators reject empty tex/jd), `JobSummary`, `JobDetail` (+ nested `artifacts` URLs), `ProgressEvent`, `CompileRequest`, `CompileErrorResponse`, `SkillDumpDTO`.
-- `src/web/job.py` — `JobStatus(str, Enum)` = queued/running/done/failed; `Job` dataclass (id, label, status, timestamps, out_dir, jd_name, live snapshot fields, `events: EventBuffer`, `subscribers: set`, inputs, terminal artifacts); `EventBuffer` = bounded `deque(maxlen=EVENT_BUFFER_MAX)` + monotonic `seq`, with `append(event)` and `since(seq)`.
-- `src/web/events.py` — `STAGE_LABELS: dict[str,str]`, `STAGE_ORDER`, `pct_estimate(stage, iteration)`, `build_progress_event(job_id, flat_delta, state) -> ProgressEvent | None`. Imports `_KEY_TO_NODE` from `src.main`.
+- `src/web/config.py` - `WebSettings` read from env: `MAX_CONCURRENT_JOBS=3`, `OUT_ROOT="out"`, `EVENT_BUFFER_MAX=500`, `HOST`, `PORT`.
+- `src/web/schemas.py` - Pydantic DTOs at the API boundary (separate from pipeline schemas): `JobSubmitRequest` (label, resume_tex, jd_text, enable_scoring=False; validators reject empty tex/jd), `JobSummary`, `JobDetail` (+ nested `artifacts` URLs), `ProgressEvent`, `CompileRequest`, `CompileErrorResponse`, `SkillDumpDTO`.
+- `src/web/job.py` - `JobStatus(str, Enum)` = queued/running/done/failed; `Job` dataclass (id, label, status, timestamps, out_dir, jd_name, live snapshot fields, `events: EventBuffer`, `subscribers: set`, inputs, terminal artifacts); `EventBuffer` = bounded `deque(maxlen=EVENT_BUFFER_MAX)` + monotonic `seq`, with `append(event)` and `since(seq)`.
+- `src/web/events.py` - `STAGE_LABELS: dict[str,str]`, `STAGE_ORDER`, `pct_estimate(stage, iteration)`, `build_progress_event(job_id, flat_delta, state) -> ProgressEvent | None`. Imports `_KEY_TO_NODE` from `src.main`.
 
 ## Event contract
 ```json

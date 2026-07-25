@@ -7,7 +7,7 @@ export type StreamStatus = 'open' | 'reconnecting' | 'closed';
 type StatusHandler = (status: StreamStatus) => void;
 
 // The backend sends *named* SSE events (`event: progress|done|failed`), which
-// EventSource.onmessage does NOT receive — that only fires for unnamed frames.
+// EventSource.onmessage does NOT receive - that only fires for unnamed frames.
 // We must register a listener per named event.
 const NAMED_EVENTS = ['progress', 'done', 'failed'] as const;
 

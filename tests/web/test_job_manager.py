@@ -1,4 +1,4 @@
-"""Phase 9 RED tests — JobManager lifecycle, failure propagation, concurrency cap."""
+"""Phase 9 RED tests - JobManager lifecycle, failure propagation, concurrency cap."""
 from __future__ import annotations
 
 import asyncio
@@ -153,7 +153,7 @@ def test_graph_recursion_error_friendly_message():
 
 
 # ---------------------------------------------------------------------------
-# Test 4: concurrency cap — exactly max_workers run at once
+# Test 4: concurrency cap - exactly max_workers run at once
 # ---------------------------------------------------------------------------
 
 def test_concurrency_cap():
@@ -295,7 +295,7 @@ def test_cancel_aborts_running_job():
 
     def looping_pipeline(resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring, on_step=None):
         started.set()
-        # Emit steps until on_step raises JobCancelled — the cooperative abort path.
+        # Emit steps until on_step raises JobCancelled - the cooperative abort path.
         while True:
             on_step({"writer_output": "step"}, {"iteration": 1})
             time.sleep(0.02)
@@ -321,3 +321,83 @@ def test_cancel_unknown_job_returns_false():
 
     manager = JobManager(_make_settings())
     assert manager.cancel("does-not-exist") is False
+
+
+# ---------------------------------------------------------------------------
+# Test 8: per-application tuning is threaded into the pipeline
+# ---------------------------------------------------------------------------
+
+def test_submit_threads_tuning_into_pipeline():
+    from src.web.job_manager import JobManager
+    from src.web.schemas import RubricWeightsDTO, TuningDTO
+
+    settings = _make_settings()
+    manager = JobManager(settings)
+
+    loop = asyncio.new_event_loop()
+    loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
+    loop_thread.start()
+    manager.bind_loop(loop)
+
+    captured: dict = {}
+
+    def capturing_pipeline(
+        resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring,
+        on_step=None, tuning=None,
+    ):
+        captured["tuning"] = tuning
+        return {"best_latex": "x", "aggregate_score": 80.0, "passed": True, "output_pdf": "x.pdf"}
+
+    tuning_dto = TuningDTO(
+        threshold=91, plausibility_floor=25, max_iterations=5,
+        max_compile_retries=1, max_identity_retries=2, max_length_retries=3,
+        rubric_weights=RubricWeightsDTO(
+            keyword_match=0.3, impact_quality=0.2, coherence=0.2,
+            plausibility=0.15, formatting=0.15,
+        ),
+    )
+
+    with patch.object(runner_module.main_module, "stream_pipeline", side_effect=capturing_pipeline):
+        job = manager.submit(_make_req(tuning=tuning_dto))
+        assert _wait_for(lambda: job.status == JobStatus.DONE, timeout=10.0)
+
+    assert job.tuning is not None
+    assert job.tuning.threshold == 91
+    assert captured["tuning"] is not None
+    assert captured["tuning"].threshold == 91
+    assert captured["tuning"].max_iterations == 5
+
+    loop.call_soon_threadsafe(loop.stop)
+
+
+def test_submit_without_tuning_passes_none():
+    """No tuning on the request → the pipeline is called with tuning=None."""
+    from src.web.job_manager import JobManager
+
+    settings = _make_settings()
+    manager = JobManager(settings)
+
+    loop = asyncio.new_event_loop()
+    loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
+    loop_thread.start()
+    manager.bind_loop(loop)
+
+    captured: dict = {"seen": False}
+
+    def capturing_pipeline(
+        resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring,
+        on_step=None, tuning=None,
+    ):
+        captured["seen"] = True
+        captured["tuning"] = tuning
+        return {"best_latex": "x", "aggregate_score": 80.0, "passed": True, "output_pdf": "x.pdf"}
+
+    with patch.object(runner_module.main_module, "stream_pipeline", side_effect=capturing_pipeline):
+        job = manager.submit(_make_req())
+        assert _wait_for(lambda: job.status == JobStatus.DONE, timeout=10.0)
+
+    assert job.tuning is None
+    assert captured["seen"] is True
+    assert captured["tuning"] is None
+
+    loop.call_soon_threadsafe(loop.stop)

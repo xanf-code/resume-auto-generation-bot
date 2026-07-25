@@ -1,9 +1,9 @@
-"""Deterministic LaTeX renderer — integrity guarantee #1 (structural).
+"""Deterministic LaTeX renderer - integrity guarantee #1 (structural).
 
 Patches the user's original ``.tex`` file in-place: only the
 ``\\begin{itemize}...\\end{itemize}`` block immediately following each role's
 company-name anchor is replaced with the writer's new bullets. Every other
-byte — packages, fonts, section formatting, skills, education — is
+byte - packages, fonts, section formatting, skills, education - is
 preserved verbatim from the original file.
 
 A ``%% ROLE-HEADER %%`` comment is injected before each role's anchor line so
@@ -167,7 +167,7 @@ _FONTSPEC_CONVERTIBLE: dict[str, str] = {
     "XCharter": "XCharter",
 }
 
-# Legacy encoding packages that are unnecessary — and actively harmful — under
+# Legacy encoding packages that are unnecessary - and actively harmful - under
 # XeTeX once the main font is loaded via fontspec. fontspec manages Unicode
 # encoding itself; leaving these in forces the legacy path that drops bold.
 _LEGACY_ENCODING_PKGS = frozenset({"fontenc", "inputenc"})
@@ -189,7 +189,7 @@ def _normalize_fonts_for_tectonic(tex: str) -> str:
     2. Drops legacy ``fontenc`` / ``inputenc`` packages, which force the Type1
        path that silently loses the bold face under tectonic.
 
-    Documents without a convertible font package are returned unchanged — their
+    Documents without a convertible font package are returned unchanged - their
     preamble (including a plain, working ``fontenc``) is left verbatim.
     """
     fonts_present = {

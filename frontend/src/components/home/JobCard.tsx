@@ -155,7 +155,7 @@ export function JobCard({ job, onClick, onRename, onDelete }: Props) {
           )}
         </div>
 
-        {/* actions — visible on hover/focus */}
+        {/* actions - visible on hover/focus */}
         {!editing && (
           <div className="flex items-center gap-0.5 mt-3 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
             <button

@@ -1,12 +1,12 @@
-"""Tests for src.batch — batch runner cost optimization (parse-once caching).
+"""Tests for src.batch - batch runner cost optimization (parse-once caching).
 
 ``run_batch`` used to re-invoke the parser LLM once per JD subprocess even
-though every job in a batch shares the SAME resume — pure duplicate cost with
+though every job in a batch shares the SAME resume - pure duplicate cost with
 zero benefit. These tests pin that the resume is now parsed exactly ONCE for
 the whole batch and the resulting struct/ledger are threaded through every
 job, regardless of job count.
 
-No real ``ProcessPoolExecutor``/subprocesses are used — a small in-process
+No real ``ProcessPoolExecutor``/subprocesses are used - a small in-process
 fake stands in so the tests stay hermetic and fast (see ``_FakeExecutor``).
 """
 from unittest.mock import patch
@@ -15,7 +15,7 @@ from src import batch
 
 
 class _FakeFuture:
-    """Minimal stand-in for concurrent.futures.Future — no subprocess involved."""
+    """Minimal stand-in for concurrent.futures.Future - no subprocess involved."""
 
     def __init__(self, value=None, exc=None):
         self._value = value

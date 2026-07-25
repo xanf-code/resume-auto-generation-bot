@@ -1,4 +1,4 @@
-"""PipelineState — the shared TypedDict flowing through the LangGraph.
+"""PipelineState - the shared TypedDict flowing through the LangGraph.
 
 ``total=False`` so partial states are valid: each node fills in the fields for
 its lifecycle stage without needing to populate the whole dict.
@@ -14,6 +14,7 @@ from src.pipeline.schemas import (
     SkillDump,
     WriterOutput,
 )
+from src.pipeline.tuning import PipelineTuning
 
 
 class PipelineState(TypedDict, total=False):
@@ -23,6 +24,10 @@ class PipelineState(TypedDict, total=False):
     resume_tex_raw: str
     jd_raw: str
     enable_scoring: bool
+    # Per-run tuning knobs (threshold, floor, loop/retry budgets, rubric
+    # weights). Absent → nodes fall back to PipelineTuning.defaults() via
+    # get_tuning(), which mirrors the config.settings constants.
+    tuning: "PipelineTuning"
 
     # --- extraction -----------------------------------------------------------
     resume_struct: ResumeStruct
@@ -44,7 +49,7 @@ class PipelineState(TypedDict, total=False):
     # scored, and the scores it produced. When a later iteration's
     # latex_rendered is byte-identical (the writer converged/plateaued),
     # recruiter_panel reuses these instead of re-running all four persona
-    # calls. MUST be declared here — LangGraph silently drops updates to
+    # calls. MUST be declared here - LangGraph silently drops updates to
     # channels absent from this schema (see length_violations history above).
     panel_cache_latex: str
     panel_cache_scores: list[PanelScore]
@@ -56,7 +61,7 @@ class PipelineState(TypedDict, total=False):
     # --- length gate ----------------------------------------------------------
     # Recorded by ``check_bullet_lengths``; a non-empty list routes back to the
     # writer (within the length-retry budget). Absent/empty means every bullet
-    # is in-band. MUST be declared here — LangGraph silently drops updates to
+    # is in-band. MUST be declared here - LangGraph silently drops updates to
     # channels that are not part of the state schema, which would make the gate
     # a no-op.
     length_violations: list[str]
@@ -77,7 +82,7 @@ class PipelineState(TypedDict, total=False):
 
     # --- skills (generated once, before the writer loop) ---------------------
     # Produced by ``generate_skills`` and stable across all revision iterations.
-    # MUST be declared here — LangGraph silently drops updates to channels absent
+    # MUST be declared here - LangGraph silently drops updates to channels absent
     # from the state schema.
     skill_dump: SkillDump
 
@@ -99,7 +104,7 @@ class PipelineState(TypedDict, total=False):
     emitted: bool
     output_pdf: str
     output_report: str
-    # Path to skills.json. MUST be declared — LangGraph silently drops updates to
+    # Path to skills.json. MUST be declared - LangGraph silently drops updates to
     # channels absent from this schema (same trap as skill_dump / length_violations).
     output_skills: str
     # Seeded by the CLI so the emit node knows where to write.

@@ -9,7 +9,7 @@ type CopyState = 'idle' | 'copied' | 'failed';
 // Clipboard access fails in ways users actually hit: navigator.clipboard is
 // undefined on an insecure origin (a LAN IP served over http://), and
 // writeText() rejects when permission is denied. Fall back to a hidden-textarea
-// execCommand copy, and if even that fails, say so — a silent no-op reads as a
+// execCommand copy, and if even that fails, say so - a silent no-op reads as a
 // broken button.
 async function copyText(text: string): Promise<boolean> {
   try {

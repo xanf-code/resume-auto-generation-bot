@@ -49,11 +49,13 @@ _LOOP_END = 90        # loop covers 25-89%
 _EMIT_PCT = 90
 
 
-def pct_estimate(stage: str, iteration: int) -> int:
+def pct_estimate(stage: str, iteration: int, max_iterations: int = MAX_ITERATIONS) -> int:
     """Return an integer 0-100 estimate of pipeline progress.
 
     Guarantees: non-decreasing as (stage, iteration) advances along the
-    normal execution path.
+    normal execution path. *max_iterations* scales how the writer loop's 25–90%
+    band is divided so the bar paces correctly when a run tunes the loop budget;
+    it defaults to the global ``MAX_ITERATIONS`` for untuned callers.
     """
     if stage in _SPINE:
         idx = _SPINE.index(stage)
@@ -63,9 +65,11 @@ def pct_estimate(stage: str, iteration: int) -> int:
         return _EMIT_PCT
 
     if stage in _LOOP:
+        # Guard against a zero/negative budget dividing the loop band.
+        iters = max(max_iterations, 1)
         loop_range = _LOOP_END - _LOOP_START          # 65
-        per_iter = loop_range / MAX_ITERATIONS         # 16.25
-        per_node = per_iter / len(_LOOP)               # ~2.32
+        per_iter = loop_range / iters
+        per_node = per_iter / len(_LOOP)
         node_idx = _LOOP.index(stage)
         return int(_LOOP_START + (iteration - 1) * per_iter + node_idx * per_node)
 
@@ -83,7 +87,7 @@ def build_progress_event(
 ) -> ProgressEvent | None:
     """Translate one stream delta into a ProgressEvent, or None if unrecognised.
 
-    Uses the first matching key in ``_KEY_TO_NODE`` — same priority order as
+    Uses the first matching key in ``_KEY_TO_NODE`` - same priority order as
     the dict definition in ``src.main``.
     """
     stage: str | None = None
@@ -96,6 +100,10 @@ def build_progress_event(
         return None
 
     iteration: int = int(state.get("iteration", 1))
+
+    # Pace the writer-loop band by the run's tuned iteration budget when present.
+    tuning = state.get("tuning")
+    max_iterations = getattr(tuning, "max_iterations", MAX_ITERATIONS)
 
     # Resolve human label; writer label interpolates iteration number.
     raw_label = STAGE_LABELS.get(stage, stage)
@@ -121,7 +129,7 @@ def build_progress_event(
         job_id=job_id,
         stage=stage,
         human_label=human_label,
-        pct=pct_estimate(stage, iteration),
+        pct=pct_estimate(stage, iteration, max_iterations),
         iteration=iteration,
         aggregate_score=state.get("aggregate_score"),
         passed=state.get("passed"),

@@ -1,15 +1,15 @@
-"""Emit node — write the winning draft's deliverables to a per-JD package folder.
+"""Emit node - write the winning draft's deliverables to a per-JD package folder.
 
 For a JD file ``JD1.txt`` the pipeline writes ``out/JD1/`` containing:
 
-- ``resume.pdf`` — a copy of the winning ``pdf_path``. On a hard compile failure
+- ``resume.pdf`` - a copy of the winning ``pdf_path``. On a hard compile failure
   there may be no pdf; the rest of the package is still written.
-- ``score_report.json`` — per-persona rubric breakdowns, the aggregate, the
+- ``score_report.json`` - per-persona rubric breakdowns, the aggregate, the
   iteration count, best score, and whether the run passed or hit the cap (with a
-  warning on cap-hit). Includes a TRUE-GAPS section — the competencies the Gap
-  Analyzer flagged ``no_evidence=True`` — so the user sees what the resume
+  warning on cap-hit). Includes a TRUE-GAPS section - the competencies the Gap
+  Analyzer flagged ``no_evidence=True`` - so the user sees what the resume
   genuinely cannot claim.
-- ``skills.json`` — the writer's optimized, JD-tailored skill list as four
+- ``skills.json`` - the writer's optimized, JD-tailored skill list as four
   machine-readable buckets. Skills are NOT rendered into the resume LaTeX; this
   file is the sole skills deliverable, consumed both by the CLI and by the web
   layer's ``GET /jobs/{id}/skills`` endpoint (the frontend renders the buckets
@@ -38,7 +38,7 @@ _SKILLS_NAME = "skills.json"
 _CAP_HIT_WARNING = (
     "Iteration cap reached without clearing the score threshold. Emitting the "
     "BEST-scoring draft seen across all iterations, not the last. Review the "
-    "true-gaps section — the target role may require competencies the resume "
+    "true-gaps section - the target role may require competencies the resume "
     "cannot honestly claim."
 )
 
@@ -57,7 +57,7 @@ def _persona_breakdown(score: PanelScore) -> dict:
 
 
 def _true_gaps(gap_targets: list[ReframingTarget]) -> list[dict]:
-    """Competencies flagged ``no_evidence`` — what the resume can't claim."""
+    """Competencies flagged ``no_evidence`` - what the resume can't claim."""
     return [
         {"competency": t.competency, "weight": t.weight}
         for t in gap_targets
@@ -111,7 +111,7 @@ def emit(state: dict, out_dir: str = "out") -> dict:
 
     Returns:
         A NEW dict with ``output_pdf`` (str | None), ``output_report`` (str), and
-        ``output_skills`` (str, the JSON skill dump) — the paths written.
+        ``output_skills`` (str, the JSON skill dump) - the paths written.
     """
     jd_name = state.get("jd_name", "").strip()
     # Package the run into a per-JD folder so outputs never collide across JDs.
@@ -124,7 +124,7 @@ def emit(state: dict, out_dir: str = "out") -> dict:
     report_path = pkg_dir / _REPORT_NAME
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
-    # Four skill buckets as JSON — the sole skills deliverable, parsed by the CLI
+    # Four skill buckets as JSON - the sole skills deliverable, parsed by the CLI
     # and by GET /jobs/{id}/skills into a DTO the frontend renders.
     skills = _skills_from_state(state)
     skills_path = pkg_dir / _SKILLS_NAME
@@ -149,7 +149,7 @@ def emit_node(state: dict) -> dict:
     out_dir = state.get("out_dir", "out")
     log.info("emit         | writing outputs → %s/", out_dir)
     result = emit(state, out_dir=out_dir)
-    log.info("emit         | PDF    → %s", result.get("output_pdf") or "(none — compile never succeeded)")
+    log.info("emit         | PDF    → %s", result.get("output_pdf") or "(none - compile never succeeded)")
     log.info("emit         | report → %s", result.get("output_report"))
     log.info("emit         | skills → %s", result.get("output_skills"))
     return {**result, "emitted": True}

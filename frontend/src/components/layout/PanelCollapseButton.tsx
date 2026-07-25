@@ -1,5 +1,5 @@
 interface Props {
-  /** Which way the panel collapses — chevron points toward the remaining space. */
+  /** Which way the panel collapses - chevron points toward the remaining space. */
   direction: 'left' | 'right';
   collapsed: boolean;
   onToggle: () => void;

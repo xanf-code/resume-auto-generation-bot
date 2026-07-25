@@ -1,4 +1,4 @@
-"""Recruiter panel — four adversarial Opus personas, scored concurrently.
+"""Recruiter panel - four adversarial Opus personas, scored concurrently.
 
 Each persona reviews the SAME rendered resume through a distinct lens and
 returns a ``PanelScore`` via ``parse_strong(..., PanelScore)``. Three personas
@@ -45,7 +45,7 @@ def build_user_message(
 
     Always includes the rendered LaTeX and the JD vector. Includes the
     structured source resume (``source_evidence``) ONLY when ``struct`` is
-    provided — that is, for the Skeptic. Pure and deterministic.
+    provided - that is, for the Skeptic. Pure and deterministic.
     """
     sections = [
         "## RENDERED RESUME (LaTeX)",
@@ -57,7 +57,7 @@ def build_user_message(
     if struct is not None:
         sections += [
             "",
-            "## SOURCE RESUME (structured — source_evidence is the ONLY ground "
+            "## SOURCE RESUME (structured - source_evidence is the ONLY ground "
             "truth for every claim)",
             struct.model_dump_json(indent=2),
         ]
@@ -71,7 +71,7 @@ async def score_one(persona_name: str, system: str, user: str) -> PanelScore:
     executes their scoring model calls concurrently rather than serially.
 
     The ``persona`` field is OVERRIDDEN with the canonical ``persona_name`` after
-    the call — the model may return a paraphrase, but the display/aggregator rely
+    the call - the model may return a paraphrase, but the display/aggregator rely
     on exact string matching against ``PERSONAS`` keys.
     """
     score = await asyncio.to_thread(parse_scoring, system, user, PanelScore)
@@ -98,16 +98,16 @@ def recruiter_panel(state: PipelineState) -> dict:
     """Node: run the four-persona panel and return their scores.
 
     Exact-match memoized on ``latex_rendered``: when the current draft is
-    byte-identical to the one scored last (``panel_cache_latex``) — which
+    byte-identical to the one scored last (``panel_cache_latex``) - which
     happens when the writer plateaus and re-emits the same content across
-    revision iterations — the panel is skipped entirely and the cached scores
+    revision iterations - the panel is skipped entirely and the cached scores
     are reused instead of re-running all four persona calls.
     """
     latex_rendered = state["latex_rendered"]
     cached_latex = state.get("panel_cache_latex")
     cached_scores = state.get("panel_cache_scores")
     if cached_latex == latex_rendered and cached_scores is not None:
-        log.info("recruiter    | latex unchanged since last scoring — reusing cached panel scores")
+        log.info("recruiter    | latex unchanged since last scoring - reusing cached panel scores")
         return {"panel_scores": cached_scores, "panel_cache_latex": cached_latex, "panel_cache_scores": cached_scores}
 
     log.info("recruiter    | spawning 4 %s personas concurrently…", MODEL_SCORING)

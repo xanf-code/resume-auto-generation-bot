@@ -1,11 +1,11 @@
-"""Deterministic validators for Writer output — the bullet-length gate.
+"""Deterministic validators for Writer output - the bullet-length gate.
 
 The Writer prompt asks the model to keep every experience/project bullet inside
 the 195-210 char band, but models slip on hard numeric constraints. This
 validator runs post-Writer and pre-Renderer, catching bullets outside the band
 and routing them back to Writer via ``length_violations``.
 
-Pure Python validators — no LLM calls, no hallucination, deterministic correctness.
+Pure Python validators - no LLM calls, no hallucination, deterministic correctness.
 """
 import logging
 
@@ -14,7 +14,7 @@ from src.pipeline.state import PipelineState
 
 log = logging.getLogger(__name__)
 
-# Bullet band — the physical column fits a bullet of this length range.
+# Bullet band - the physical column fits a bullet of this length range.
 BULLET_LO = 195
 BULLET_HI = 210
 

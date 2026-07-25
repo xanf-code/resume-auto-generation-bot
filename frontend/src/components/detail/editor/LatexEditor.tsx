@@ -29,7 +29,7 @@ export type LatexEditorHandle = {
   jumpToText: (query: string) => boolean;
 };
 
-// Light "paper" theme — mono is legitimate here because this is code.
+// Light "paper" theme - mono is legitimate here because this is code.
 const paperTheme = EditorView.theme(
   {
     '&': { backgroundColor: '#fdfbf6', color: '#1c1b19', height: '100%' },
@@ -90,7 +90,7 @@ export const LatexEditor = forwardRef<LatexEditorHandle, Props>(function LatexEd
   useEffect(() => {
     getJobPdf(jobId)
       .then((blob) => onPdfReady?.(blob))
-      .catch(() => {/* no PDF yet — pane stays empty until user compiles */});
+      .catch(() => {/* no PDF yet - pane stays empty until user compiles */});
   }, [jobId]);
 
   useEffect(() => {
@@ -128,10 +128,10 @@ export const LatexEditor = forwardRef<LatexEditorHandle, Props>(function LatexEd
       const result = await compileLatex(latex);
       if (result.ok) {
         onPdfReady?.(result.blob);
-        toast.success('Compiled — proof updated');
+        toast.success('Compiled - proof updated');
       } else {
         setErrors(result.errors);
-        toast.error('Compile failed — see the marks below');
+        toast.error('Compile failed - see the marks below');
       }
     } catch {
       // A network failure would otherwise leave the button stuck on "Compiling…".

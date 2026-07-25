@@ -2,7 +2,7 @@
 
 ``Job`` carries all mutable runtime state for a single pipeline run.
 ``EventBuffer`` is the bounded replay buffer that backs SSE re-subscription.
-Both are pure data structures — no threading or HTTP concerns here.
+Both are pure data structures - no threading or HTTP concerns here.
 """
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
+from src.pipeline.tuning import PipelineTuning
 from src.web.schemas import JobStatus
 
 
@@ -61,6 +62,9 @@ class Job:
     jd_name: str = ""
     enable_scoring: bool = False
     out_dir: str = ""
+    # Per-application pipeline tuning. None → the pipeline uses its defaults
+    # (config.settings constants).
+    tuning: PipelineTuning | None = None
 
     # Pipeline artifacts (populated on completion)
     best_latex: str | None = None
@@ -73,7 +77,7 @@ class Job:
     # Per-job SSE replay buffer (set by job_manager at creation)
     events: EventBuffer = field(default_factory=lambda: EventBuffer(maxlen=500))
 
-    # Live SSE subscribers — each is an asyncio.Queue owned by one SSE connection
+    # Live SSE subscribers - each is an asyncio.Queue owned by one SSE connection
     subscribers: set[asyncio.Queue] = field(default_factory=set)
 
     # Cooperative cancellation. Set from the request thread (via JobManager.cancel);

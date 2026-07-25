@@ -1,9 +1,9 @@
-"""Writer agent — the Opus optimizer.
+"""Writer agent - the Opus optimizer.
 
 Assembles the user prompt from the extraction artifacts (``resume_struct``,
 ``jd_vector``, ``gap_targets``) and, on revision/compile bounces, the prior
 ``writer_output`` plus ``revision_notes`` / ``compile_errors``. Emits a
-``WriterOutput`` (bullets + skills — no identity fields).
+``WriterOutput`` (bullets + skills - no identity fields).
 
 The user-message builder is a pure function so the deterministic "what does the
 next draft see" behaviour is directly testable without any API call.
@@ -20,7 +20,7 @@ from src.pipeline.state import PipelineState
 from src.prompts.writer import WRITER_SYSTEM
 
 # The Writer prompt asks the model to self-verify length by appending a
-# ``[chars: N]`` tag to each bullet. Those tags are a model-only scratchpad —
+# ``[chars: N]`` tag to each bullet. Those tags are a model-only scratchpad -
 # they must be stripped before the length validator counts characters and
 # before the renderer injects the bullet, or they leak into the final PDF.
 _CHAR_ANNOTATION = re.compile(r"\s*\[chars:\s*\d+\]", re.IGNORECASE)
@@ -76,7 +76,7 @@ def build_writer_user_message(state: PipelineState) -> str:
       ``revision_notes`` is present or ``iteration`` >= 2;
     - a COMPILE ERRORS section when ``compile_errors`` is present (compile bounce).
 
-    Pure and deterministic — the same state always yields the same string.
+    Pure and deterministic - the same state always yields the same string.
     """
     struct = state["resume_struct"]
     vector = state["jd_vector"]
@@ -86,10 +86,10 @@ def build_writer_user_message(state: PipelineState) -> str:
     ) + "\n]" if targets else "[]"
 
     sections = [
-        "## RESUME (structured — the ONLY ground truth for every claim)",
+        "## RESUME (structured - the ONLY ground truth for every claim)",
         struct.model_dump_json(indent=2),
         "",
-        "## JOB DESCRIPTION (vector — mirror this vocabulary only where truthful)",
+        "## JOB DESCRIPTION (vector - mirror this vocabulary only where truthful)",
         vector.model_dump_json(indent=2),
         "",
         "## REFRAMING TARGETS (apply each framing_guidance to its host_role_index)",
@@ -104,7 +104,7 @@ def build_writer_user_message(state: PipelineState) -> str:
             "## PRIOR DRAFT (preserve bullets that already scored well)",
             prior.model_dump_json(indent=2) if prior is not None else "(none)",
             "",
-            "## REVISION NOTES (ranked — address highest-priority items first)",
+            "## REVISION NOTES (ranked - address highest-priority items first)",
             render_revision_notes(revision_notes),
         ]
 
@@ -113,7 +113,7 @@ def build_writer_user_message(state: PipelineState) -> str:
         violations_text = "\n".join(f"- {v}" for v in identity_violations)
         sections += [
             "",
-            "## IDENTITY VIOLATIONS (DO NOT change these identity fields — they are locked)",
+            "## IDENTITY VIOLATIONS (DO NOT change these identity fields - they are locked)",
             violations_text,
         ]
 
@@ -130,7 +130,7 @@ def build_writer_user_message(state: PipelineState) -> str:
     if compile_errors:
         sections += [
             "",
-            "## COMPILE ERRORS (compile retry — fix ONLY the LaTeX-affecting content)",
+            "## COMPILE ERRORS (compile retry - fix ONLY the LaTeX-affecting content)",
             compile_errors,
         ]
 
@@ -154,12 +154,12 @@ def write_resume(state: PipelineState) -> dict:
     user_msg = build_writer_user_message(state)
     output = parse_strong(WRITER_SYSTEM, user_msg, WriterOutput)
     # Strip the model's [chars: N] self-verification tags before anything
-    # downstream sees them — the validator must count clean bullets and the
+    # downstream sees them - the validator must count clean bullets and the
     # renderer must never leak the tags into the PDF.
     output = sanitize_writer_output(output)
     total_bullets = sum(len(r.bullets) for r in output.roles)
     log.info(
-        "writer       | done — %d roles, %d total bullets",
+        "writer       | done - %d roles, %d total bullets",
         len(output.roles), total_bullets,
     )
     return {"writer_output": output}

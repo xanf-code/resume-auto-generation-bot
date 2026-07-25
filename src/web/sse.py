@@ -21,7 +21,7 @@ async def event_stream(
 
     Replays all buffered events with seq > last_event_id, then registers as a
     live subscriber and yields events until a terminal stage (done/failed).
-    The subscriber queue is always removed in the finally block — even on
+    The subscriber queue is always removed in the finally block - even on
     cancel or client disconnect.
     """
     q: asyncio.Queue[ProgressEvent] = asyncio.Queue()

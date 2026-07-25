@@ -1,4 +1,4 @@
-"""Tests for src.pipeline.schemas — Pydantic models and integrity guarantees."""
+"""Tests for src.pipeline.schemas - Pydantic models and integrity guarantees."""
 import json
 
 import pytest
@@ -73,7 +73,7 @@ def test_every_model_instantiates():
         no_evidence=False,
     )
     RoleBullets(index=0, bullets=["Did a thing"])
-    # WriterOutput no longer carries a skills field — bullets only.
+    # WriterOutput no longer carries a skills field - bullets only.
     WriterOutput(
         roles=[RoleBullets(index=0, bullets=["Did a thing"])],
     )
@@ -102,7 +102,7 @@ def _property_names(obj) -> set:
 
     Walks ``properties`` blocks (and ``$defs`` recursively). Deliberately does
     NOT treat JSON-schema metadata keys (``title``, ``description``, ...) as
-    property names — those are annotations Pydantic emits for display, not
+    property names - those are annotations Pydantic emits for display, not
     fields a model can carry.
     """
     names: set = set()
@@ -162,11 +162,11 @@ def test_every_model_forbids_additional_properties():
 
 
 def test_writer_output_has_no_skills_field():
-    """WriterOutput must NOT carry a skills field — skills moved to skill_dump on state."""
+    """WriterOutput must NOT carry a skills field - skills moved to skill_dump on state."""
     schema = WriterOutput.model_json_schema()
     props = schema.get("properties", {})
     assert "skills" not in props, (
-        "WriterOutput must not declare a 'skills' field — "
+        "WriterOutput must not declare a 'skills' field - "
         "skill dump is generated separately by generate_skills"
     )
 

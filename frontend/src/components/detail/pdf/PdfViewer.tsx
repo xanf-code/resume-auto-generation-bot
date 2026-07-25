@@ -26,20 +26,25 @@ export function PdfViewer({ blob, onSyncToSource }: Props) {
   const [pageWidth, setPageWidth] = useState(332);
   const viewportRef = useRef<HTMLDivElement>(null);
 
-  // Feed pdf.js the raw bytes instead of a blob: URL — the URL path sends the
+  // Feed pdf.js the raw bytes instead of a blob: URL - the URL path sends the
   // blob through pdf.js's network stream, which chokes on header construction.
   useEffect(() => {
     let active = true;
     setFailed(false);
-    setData(null);
     setPage(1);
+    // Do NOT reset data to null here - keeping the old PDF visible while the
+    // new bytes load avoids a null→value Document transition that can cancel a
+    // pdfjs worker render mid-flight and leave the Page stuck on "Loading page…".
     blob
       .arrayBuffer()
       .then((buf) => {
         if (active) setData(new Uint8Array(buf));
       })
       .catch(() => {
-        if (active) setFailed(true);
+        if (active) {
+          setFailed(true);
+          setData(null);
+        }
       });
     return () => {
       active = false;

@@ -1,4 +1,4 @@
-"""Tests for config.settings — constants and require_api_key."""
+"""Tests for config.settings - constants and require_api_key."""
 import importlib
 
 import pytest
@@ -17,7 +17,7 @@ def test_constant_values():
     import config.settings as settings
 
     assert settings.THRESHOLD == 78
-    # Tightened from 6/4/4 — the writer loop (Sonnet) is the dominant pipeline
+    # Tightened from 6/4/4 - the writer loop (Sonnet) is the dominant pipeline
     # cost; the pipeline already ships the best-scoring draft on cap-hit, so a
     # smaller worst-case tail costs near-zero happy-path pass rate.
     assert settings.MAX_ITERATIONS == 4

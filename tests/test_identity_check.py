@@ -1,4 +1,4 @@
-"""Tests for the mechanical identity tripwire — integrity guarantee #2.
+"""Tests for the mechanical identity tripwire - integrity guarantee #2.
 
 check_identity diffs rendered LaTeX against the ledger. Any tamper (changed
 date, renamed company, altered title, injected extra role) must fail loudly.

@@ -1,4 +1,4 @@
-"""Tests for src.pipeline.graph — the LangGraph wiring, routing, and bookkeeping.
+"""Tests for src.pipeline.graph - the LangGraph wiring, routing, and bookkeeping.
 
 ALL node/LLM behaviour is mocked. NO live API calls (ANTHROPIC_API_KEY stays
 unset). These tests pin:
@@ -247,7 +247,7 @@ def test_compile_node_page_overflow_bounces_with_count_remedy(monkeypatch):
     """2-page compile bounces to writer with the count-based remedy.
 
     Bullets are locked to 195-210 and cannot be shortened below 195, so the
-    overflow remedy must target bullet COUNT, not bullet length — and must not
+    overflow remedy must target bullet COUNT, not bullet length - and must not
     reference a summary (there is none anymore).
     """
     monkeypatch.setattr(graph_mod, "compile_tex", lambda latex: (True, "/tmp/x.pdf", []))
@@ -295,6 +295,36 @@ def test_route_after_aggregator_fail_over_cap_goes_to_emit():
     assert graph_mod.route_after_aggregator(state) == "emit"
 
 
+def test_route_after_aggregator_honours_state_tuning_max_iterations():
+    """A per-run tuning raises the cap: iteration at the default cap still loops."""
+    import dataclasses
+
+    from src.pipeline.tuning import PipelineTuning
+
+    roomy = dataclasses.replace(PipelineTuning.defaults(), max_iterations=MAX_ITERATIONS + 3)
+    # At the *default* cap but below the tuned cap → keep revising.
+    state = {"passed": False, "iteration": MAX_ITERATIONS, "tuning": roomy}
+    assert graph_mod.route_after_aggregator(state) == "writer"
+    # At the tuned cap → stop.
+    state_at_cap = {"passed": False, "iteration": MAX_ITERATIONS + 3, "tuning": roomy}
+    assert graph_mod.route_after_aggregator(state_at_cap) == "emit"
+
+
+def test_route_after_compile_honours_state_tuning_budget():
+    """Raising max_compile_retries lets a compile that would have emitted retry."""
+    import dataclasses
+
+    from src.pipeline.tuning import PipelineTuning
+
+    roomy = dataclasses.replace(PipelineTuning.defaults(), max_compile_retries=MAX_COMPILE_RETRIES + 2)
+    state = {
+        "compile_ok": False,
+        "compile_retries": MAX_COMPILE_RETRIES + 1,  # over the default cap
+        "tuning": roomy,
+    }
+    assert graph_mod.route_after_compile(state) == "writer"
+
+
 # --- update_best bookkeeping (pure) -------------------------------------------
 
 
@@ -314,7 +344,7 @@ def test_update_best_captures_pdf_path():
 
 
 def test_update_best_does_not_track_skills():
-    """update_best must NOT include best_skills — skills are invariant across iterations."""
+    """update_best must NOT include best_skills - skills are invariant across iterations."""
     state = {"aggregate_score": 85.0, "latex_rendered": "DRAFT-X", "pdf_path": "/tmp/x.pdf"}
     out = graph_mod.update_best(state)
     assert "best_skills" not in out
@@ -427,7 +457,7 @@ def _install_fake_nodes(monkeypatch, *, aggregator_behaviour):
         lambda s: {"panel_scores": []},
     )
     monkeypatch.setattr(graph_mod, "aggregator", aggregator_behaviour)
-    # emit is terminal — make it a no-op that records it ran.
+    # emit is terminal - make it a no-op that records it ran.
     monkeypatch.setattr(
         graph_mod, "emit_node", lambda s: {"emitted": True}
     )
@@ -597,7 +627,7 @@ def _install_fake_nodes_keep_length_gate(monkeypatch, *, writer_behaviour):
         graph_mod, "generate_skills", lambda s: {"skill_dump": SkillDump()}
     )
     monkeypatch.setattr(graph_mod, "write_resume", writer_behaviour)
-    # check_bullet_lengths is intentionally NOT stubbed — it is the unit under test.
+    # check_bullet_lengths is intentionally NOT stubbed - it is the unit under test.
     monkeypatch.setattr(graph_mod, "render_node", lambda s: {"latex_rendered": "LATEX"})
     monkeypatch.setattr(
         graph_mod, "identity_check_node", lambda s: {"identity_violations": []}
@@ -639,7 +669,7 @@ def test_length_gate_loops_back_then_proceeds(monkeypatch):
 
     assert result.get("emitted") is True
     assert calls["writer"] >= 2, (
-        "length gate must route the underbuilt draft back to the writer — "
+        "length gate must route the underbuilt draft back to the writer - "
         "if this is 1, length_violations is being dropped again"
     )
 
@@ -660,14 +690,14 @@ def test_length_gate_exhausts_budget_and_still_emits(monkeypatch):
         {"recursion_limit": 100},
     )
 
-    # Never crashes on recursion — it ships the best-effort draft.
+    # Never crashes on recursion - it ships the best-effort draft.
     assert result.get("emitted") is True
     # Bounded: initial draft + exactly MAX_LENGTH_RETRIES retry bounces.
     assert calls["writer"] == MAX_LENGTH_RETRIES + 1
 
 
 def test_length_gate_clean_first_draft_does_not_loop(monkeypatch):
-    """An in-band first draft renders immediately — writer runs once."""
+    """An in-band first draft renders immediately - writer runs once."""
     calls = {"writer": 0}
 
     def writer_behaviour(state):
@@ -718,7 +748,7 @@ def test_bookkeep_resets_length_counters_on_loop():
 
 def test_panel_cache_persists_through_compiled_graph_channels(monkeypatch):
     """Regression guard: an unchanged draft across iterations must NOT
-    re-trigger the 4-persona panel — the cache must survive real channel
+    re-trigger the 4-persona panel - the cache must survive real channel
     plumbing, not just an in-memory dict passed directly to the function."""
     from src.agents import recruiters as recruiters_mod
 
@@ -763,14 +793,14 @@ def test_panel_cache_persists_through_compiled_graph_channels(monkeypatch):
     )
     monkeypatch.setattr(graph_mod, "write_resume", lambda s: {"writer_output": "WO"})
     monkeypatch.setattr(graph_mod, "check_bullet_lengths", lambda s: {"length_violations": None})
-    # render_node ALWAYS emits the identical draft — the exact case the cache targets.
+    # render_node ALWAYS emits the identical draft - the exact case the cache targets.
     monkeypatch.setattr(graph_mod, "render_node", lambda s: {"latex_rendered": "SAME LATEX EVERY TIME"})
     monkeypatch.setattr(graph_mod, "identity_check_node", lambda s: {"identity_violations": []})
     monkeypatch.setattr(
         graph_mod, "compile_node",
         lambda s: {"compile_ok": True, "compile_errors": "", "pdf_path": "/tmp/x.pdf", "compile_retries": 0},
     )
-    # recruiter_panel is intentionally left REAL — it is the unit under test.
+    # recruiter_panel is intentionally left REAL - it is the unit under test.
 
     agg_calls = {"n": 0}
 
@@ -793,7 +823,7 @@ def test_panel_cache_persists_through_compiled_graph_channels(monkeypatch):
     assert agg_calls["n"] >= 2, "aggregator must run at least twice (looped on fail)"
     assert call_count["n"] == 4, (
         "panel_cache_latex/panel_cache_scores must survive LangGraph's channel "
-        "plumbing across iterations — if this is 8, the cache state is being "
+        "plumbing across iterations - if this is 8, the cache state is being "
         "dropped between node hops and the panel re-ran on the second, "
         "identical draft"
     )
@@ -811,7 +841,7 @@ def test_generate_skills_runs_exactly_once_across_multiple_iterations(monkeypatc
     """generate_skills fires exactly once even on a fail-then-pass run.
 
     The skill_dump produced on the first pass must be the one present in the
-    final state — not re-generated or overwritten by a later iteration.
+    final state - not re-generated or overwritten by a later iteration.
     """
     canned_dump = SkillDump(language_and_framework=["from-skills-node"])
     skills_calls = {"n": 0}
@@ -857,7 +887,7 @@ def test_generate_skills_runs_exactly_once_across_multiple_iterations(monkeypatc
     assert result.get("emitted") is True
     assert agg_calls["n"] >= 2, "must have iterated (fail-then-pass)"
     assert skills_calls["n"] == 1, (
-        "generate_skills must run exactly once — if this is > 1, "
+        "generate_skills must run exactly once - if this is > 1, "
         "the back-edge is incorrectly re-entering before generate_skills"
     )
     # The skill_dump from the first (and only) skills call must be in the final state.
@@ -926,7 +956,7 @@ def test_output_skills_persists_through_compiled_graph_channels(monkeypatch):
 
     assert result.get("emitted") is True
     assert result.get("output_skills") == skills_path, (
-        "output_skills must survive the compiled graph — if this is None, "
+        "output_skills must survive the compiled graph - if this is None, "
         "the channel is missing from PipelineState again"
     )
     assert result.get("output_pdf") == "/tmp/x.pdf"

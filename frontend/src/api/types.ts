@@ -1,3 +1,5 @@
+import type { Tuning } from '../lib/tuning';
+
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed';
 
 export interface JobSummary {
@@ -47,6 +49,8 @@ export interface CreateJobRequest {
   resume_tex: string;
   jd_text: string;
   enable_scoring?: boolean;
+  // Per-application pipeline tuning. Omitted → the backend uses its defaults.
+  tuning?: Tuning;
 }
 
 export interface CreateJobResponse {

@@ -65,10 +65,39 @@ describe('NewJobModal', () => {
     expect(closeSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('submits the default tuning payload with the job', async () => {
+    (createJob as unknown as Mock).mockResolvedValue({
+      job_id: 'abc',
+      label: 'Backend Engineer',
+    });
+    renderModal();
+
+    fillRequiredFields();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /start typesetting/i }));
+    });
+
+    const arg = (createJob as unknown as Mock).mock.calls.at(-1)![0];
+    expect(arg.tuning).toBeDefined();
+    expect(arg.tuning.threshold).toBe(78);
+    const sum = Object.values(arg.tuning.rubric_weights as Record<string, number>).reduce(
+      (a, b) => a + b,
+      0,
+    );
+    expect(sum).toBeCloseTo(1.0, 6);
+  });
+
+  it('reveals the advanced tuning sliders on demand', () => {
+    renderModal();
+    expect(screen.queryByLabelText('Pass threshold')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /advanced tuning/i }));
+    expect(screen.getByLabelText('Pass threshold')).toBeInTheDocument();
+  });
+
   it('does not close on Escape while a submission is in flight', async () => {
     const closeSpy = vi.fn();
     useStore.setState({ closeNewJobModal: closeSpy });
-    // Never resolves — keeps the modal in its submitting state.
+    // Never resolves - keeps the modal in its submitting state.
     (createJob as unknown as Mock).mockReturnValue(new Promise(() => {}));
     renderModal();
 

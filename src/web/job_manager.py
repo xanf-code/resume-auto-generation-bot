@@ -1,4 +1,4 @@
-"""JobManager — registry + ThreadPoolExecutor for pipeline runs.
+"""JobManager - registry + ThreadPoolExecutor for pipeline runs.
 
 All pipeline execution happens in worker threads (never on the async event
 loop) because ``src/agents/recruiters.py`` calls ``asyncio.run()`` inside a
@@ -44,6 +44,7 @@ class JobManager:
         job.jd_raw = req.jd_text
         job.jd_name = req.label
         job.enable_scoring = req.enable_scoring
+        job.tuning = req.tuning.to_tuning() if req.tuning is not None else None
         job.out_dir = f"{self.settings.out_root}/{job.job_id}"
 
         self._registry[job.job_id] = job
@@ -69,7 +70,7 @@ class JobManager:
 
         Sets the job's cancel event; the worker thread's ``on_step`` callback
         observes it and aborts at the next node boundary (an in-flight LLM call
-        finishes first — Python threads can't be force-killed). Returns False if
+        finishes first - Python threads can't be force-killed). Returns False if
         the job is missing or already in a terminal state.
         """
         job = self._registry.get(job_id)

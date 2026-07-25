@@ -1,4 +1,4 @@
-"""Aggregator — the quality gate. Pure-code scoring, one Opus call only on fail.
+"""Aggregator - the quality gate. Pure-code scoring, one Opus call only on fail.
 
 Scoring is deterministic Python: each persona's five rubric dimensions collapse
 to a weighted composite (``RUBRIC_WEIGHTS``), the four composites average to the
@@ -10,10 +10,11 @@ The plausibility FLOOR is the fabrication guard: a resume can score high overall
 yet still be rejected if the Skeptic doubts its truthfulness.
 
 The ONLY LLM call in this module is ``distill_revision_notes``, and it fires
-ONLY on the fail path — collapsing the four personas' free-text notes into a
+ONLY on the fail path - collapsing the four personas' free-text notes into a
 ranked, deduplicated directive list for the Writer's next iteration.
 """
 import logging
+from typing import Mapping
 
 from config.settings import MODEL_SCORING, PLAUSIBILITY_FLOOR, RUBRIC_WEIGHTS, THRESHOLD
 
@@ -21,25 +22,35 @@ log = logging.getLogger(__name__)
 from src.pipeline.llm import parse_scoring
 from src.pipeline.schemas import PanelScore, RevisionNotes
 from src.pipeline.state import PipelineState
+from src.pipeline.tuning import get_tuning
 from src.prompts.recruiters import DISTILL_NOTES_SYSTEM
 
 _SKEPTIC = "Skeptic"
 
 
-def persona_composite(score: PanelScore) -> float:
-    """Weighted mean of one persona's rubric dimensions (weights sum to 1.0)."""
+def persona_composite(
+    score: PanelScore, weights: Mapping[str, float] | None = None
+) -> float:
+    """Weighted mean of one persona's rubric dimensions (weights sum to 1.0).
+
+    *weights* defaults to the global ``RUBRIC_WEIGHTS`` so callers that don't
+    tune the panel keep the historical behaviour.
+    """
+    w = weights if weights is not None else RUBRIC_WEIGHTS
     return (
-        RUBRIC_WEIGHTS["plausibility"] * score.plausibility
-        + RUBRIC_WEIGHTS["keyword_match"] * score.keyword_match
-        + RUBRIC_WEIGHTS["impact_quality"] * score.impact_quality
-        + RUBRIC_WEIGHTS["coherence"] * score.coherence
-        + RUBRIC_WEIGHTS["formatting"] * score.formatting
+        w["plausibility"] * score.plausibility
+        + w["keyword_match"] * score.keyword_match
+        + w["impact_quality"] * score.impact_quality
+        + w["coherence"] * score.coherence
+        + w["formatting"] * score.formatting
     )
 
 
-def aggregate(scores: list[PanelScore]) -> float:
+def aggregate(
+    scores: list[PanelScore], weights: Mapping[str, float] | None = None
+) -> float:
     """Mean of the four persona composites."""
-    composites = [persona_composite(s) for s in scores]
+    composites = [persona_composite(s, weights) for s in scores]
     return sum(composites) / len(composites)
 
 
@@ -55,15 +66,23 @@ def skeptic_plausibility(scores: list[PanelScore]) -> int:
     raise ValueError("Panel is missing the Skeptic persona.")
 
 
-def decide(scores: list[PanelScore]) -> tuple[bool, float]:
+def decide(
+    scores: list[PanelScore],
+    threshold: float | None = None,
+    floor: float | None = None,
+    weights: Mapping[str, float] | None = None,
+) -> tuple[bool, float]:
     """Return ``(passed, aggregate_score)``.
 
-    PASS requires BOTH the aggregate to clear ``THRESHOLD`` AND the Skeptic's
-    plausibility to clear ``PLAUSIBILITY_FLOOR``. The floor vetoes an otherwise
-    passing aggregate — the fabrication guard.
+    PASS requires BOTH the aggregate to clear *threshold* AND the Skeptic's
+    plausibility to clear *floor*. The floor vetoes an otherwise passing
+    aggregate - the fabrication guard. All three tuning inputs default to the
+    global constants so an untuned call is unchanged.
     """
-    agg = aggregate(scores)
-    passed = agg >= THRESHOLD and skeptic_plausibility(scores) >= PLAUSIBILITY_FLOOR
+    thr = threshold if threshold is not None else THRESHOLD
+    flr = floor if floor is not None else PLAUSIBILITY_FLOOR
+    agg = aggregate(scores, weights)
+    passed = agg >= thr and skeptic_plausibility(scores) >= flr
     return passed, agg
 
 
@@ -90,17 +109,28 @@ def distill_revision_notes(scores: list[PanelScore]) -> list[str]:
 
 
 def aggregator(state: PipelineState) -> dict:
-    """Node: score the panel, decide pass/fail, distill notes only on fail."""
+    """Node: score the panel, decide pass/fail, distill notes only on fail.
+
+    Threshold, plausibility floor, and rubric weights come from the run's
+    ``tuning`` (falling back to the ``config.settings`` defaults).
+    """
+    tuning = get_tuning(state)
+    weights = tuning.rubric_weights
     scores = state["panel_scores"]
     for s in scores:
-        comp = persona_composite(s)
+        comp = persona_composite(s, weights)
         log.info("aggregator   | %-22s composite=%.2f", s.persona, comp)
-    passed, agg = decide(scores)
+    passed, agg = decide(
+        scores,
+        threshold=tuning.threshold,
+        floor=tuning.plausibility_floor,
+        weights=weights,
+    )
     sp = skeptic_plausibility(scores)
     log.info(
         "aggregator   | aggregate=%.2f  skeptic_plausibility=%d  "
         "threshold=%d  floor=%d  → %s",
-        agg, sp, THRESHOLD, PLAUSIBILITY_FLOOR,
+        agg, sp, tuning.threshold, tuning.plausibility_floor,
         "PASS ✓" if passed else "FAIL ✗",
     )
 

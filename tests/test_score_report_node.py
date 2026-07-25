@@ -1,11 +1,11 @@
-"""Unit tests for src.pipeline.score_report — the score_report_node that runs after emit.
+"""Unit tests for src.pipeline.score_report - the score_report_node that runs after emit.
 
 These tests verify:
 1. score_report_node runs when a PDF exists
 2. score_report_node skips when no PDF exists
 3. The markdown report is written to disk
 
-NO live LLM calls — generate_score_report is mocked.
+NO live LLM calls - generate_score_report is mocked.
 """
 from unittest.mock import patch
 

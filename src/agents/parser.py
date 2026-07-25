@@ -1,4 +1,4 @@
-"""Parser agent — raw resume .tex -> ResumeStruct + derived IdentityLedger.
+"""Parser agent - raw resume .tex -> ResumeStruct + derived IdentityLedger.
 
 The parser LLM extracts the structured resume; this node then DERIVES the
 immutable identity ledger from it and runs a defensive guard that every
@@ -25,7 +25,7 @@ _TEX_COMMAND_NAMED = re.compile(r"\\([a-zA-Z]+)\*?\{([^{}]*)\}")
 # A plausible email address.
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 
-# Lines that can only be preamble — dropped before name extraction when there
+# Lines that can only be preamble - dropped before name extraction when there
 # is no explicit ``\begin{document}`` to slice on.
 _PREAMBLE_LINE_PREFIXES = (
     "\\documentclass", "\\usepackage", "\\RequirePackage", "\\newcommand",
@@ -34,7 +34,7 @@ _PREAMBLE_LINE_PREFIXES = (
     "\\setlength", "\\input", "\\include", "\\DeclareUnicodeCharacter",
 )
 
-# Command names whose braced argument is NEVER a person's name — structural,
+# Command names whose braced argument is NEVER a person's name - structural,
 # environment, or resource commands. Their captured arg (e.g. "center" from
 # ``\begin{center}``, "XCharter" from ``\usepackage{XCharter}``) is skipped.
 _STRUCTURAL_CMDS = frozenset({
@@ -58,7 +58,7 @@ def _looks_like_name(value: str) -> bool:
 
 
 def _document_body(resume_tex_raw: str) -> str:
-    """Return the content the name can live in — never the preamble.
+    """Return the content the name can live in - never the preamble.
 
     Prefer everything after ``\\begin{document}``. When the source has no
     document environment, drop lines that can only be preamble commands
@@ -80,7 +80,7 @@ def extract_name(resume_tex_raw: str) -> str:
     """Best-effort candidate name from the raw .tex.
 
     Convention: the name is the first formatting-command content in the DOCUMENT
-    BODY (e.g. ``\\textbf{Jane Doe}``) — never a preamble/font argument and never
+    BODY (e.g. ``\\textbf{Jane Doe}``) - never a preamble/font argument and never
     a structural command like ``\\begin{center}``. Falls back to the first
     non-empty content line that reads like a name.
     """
@@ -109,7 +109,7 @@ def derive_ledger(
 ) -> IdentityLedger:
     """Build the immutable ledger from a parsed struct + name/contact.
 
-    Identity fields are copied character-exact from each ResumeRole — this is
+    Identity fields are copied character-exact from each ResumeRole - this is
     the single source of truth the renderer later injects.
     """
     roles = [
@@ -143,7 +143,7 @@ def assert_ledger_matches_source(
                 )
     if drifted:
         raise ValueError(
-            "IdentityLedger drift detected — identity fields must be "
+            "IdentityLedger drift detected - identity fields must be "
             "character-exact copies of the source:\n" + "\n".join(drifted)
         )
 
@@ -152,14 +152,14 @@ def parse_resume(state: PipelineState) -> dict:
     """Node: parse the raw resume and derive its identity ledger.
 
     Skips the parser LLM call entirely when ``resume_struct`` and
-    ``identity_ledger`` are already present in state — seeded by a caller that
+    ``identity_ledger`` are already present in state - seeded by a caller that
     parsed this exact resume once already (e.g. a batch run reusing one parse
     across many JDs instead of re-parsing per JD).
     """
     cached_struct = state.get("resume_struct")
     cached_ledger = state.get("identity_ledger")
     if cached_struct is not None and cached_ledger is not None:
-        log.info("parse_resume | resume_struct/identity_ledger cached — skipping LLM call")
+        log.info("parse_resume | resume_struct/identity_ledger cached - skipping LLM call")
         return {"resume_struct": cached_struct, "identity_ledger": cached_ledger}
 
     resume_tex_raw = state["resume_tex_raw"]
@@ -169,7 +169,7 @@ def parse_resume(state: PipelineState) -> dict:
     contact = extract_contact(resume_tex_raw)
     ledger = derive_ledger(struct, name=name, contact=contact)
     log.info(
-        "parse_resume | done — candidate=%r, %d roles, %d skills, ledger locked",
+        "parse_resume | done - candidate=%r, %d roles, %d skills, ledger locked",
         name, len(struct.roles), len(struct.skills),
     )
     return {"resume_struct": struct, "identity_ledger": ledger}

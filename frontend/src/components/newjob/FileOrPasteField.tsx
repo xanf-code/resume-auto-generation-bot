@@ -25,7 +25,7 @@ export function FileOrPasteField({ label, value, onChange, placeholder, accept =
     setFileError(null);
 
     if (file.size > MAX_FILE_BYTES) {
-      setFileError('That file is over 2 MB — paste the text instead.');
+      setFileError('That file is over 2 MB - paste the text instead.');
       return;
     }
 
@@ -33,9 +33,9 @@ export function FileOrPasteField({ label, value, onChange, placeholder, accept =
     reader.onload = (ev) => {
       const content = (ev.target?.result as string) ?? '';
       // An empty read (an empty file, or a binary that decoded to nothing) would
-      // otherwise leave the field looking untouched — name the problem instead.
+      // otherwise leave the field looking untouched - name the problem instead.
       if (content.trim() === '') {
-        setFileError('That file was empty — choose another, or paste the text.');
+        setFileError('That file was empty - choose another, or paste the text.');
         return;
       }
       onChange(content);
@@ -93,7 +93,7 @@ export function FileOrPasteField({ label, value, onChange, placeholder, accept =
             />
             <span className="text-[13px] text-ink-soft">
               {value ? (
-                <span className="text-pass">✓ Loaded — {value.length.toLocaleString()} characters</span>
+                <span className="text-pass">✓ Loaded - {value.length.toLocaleString()} characters</span>
               ) : (
                 'Click to choose a file'
               )}

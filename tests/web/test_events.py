@@ -1,4 +1,4 @@
-"""Phase 8 — stream-delta → ProgressEvent translation + pct heuristic."""
+"""Phase 8 - stream-delta → ProgressEvent translation + pct heuristic."""
 from src.pipeline.schemas import PanelScore
 
 
@@ -12,7 +12,7 @@ def test_stage_detected_from_key():
 
 def test_unknown_delta_returns_none():
     from src.web.events import build_progress_event
-    # length_violations is written by check_bullet_lengths — not in _KEY_TO_NODE
+    # length_violations is written by check_bullet_lengths - not in _KEY_TO_NODE
     assert build_progress_event("j", {"length_violations": []}, {}) is None
 
 
@@ -67,3 +67,21 @@ def test_pct_estimate_monotonic_across_writer_loop():
     pcts = [pct_estimate(s, i) for s, i in seq]
     assert pcts == sorted(pcts), pcts
     assert pcts[0] >= 0 and pcts[-1] <= 100
+
+
+def test_pct_estimate_honours_max_iterations_budget():
+    from src.web.events import pct_estimate
+
+    # A larger loop budget spreads the 25–90% band across more iterations, so the
+    # same (stage, iteration) reads a lower pct than under the default budget.
+    default_pct = pct_estimate("writer", 2, 4)
+    roomy_pct = pct_estimate("writer", 2, 8)
+    assert roomy_pct < default_pct
+    # Still monotonic across iterations under the tuned budget.
+    assert pct_estimate("writer", 2, 8) <= pct_estimate("writer", 3, 8)
+
+
+def test_pct_estimate_zero_budget_does_not_crash():
+    from src.web.events import pct_estimate
+
+    assert 0 <= pct_estimate("writer", 1, 0) <= 100

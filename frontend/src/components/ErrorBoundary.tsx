@@ -20,7 +20,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    // Single-user local tool — surface the stack for the owner to debug.
+    // Single-user local tool - surface the stack for the owner to debug.
     console.error('Unhandled UI error:', error, info.componentStack);
   }
 

@@ -1,4 +1,4 @@
-"""Resume scoring report generator — runs evaluation prompts and saves markdown.
+"""Resume scoring report generator - runs evaluation prompts and saves markdown.
 
 After the threshold is cleared and PDF is generated, this module:
 1. Extracts text from the compiled PDF
@@ -44,7 +44,7 @@ def extract_pdf_text(pdf_path: str) -> str:
         raise RuntimeError("pdftotext timed out after 30s") from e
     except FileNotFoundError as e:
         raise RuntimeError(
-            "pdftotext not found — install poppler-utils (brew install poppler)"
+            "pdftotext not found - install poppler-utils (brew install poppler)"
         ) from e
 
 
@@ -226,7 +226,7 @@ def score_report_node(state: dict) -> dict:
     """Graph node: generate scoring report after PDF emission.
 
     Only runs if a PDF was successfully emitted. Failures are logged but
-    do not crash the pipeline — the score report is a nice-to-have, not
+    do not crash the pipeline - the score report is a nice-to-have, not
     a requirement.
 
     Args:
@@ -237,7 +237,7 @@ def score_report_node(state: dict) -> dict:
     """
     pdf_path = state.get("output_pdf")
     if not pdf_path:
-        log.warning("score_report | no PDF found — skipping scoring")
+        log.warning("score_report | no PDF found - skipping scoring")
         return {"score_report_md": None}
 
     out_dir = state.get("out_dir", "out")
@@ -247,5 +247,5 @@ def score_report_node(state: dict) -> dict:
         return {"score_report_md": report_path}
     except Exception as e:
         log.error("score_report | failed to generate scoring report: %s", e, exc_info=True)
-        # Don't crash the pipeline — just return None
+        # Don't crash the pipeline - just return None
         return {"score_report_md": None}

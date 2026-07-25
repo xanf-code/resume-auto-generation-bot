@@ -1,4 +1,4 @@
-"""Synchronous pipeline runner — executes in a ThreadPoolExecutor worker thread.
+"""Synchronous pipeline runner - executes in a ThreadPoolExecutor worker thread.
 
 Never called on the FastAPI async event loop directly; the event loop is only
 touched via ``loop.call_soon_threadsafe`` inside ``JobManager._emit``.
@@ -47,6 +47,12 @@ def run_job(job: Job, manager: "JobManager") -> None:
         if event is not None:
             manager._emit(job, event)
 
+    # Forward the per-application tuning only when set - a None config keeps the
+    # call shape (and the pipeline's default behaviour) exactly as before.
+    extra: dict = {}
+    if job.tuning is not None:
+        extra["tuning"] = job.tuning
+
     try:
         final_state = main_module.stream_pipeline(
             resume_tex_raw=job.resume_tex_raw,
@@ -55,6 +61,7 @@ def run_job(job: Job, manager: "JobManager") -> None:
             jd_name=job.jd_name,
             enable_scoring=job.enable_scoring,
             on_step=on_step,
+            **extra,
         )
     except JobCancelled:
         job.status = JobStatus.FAILED
@@ -66,7 +73,7 @@ def run_job(job: Job, manager: "JobManager") -> None:
         job.status = JobStatus.FAILED
         exc_type_name = type(exc).__name__
         if "GraphRecursionError" in exc_type_name:
-            job.error = "Pipeline hit recursion limit — try fewer max iterations."
+            job.error = "Pipeline hit recursion limit - try fewer max iterations."
         else:
             job.error = str(exc)
         job.finished_at = _now()

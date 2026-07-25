@@ -1,4 +1,4 @@
-"""Phase 7 — tests for src.main.stream_pipeline.
+"""Phase 7 - tests for src.main.stream_pipeline.
 
 stream_pipeline is the content-based, callback-driven core extracted from run().
 It accepts raw resume/JD strings (no file paths), calls require_api_key() before
@@ -99,6 +99,53 @@ def test_stream_pipeline_seeds_initial_state_fields():
     assert captured["jd_name"] == "acme"
     assert captured["enable_scoring"] is True
     assert captured["iteration"] == 1
+
+
+def test_stream_pipeline_seeds_default_tuning_when_absent():
+    from src.pipeline.tuning import PipelineTuning
+
+    captured: dict = {}
+
+    def capture_stream(state, config, stream_mode):
+        captured.update(state)
+        captured["_config"] = config
+        return iter([])
+
+    from src.main import stream_pipeline
+    g = MagicMock()
+    g.stream = capture_stream
+    with patch("src.main.require_api_key", return_value="key"), \
+         patch("src.main.build_graph", return_value=g):
+        stream_pipeline("R", "J", out_dir="out/x", jd_name="acme")
+
+    assert captured["tuning"] == PipelineTuning.defaults()
+    # recursion limit scales off the (default) max_iterations
+    assert captured["_config"]["recursion_limit"] == PipelineTuning.defaults().max_iterations * 12 + 20
+
+
+def test_stream_pipeline_seeds_supplied_tuning_and_scales_recursion():
+    import dataclasses
+
+    from src.pipeline.tuning import PipelineTuning
+
+    captured: dict = {}
+
+    def capture_stream(state, config, stream_mode):
+        captured.update(state)
+        captured["_config"] = config
+        return iter([])
+
+    roomy = dataclasses.replace(PipelineTuning.defaults(), max_iterations=8)
+
+    from src.main import stream_pipeline
+    g = MagicMock()
+    g.stream = capture_stream
+    with patch("src.main.require_api_key", return_value="key"), \
+         patch("src.main.build_graph", return_value=g):
+        stream_pipeline("R", "J", out_dir="out/x", jd_name="acme", tuning=roomy)
+
+    assert captured["tuning"] is roomy
+    assert captured["_config"]["recursion_limit"] == 8 * 12 + 20
 
 
 def test_stream_pipeline_does_no_file_io_and_no_stdout(capsys):

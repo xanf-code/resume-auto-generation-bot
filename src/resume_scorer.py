@@ -86,22 +86,22 @@ SYSTEM_PROMPT = """You are an expert technical recruiter evaluating resumes. Pro
   scannability from the parsed resume data. This category rewards a clean,
   consistent, single-page-appropriate layout and penalizes clutter,
   inconsistency, and structural noise. Score 0-10 using the rubric below.
-  You are grading STRUCTURAL HYGIENE as a proxy for visual quality — you do
+  You are grading STRUCTURAL HYGIENE as a proxy for visual quality - you do
   not have the rendered image, so infer from the data you have.
 
   SCORING BANDS:
-    9-10 — Clean and consistent. Standard sections present and logically
+    9-10 - Clean and consistent. Standard sections present and logically
            ordered (Experience → Projects → Skills/Education as appropriate).
            Bullets are uniformly formatted, concise, and roughly even in
            length. No wall-of-text bullets. Dates present and consistently
            formatted. Content volume fits one page (see length heuristic).
-    6-8  — Mostly clean with minor issues: one or two overlong bullets,
+    6-8  - Mostly clean with minor issues: one or two overlong bullets,
            slightly inconsistent date formatting, or a section ordering that
            is serviceable but not ideal.
-    3-5  — Noticeable problems: several overlong or ragged bullets, missing
+    3-5  - Noticeable problems: several overlong or ragged bullets, missing
            or inconsistent dates, cluttered skills dump (30+ comma-listed
            tools), or content volume that clearly overflows one page.
-    0-2  — Poor structure: no clear section headers, bullets missing entirely
+    0-2  - Poor structure: no clear section headers, bullets missing entirely
            (paragraph blobs), severe length overflow, or chaotic ordering
            that would fail an ATS parse.
 

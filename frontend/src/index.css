@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * "Manuscript" — Editorial / print design system.
+ * "Manuscript" - Editorial / print design system.
  * Warm paper, ink black, Fraunces serif display, one disciplined accent.
  * Tokens registered with Tailwind v4 @theme so utilities (bg-paper, text-ink,
  * border-rule, text-accent, font-serif …) are generated automatically.
@@ -28,7 +28,7 @@
 /*
  * Do NOT add a `* { margin: 0; padding: 0 }` reset here. This file is
  * unlayered, so a universal reset overrides every Tailwind spacing utility
- * (px-*, mt-*, …) regardless of specificity — unlayered CSS always beats
+ * (px-*, mt-*, …) regardless of specificity - unlayered CSS always beats
  * @layer utilities. Tailwind v4 Preflight already normalizes margins and
  * box-sizing, so no manual reset is needed.
  */
@@ -51,7 +51,7 @@ body,
   background: var(--color-accent-wash);
 }
 
-/* Letterspaced small-caps section label — the editorial "eyebrow". */
+/* Letterspaced small-caps section label - the editorial "eyebrow". */
 .eyebrow {
   font-family: var(--font-sans);
   text-transform: uppercase;

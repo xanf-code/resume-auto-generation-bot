@@ -1,4 +1,4 @@
-"""Tests for src.agents.jd_analyzer — JD -> JDVector node.
+"""Tests for src.agents.jd_analyzer - JD -> JDVector node.
 
 `parse_fast` is mocked to return a fixed ``JDVector``; NO live API calls.
 """

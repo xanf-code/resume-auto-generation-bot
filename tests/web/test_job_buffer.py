@@ -1,4 +1,4 @@
-"""Phase 8 — EventBuffer: monotonic seq assignment + replay via since()."""
+"""Phase 8 - EventBuffer: monotonic seq assignment + replay via since()."""
 from types import SimpleNamespace
 
 

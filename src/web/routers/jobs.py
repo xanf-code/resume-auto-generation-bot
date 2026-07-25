@@ -1,4 +1,4 @@
-"""Jobs router — all routes prefixed /jobs (mounted under /api)."""
+"""Jobs router - all routes prefixed /jobs (mounted under /api)."""
 from __future__ import annotations
 
 import json
@@ -66,7 +66,7 @@ def _resolve_package_file(job, filename: str) -> str | None:
     ``emit`` writes deliverables to a per-JD package folder
     (``out_dir/{jd_name}/``), collapsing to ``out_dir`` itself only when no
     ``jd_name`` is set. A caller that looks only at ``out_dir/{filename}``
-    therefore misses the file for every web job — which always carries a
+    therefore misses the file for every web job - which always carries a
     ``jd_name`` (``JobManager`` sets it from the label). Resolve the nested
     layout so all deliverables (skills, score report) are found consistently.
     """
@@ -106,7 +106,7 @@ def _load_report(job) -> dict | None:
     """Parse ``score_report.json`` from the job's emit package, or None.
 
     Resolves the per-JD package layout (``out_dir/{jd_name}/score_report.json``)
-    — the path ``emit`` actually writes — via :func:`_resolve_package_file`,
+    - the path ``emit`` actually writes - via :func:`_resolve_package_file`,
     not just ``out_dir`` directly. Tolerates a missing or malformed file so the
     panel simply stays empty rather than 500-ing the whole detail request.
     """
@@ -139,8 +139,8 @@ def _persona_scores_from_report(report: dict) -> list[PersonaScoreDTO] | None:
 
 def _job_detail(job) -> JobDetail:
     # The recruiter verdict lives on disk in score_report.json. Read it here so
-    # a job opened after it finished (SSE never replays to a done job) — or after
-    # a server restart that cleared the in-memory score fields — still shows the
+    # a job opened after it finished (SSE never replays to a done job) - or after
+    # a server restart that cleared the in-memory score fields - still shows the
     # panel's scores instead of an empty "recruiters weigh in" placeholder.
     report = _load_report(job)
     aggregate_score, passed = _resolve_verdict(job, report)
@@ -167,7 +167,7 @@ def _job_detail(job) -> JobDetail:
 
 
 # ---------------------------------------------------------------------------
-# POST /jobs — submit a new job
+# POST /jobs - submit a new job
 # ---------------------------------------------------------------------------
 
 @router.post("", status_code=202, response_model=JobSummary)
@@ -178,7 +178,7 @@ async def submit_job(req: JobSubmitRequest, request: Request) -> JobSummary:
 
 
 # ---------------------------------------------------------------------------
-# GET /jobs — list all jobs newest first
+# GET /jobs - list all jobs newest first
 # ---------------------------------------------------------------------------
 
 @router.get("", response_model=dict)
@@ -189,7 +189,7 @@ async def list_jobs(request: Request) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# GET /jobs/{job_id} — get job detail
+# GET /jobs/{job_id} - get job detail
 # ---------------------------------------------------------------------------
 
 @router.get("/{job_id}", response_model=JobDetail)
@@ -202,7 +202,7 @@ async def get_job(job_id: str, request: Request) -> JobDetail:
 
 
 # ---------------------------------------------------------------------------
-# PATCH /jobs/{job_id} — rename (update label)
+# PATCH /jobs/{job_id} - rename (update label)
 # ---------------------------------------------------------------------------
 
 @router.patch("/{job_id}", response_model=JobSummary)
@@ -219,7 +219,7 @@ async def rename_job(
 
 
 # ---------------------------------------------------------------------------
-# POST /jobs/{job_id}/cancel — request abort of a running job
+# POST /jobs/{job_id}/cancel - request abort of a running job
 # ---------------------------------------------------------------------------
 
 @router.post("/{job_id}/cancel", status_code=202, response_model=JobSummary)
@@ -234,7 +234,7 @@ async def cancel_job(job_id: str, request: Request) -> JobSummary:
 
 
 # ---------------------------------------------------------------------------
-# DELETE /jobs/{job_id} — remove job + artifacts
+# DELETE /jobs/{job_id} - remove job + artifacts
 # ---------------------------------------------------------------------------
 
 @router.delete("/{job_id}", status_code=204)
@@ -247,7 +247,7 @@ async def delete_job(job_id: str, request: Request) -> Response:
 
 
 # ---------------------------------------------------------------------------
-# GET /jobs/{job_id}/events — SSE stream
+# GET /jobs/{job_id}/events - SSE stream
 # ---------------------------------------------------------------------------
 
 @router.get("/{job_id}/events")
@@ -280,7 +280,7 @@ async def job_events(job_id: str, request: Request) -> EventSourceResponse:
 
 
 # ---------------------------------------------------------------------------
-# GET /jobs/{job_id}/latex — best LaTeX source
+# GET /jobs/{job_id}/latex - best LaTeX source
 # ---------------------------------------------------------------------------
 
 @router.get("/{job_id}/latex")
@@ -295,7 +295,7 @@ async def get_latex(job_id: str, request: Request) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# GET /jobs/{job_id}/skills — skill dump DTO
+# GET /jobs/{job_id}/skills - skill dump DTO
 # ---------------------------------------------------------------------------
 
 @router.get("/{job_id}/skills", response_model=SkillDumpDTO)
@@ -315,7 +315,7 @@ async def get_skills(job_id: str, request: Request) -> SkillDumpDTO:
 
 
 # ---------------------------------------------------------------------------
-# GET /jobs/{job_id}/pdf — stream the PDF
+# GET /jobs/{job_id}/pdf - stream the PDF
 # ---------------------------------------------------------------------------
 
 @router.get("/{job_id}/pdf")
@@ -346,7 +346,7 @@ async def get_pdf(
 
 
 # ---------------------------------------------------------------------------
-# GET /jobs/{job_id}/report — score report JSON
+# GET /jobs/{job_id}/report - score report JSON
 # ---------------------------------------------------------------------------
 
 @router.get("/{job_id}/report")

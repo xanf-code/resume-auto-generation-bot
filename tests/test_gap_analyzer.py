@@ -1,4 +1,4 @@
-"""Tests for src.agents.gap_analyzer — reframing-target extraction node.
+"""Tests for src.agents.gap_analyzer - reframing-target extraction node.
 
 `parse_gap` is mocked to return a ``GapTargets`` wrapper holding a mix of a
 reframable target (real evidence) and a no-evidence target. NO live API calls.
@@ -59,7 +59,7 @@ def _wrapper() -> GapTargets:
         ],
         framing_guidance=(
             "Frame the CRM-sync ETL job as REST-based data integration that "
-            "syncs customer records into a CRM platform — surfacing "
+            "syncs customer records into a CRM platform - surfacing "
             "Salesforce-adjacent competency (API integration, data mapping)."
         ),
         no_evidence=False,
@@ -97,7 +97,7 @@ def test_gap_analysis_writes_unwrapped_list(monkeypatch):
     # The user message combines both resume + JD context.
     assert "Salesforce" in captured["user"]
     assert "CRM-sync ETL" in captured["user"]
-    # Effort is NOT passed at the call site — it defers to parse_gap's own
+    # Effort is NOT passed at the call site - it defers to parse_gap's own
     # default (config.settings.EFFORT_GAP), so retuning reasoning depth only
     # requires a settings change, not a gap_analyzer.py edit.
     assert "effort" not in captured["kwargs"]
@@ -148,7 +148,7 @@ def test_gap_analysis_does_not_mutate_input_state(monkeypatch):
 
 def test_gap_analysis_logs_configured_effort(monkeypatch, caplog):
     """The log line reports the ACTUAL configured effort from settings, not a
-    hardcoded literal — so log output stays truthful if EFFORT_GAP changes."""
+    hardcoded literal - so log output stays truthful if EFFORT_GAP changes."""
     monkeypatch.setattr(gap_analyzer, "parse_gap", lambda *a, **k: _wrapper())
 
     with caplog.at_level(logging.INFO, logger="src.agents.gap_analyzer"):

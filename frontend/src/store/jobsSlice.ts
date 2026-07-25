@@ -95,7 +95,7 @@ export function applyEvent(jobs: JobsMap, event: ProgressEvent): JobsMap {
 }
 
 // Reconcile a job against an authoritative snapshot fetched over HTTP. Used when
-// the SSE stream drops and may have missed the terminal event — so a job that
+// the SSE stream drops and may have missed the terminal event - so a job that
 // actually finished on the backend can never stay stuck "running" in the UI.
 export function reconcileJob(jobs: JobsMap, detail: JobDetail): JobsMap {
   const existing = jobs[detail.job_id];

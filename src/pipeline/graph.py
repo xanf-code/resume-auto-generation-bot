@@ -1,4 +1,4 @@
-"""LangGraph wiring — the full revision loop as a ``StateGraph``.
+"""LangGraph wiring - the full revision loop as a ``StateGraph``.
 
 Topology::
 
@@ -37,12 +37,6 @@ from langgraph.graph import END, START, StateGraph
 
 log = logging.getLogger(__name__)
 
-from config.settings import (
-    MAX_COMPILE_RETRIES,
-    MAX_IDENTITY_RETRIES,
-    MAX_ITERATIONS,
-    MAX_LENGTH_RETRIES,
-)
 from src.agents.aggregator import aggregator
 from src.agents.gap_analyzer import gap_analysis
 from src.agents.jd_analyzer import analyze_jd
@@ -56,6 +50,7 @@ from src.compiler.renderer import render
 from src.compiler.tectonic import compile_tex, count_pdf_pages
 from src.pipeline.emit import emit_node
 from src.pipeline.state import PipelineState
+from src.pipeline.tuning import get_tuning
 
 
 # --- compiler node wrappers ---------------------------------------------------
@@ -65,7 +60,7 @@ def render_node(state: PipelineState) -> dict:
     """Node: patch the original .tex with the writer's bullets."""
     log.info("render       | patching bullet blocks in original .tex")
     latex = render(state["resume_tex_raw"], state["identity_ledger"], state["writer_output"])
-    log.info("render       | LaTeX ready — %d chars", len(latex))
+    log.info("render       | LaTeX ready - %d chars", len(latex))
     return {"latex_rendered": latex}
 
 
@@ -79,13 +74,13 @@ def identity_check_node(state: PipelineState) -> dict:
     if violations:
         new_retries = current_retries + 1
         log.warning(
-            "identity_chk | VIOLATIONS DETECTED (%d) — identity_retries %d→%d",
+            "identity_chk | VIOLATIONS DETECTED (%d) - identity_retries %d→%d",
             len(violations), current_retries, new_retries,
         )
         for v in violations:
             log.warning("identity_chk |   %s", v)
         return {"identity_violations": list(violations), "identity_retries": new_retries}
-    log.info("identity_chk | CLEAN ✓ — all identity fields verified verbatim")
+    log.info("identity_chk | CLEAN ✓ - all identity fields verified verbatim")
     # Do NOT include identity_retries in the returned dict on a clean pass.
     # LangGraph only overwrites keys present in the return value; omitting the
     # key preserves the global budget counter across iterations (Issue 6 fix).
@@ -101,14 +96,14 @@ def compile_node(state: PipelineState) -> dict:
         pages = count_pdf_pages(pdf_path)
         if pages > 1:
             log.warning(
-                "compile      | PAGE OVERFLOW — %d pages → bouncing to writer", pages
+                "compile      | PAGE OVERFLOW - %d pages → bouncing to writer", pages
             )
             return {
                 "compile_ok": False,
                 "compile_errors": (
                     f"PAGE OVERFLOW: the resume compiled to {pages} pages but MUST fit "
                     f"exactly 1 page. Every bullet is locked to the 195-210 char band "
-                    f"and CANNOT be shortened below 195 — the lever is bullet COUNT, "
+                    f"and CANNOT be shortened below 195 - the lever is bullet COUNT, "
                     f"not bullet length. ACTION: cut the lowest-value bullet(s) from the "
                     f"role(s) carrying the most bullets (stay within the 8-total / "
                     f"5-per-role caps). Do NOT add new content and do NOT shorten bullets "
@@ -124,7 +119,7 @@ def compile_node(state: PipelineState) -> dict:
             "pdf_path": pdf_path or "",
             "compile_retries": 0,
         }
-    log.warning("compile      | FAILED — %d error(s)", len(errors))
+    log.warning("compile      | FAILED - %d error(s)", len(errors))
     for e in errors:
         log.warning("compile      |   %s", e)
     return {
@@ -173,18 +168,19 @@ def bookkeep_node(state: PipelineState) -> dict:
     iteration = state.get("iteration", 1)
     agg = state.get("aggregate_score", 0.0)
     best_so_far = best.get("best_score", agg)
+    max_iterations = get_tuning(state).max_iterations
 
     if passed:
-        log.info("bookkeep     | PASSED — aggregate=%.2f, emitting", agg)
+        log.info("bookkeep     | PASSED - aggregate=%.2f, emitting", agg)
         return {**best, "cap_hit": False}
-    if iteration >= MAX_ITERATIONS:
+    if iteration >= max_iterations:
         log.warning(
-            "bookkeep     | CAP HIT (iteration=%d/%d) — emitting best=%.2f",
-            iteration, MAX_ITERATIONS, best_so_far,
+            "bookkeep     | CAP HIT (iteration=%d/%d) - emitting best=%.2f",
+            iteration, max_iterations, best_so_far,
         )
         return {**best, "cap_hit": True}
     log.info(
-        "bookkeep     | fail — iteration %d→%d, best_score=%.2f → looping to writer",
+        "bookkeep     | fail - iteration %d→%d, best_score=%.2f → looping to writer",
         iteration, iteration + 1, best_so_far,
     )
     # Reset per-iteration counters so the next revision gets fresh budgets and
@@ -210,10 +206,10 @@ def route_after_identity(state: PipelineState) -> str:
     """
     if not state.get("identity_violations"):
         return "compile_node"
-    if state.get("identity_retries", 0) < MAX_IDENTITY_RETRIES:
+    if state.get("identity_retries", 0) < get_tuning(state).max_identity_retries:
         return "writer"
     log.warning(
-        "identity_chk | identity_retries budget exhausted (%d) — routing to emit",
+        "identity_chk | identity_retries budget exhausted (%d) - routing to emit",
         state.get("identity_retries", 0),
     )
     return "emit"
@@ -232,10 +228,10 @@ def route_after_bullet_check(state: PipelineState) -> str:
     """
     if not state.get("length_violations"):
         return "render_node"
-    if state.get("length_retries", 0) <= MAX_LENGTH_RETRIES:
+    if state.get("length_retries", 0) <= get_tuning(state).max_length_retries:
         return "writer"
     log.warning(
-        "check_bullet_lengths | length_retries budget exhausted (%d) — proceeding "
+        "check_bullet_lengths | length_retries budget exhausted (%d) - proceeding "
         "to render with best-effort draft",
         state.get("length_retries", 0),
     )
@@ -246,11 +242,11 @@ def route_after_compile(state: PipelineState) -> str:
     """ok → ``recruiter_panel``; fail & retries left → ``writer``; else ``emit``.
 
     The compile-retry budget is ``MAX_COMPILE_RETRIES`` PER iteration and lives
-    on ``compile_retries`` — independent of the main ``iteration`` counter.
+    on ``compile_retries`` - independent of the main ``iteration`` counter.
     """
     if state.get("compile_ok"):
         return "recruiter_panel"
-    if state.get("compile_retries", 0) <= MAX_COMPILE_RETRIES:
+    if state.get("compile_retries", 0) <= get_tuning(state).max_compile_retries:
         return "writer"
     return "emit"
 
@@ -259,7 +255,7 @@ def route_after_aggregator(state: PipelineState) -> str:
     """passed → ``emit``; else iter < MAX → ``writer``; else ``emit`` (cap)."""
     if state.get("passed"):
         return "emit"
-    if state.get("iteration", 1) < MAX_ITERATIONS:
+    if state.get("iteration", 1) < get_tuning(state).max_iterations:
         return "writer"
     return "emit"
 
@@ -299,7 +295,7 @@ def build_graph(enable_scoring: bool = False):
     builder.add_node("bookkeep", bookkeep_node)
     builder.add_node("emit", emit_node)
 
-    # Linear extraction spine — generate_skills fires once before the writer loop.
+    # Linear extraction spine - generate_skills fires once before the writer loop.
     builder.add_edge(START, "parse_resume")
     builder.add_edge("parse_resume", "analyze_jd")
     builder.add_edge("analyze_jd", "gap_analysis")
@@ -342,7 +338,7 @@ def build_graph(enable_scoring: bool = False):
     )
 
     # Persona scores land in score_report.json via emit. Do not wire
-    # score_report_node / resume_scorer — that path is intentionally unused.
+    # score_report_node / resume_scorer - that path is intentionally unused.
     builder.add_edge("emit", END)
 
     return builder.compile()

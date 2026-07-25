@@ -1,4 +1,4 @@
-"""Phase 10 RED tests — GET /api/healthz endpoint tests."""
+"""Phase 10 RED tests - GET /api/healthz endpoint tests."""
 from __future__ import annotations
 
 import pytest

@@ -1,11 +1,11 @@
-"""Unit tests for src.resume_scorer — structured LLM-based resume scoring.
+"""Unit tests for src.resume_scorer - structured LLM-based resume scoring.
 
 These tests verify:
 1. ScoringResult.to_dict() serialization
 2. score_resume() orchestration (mocked LLM)
 3. main() CLI entry point (mocked subprocess + LLM)
 
-NO live LLM calls — all LLM behaviour is mocked.
+NO live LLM calls - all LLM behaviour is mocked.
 """
 import json
 import sys

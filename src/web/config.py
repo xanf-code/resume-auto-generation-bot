@@ -1,4 +1,4 @@
-"""Web layer settings — read from the environment with sane defaults.
+"""Web layer settings - read from the environment with sane defaults.
 
 Importing this module never requires secrets; the OpenRouter key is still
 resolved lazily by ``config.settings.require_api_key`` when a job actually runs.

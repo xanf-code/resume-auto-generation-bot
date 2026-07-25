@@ -1,4 +1,4 @@
-"""Phase 10 RED tests — HTTP route tests for /api/jobs endpoints."""
+"""Phase 10 RED tests - HTTP route tests for /api/jobs endpoints."""
 from __future__ import annotations
 
 import json
@@ -234,7 +234,7 @@ async def test_get_skills_falls_back_to_package_on_disk(client, tmp_path):
 
 # ---------------------------------------------------------------------------
 # Test 8b: GET /api/jobs/{id} on a DONE job surfaces the recruiter panel's
-# scores straight from score_report.json — so a job opened after it finished
+# scores straight from score_report.json - so a job opened after it finished
 # (or after a server restart) still shows a verdict, not an empty panel.
 # ---------------------------------------------------------------------------
 
@@ -248,7 +248,7 @@ async def test_get_detail_includes_persona_scores_from_report(client, tmp_path):
     job.status = JobStatus.DONE
     job.out_dir = str(tmp_path / job_id)
     os.makedirs(job.out_dir)
-    # In-memory score fields dropped (e.g. after a restart) — must fall back to disk.
+    # In-memory score fields dropped (e.g. after a restart) - must fall back to disk.
     job.aggregate_score = None
     job.passed = None
 
@@ -311,7 +311,7 @@ async def test_list_jobs_includes_verdict_from_report(client, tmp_path):
     job.status = JobStatus.DONE
     job.out_dir = str(tmp_path / job_id)
     os.makedirs(job.out_dir)
-    # In-memory score fields dropped (e.g. after a restart) — must fall back to disk.
+    # In-memory score fields dropped (e.g. after a restart) - must fall back to disk.
     job.aggregate_score = None
     job.passed = None
     with open(os.path.join(job.out_dir, "score_report.json"), "w", encoding="utf-8") as f:
@@ -328,8 +328,8 @@ async def test_list_jobs_includes_verdict_from_report(client, tmp_path):
 # ---------------------------------------------------------------------------
 # Test 8d: emit writes the report to the per-JD PACKAGE folder
 # (``out_dir/{jd_name}/score_report.json``), not ``out_dir`` directly. The
-# report loader must resolve that nested layout — the same way the skills loader
-# already does — or the detail panel and list badge stay empty for every real
+# report loader must resolve that nested layout - the same way the skills loader
+# already does - or the detail panel and list badge stay empty for every real
 # web job (which always carries a jd_name = label).
 # ---------------------------------------------------------------------------
 

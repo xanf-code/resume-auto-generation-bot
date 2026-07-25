@@ -1,4 +1,4 @@
-"""Tests for src.main CLI entry point — exception handling and exit codes."""
+"""Tests for src.main CLI entry point - exception handling and exit codes."""
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -83,7 +83,7 @@ def test_run_seeds_jd_name_from_jd_path(tmp_path):
 def test_run_seeds_cached_resume_struct_and_ledger_when_provided(tmp_path):
     """run() forwards optional resume_struct/identity_ledger into initial_state
     so a caller that already parsed this resume (e.g. batch mode) can skip the
-    parser LLM call entirely — the parse_resume node short-circuits on their
+    parser LLM call entirely - the parse_resume node short-circuits on their
     presence."""
     resume = tmp_path / "resume.tex"
     jd = tmp_path / "jd.txt"
@@ -115,7 +115,7 @@ def test_run_seeds_cached_resume_struct_and_ledger_when_provided(tmp_path):
 
 
 def test_run_omits_resume_struct_and_ledger_when_not_provided(tmp_path):
-    """Default call (no pre-parsed struct/ledger) must NOT seed those keys —
+    """Default call (no pre-parsed struct/ledger) must NOT seed those keys -
     the parse_resume node must run its normal LLM path."""
     resume = tmp_path / "resume.tex"
     jd = tmp_path / "jd.txt"
@@ -146,7 +146,7 @@ def test_main_returns_1_on_graph_recursion_error(capsys):
         from langgraph.errors import GraphRecursionError
         exc = GraphRecursionError("recursion limit exceeded")
     except ImportError:
-        pytest.skip("langgraph not installed — skipping GraphRecursionError test")
+        pytest.skip("langgraph not installed - skipping GraphRecursionError test")
 
     with patch("src.main.run", side_effect=exc):
         code = _run_main()

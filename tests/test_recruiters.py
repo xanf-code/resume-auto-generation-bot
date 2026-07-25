@@ -1,4 +1,4 @@
-"""Tests for src.agents.recruiters — the four-persona concurrent panel.
+"""Tests for src.agents.recruiters - the four-persona concurrent panel.
 
 ``score_one`` is mocked so the panel returns canned ``PanelScore`` instances;
 NO live API calls (ANTHROPIC_API_KEY is intentionally unset). These tests pin:
@@ -154,7 +154,7 @@ def test_recruiter_panel_does_not_mutate_input_state(monkeypatch):
 def test_recruiter_panel_reuses_cached_scores_when_latex_unchanged(monkeypatch):
     """When latex_rendered is byte-identical to panel_cache_latex (the writer
     produced the same draft as last time it was scored), the panel must NOT
-    re-run any persona call — it reuses panel_cache_scores verbatim."""
+    re-run any persona call - it reuses panel_cache_scores verbatim."""
     call_count = {"n": 0}
 
     async def fake_score_one(persona_name, system, user):
@@ -177,7 +177,7 @@ def test_recruiter_panel_reuses_cached_scores_when_latex_unchanged(monkeypatch):
 
 
 def test_recruiter_panel_runs_and_updates_cache_when_latex_changes(monkeypatch):
-    """A different latex_rendered than what's cached is a cache MISS — the
+    """A different latex_rendered than what's cached is a cache MISS - the
     panel runs normally and the cache is refreshed to the new draft/scores."""
     call_count = {"n": 0}
 

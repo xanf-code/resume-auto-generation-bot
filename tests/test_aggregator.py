@@ -1,4 +1,4 @@
-"""Tests for src.agents.aggregator — pure-code scoring + plausibility floor.
+"""Tests for src.agents.aggregator - pure-code scoring + plausibility floor.
 
 The scoring math is pure and needs NO mocks. The single LLM call
 (``distill_revision_notes``) is mocked to return a canned ``RevisionNotes``;
@@ -13,10 +13,13 @@ Key guarantees pinned here:
 - the aggregator node calls the LLM ONLY on the fail path (never on pass) and
   never mutates input state.
 """
+import dataclasses
+
 import pytest
 
 from src.agents import aggregator
 from src.pipeline.schemas import PanelScore, RevisionNotes
+from src.pipeline.tuning import PipelineTuning
 
 
 def _score(persona: str, *, km, iq, coh, plaus, fmt, notes="note") -> PanelScore:
@@ -35,7 +38,7 @@ def _score(persona: str, *, km, iq, coh, plaus, fmt, notes="note") -> PanelScore
 
 
 def test_persona_composite_exact_weighted_mean():
-    """Weights: km .30, iq .20, coh .20, plaus .15, fmt .15 — hand-computed."""
+    """Weights: km .30, iq .20, coh .20, plaus .15, fmt .15 - hand-computed."""
     s = _score("ATS Matcher", km=80, iq=70, coh=60, plaus=90, fmt=100)
     # 0.30*80 + 0.20*70 + 0.20*60 + 0.15*90 + 0.15*100
     # = 24 + 14 + 12 + 13.5 + 15 = 78.5
@@ -209,3 +212,83 @@ def test_aggregator_does_not_mutate_input_state(monkeypatch):
     aggregator.aggregator(state)
     assert set(state.keys()) == snapshot_keys
     assert "passed" not in state
+
+
+# --- per-run tuning: custom weights / threshold / floor -----------------------
+
+
+def test_persona_composite_honours_custom_weights():
+    """All weight on keyword_match => composite equals keyword_match."""
+    s = _score("ATS Matcher", km=42, iq=99, coh=99, plaus=99, fmt=99)
+    weights = {
+        "keyword_match": 1.0,
+        "impact_quality": 0.0,
+        "coherence": 0.0,
+        "plausibility": 0.0,
+        "formatting": 0.0,
+    }
+    assert aggregator.persona_composite(s, weights=weights) == pytest.approx(42.0)
+
+
+def test_aggregate_honours_custom_weights():
+    scores = [
+        _score("ATS Matcher", km=40, iq=80, coh=80, plaus=80, fmt=80),
+        _score("Skeptic", km=60, iq=80, coh=80, plaus=80, fmt=80),
+    ]
+    weights = {
+        "keyword_match": 1.0,
+        "impact_quality": 0.0,
+        "coherence": 0.0,
+        "plausibility": 0.0,
+        "formatting": 0.0,
+    }
+    # composites collapse to km => mean(40, 60) = 50
+    assert aggregator.aggregate(scores, weights=weights) == pytest.approx(50.0)
+
+
+def test_decide_custom_threshold_flips_verdict():
+    """An 85-aggregate draft passes at threshold 78 but fails at 90."""
+    scores = [
+        _score("ATS Matcher", km=85, iq=85, coh=85, plaus=85, fmt=85),
+        _score("Hiring Manager", km=85, iq=85, coh=85, plaus=85, fmt=85),
+        _score("Technical Screener", km=85, iq=85, coh=85, plaus=85, fmt=85),
+        _score("Skeptic", km=85, iq=85, coh=85, plaus=85, fmt=85),
+    ]
+    passed_low, agg = aggregator.decide(scores, threshold=78, floor=20)
+    passed_high, _ = aggregator.decide(scores, threshold=90, floor=20)
+    assert agg == pytest.approx(85.0)
+    assert passed_low is True
+    assert passed_high is False
+
+
+def test_decide_custom_floor_vetoes():
+    """Skeptic plausibility 30 clears the default floor but not a floor of 40."""
+    scores = [
+        _score("ATS Matcher", km=95, iq=95, coh=95, plaus=95, fmt=95),
+        _score("Hiring Manager", km=95, iq=95, coh=95, plaus=95, fmt=95),
+        _score("Technical Screener", km=95, iq=95, coh=95, plaus=95, fmt=95),
+        _score("Skeptic", km=95, iq=95, coh=95, plaus=30, fmt=95),
+    ]
+    passed_low, _ = aggregator.decide(scores, threshold=78, floor=20)
+    passed_high, _ = aggregator.decide(scores, threshold=78, floor=40)
+    assert passed_low is True
+    assert passed_high is False
+
+
+def test_aggregator_node_reads_threshold_from_state_tuning(monkeypatch):
+    """A draft that passes at the default threshold fails when state raises it."""
+    called = {"n": 0}
+
+    def fake_parse_scoring(system, user, schema, **kwargs):
+        called["n"] += 1
+        return RevisionNotes(notes=["1. Push keyword coverage higher."])
+
+    monkeypatch.setattr(aggregator, "parse_scoring", fake_parse_scoring)
+
+    strict = dataclasses.replace(PipelineTuning.defaults(), threshold=95)
+    state = {"panel_scores": _passing_scores(), "tuning": strict}
+    out = aggregator.aggregator(state)
+
+    assert out["passed"] is False
+    assert called["n"] == 1
+    assert out["revision_notes"] == ["1. Push keyword coverage higher."]

@@ -1,4 +1,4 @@
-"""Tests for src.pipeline.llm — importability, callables, and model_context."""
+"""Tests for src.pipeline.llm - importability, callables, and model_context."""
 import importlib
 import types
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 
 class _DummySchema(BaseModel):
-    """Placeholder schema — _parse is mocked in these tests, so its shape never matters."""
+    """Placeholder schema - _parse is mocked in these tests, so its shape never matters."""
 
 
 def _fake_openai_client(captured: dict, parsed: object = "PARSED"):
@@ -94,7 +94,7 @@ def test_model_context_resets_on_exception():
 # DEFAULT_MAX_TOKENS (16000) is sized just under gpt-4o-mini's real 16,384-token
 # output ceiling (MODEL_FAST / MODEL_SCORING). MODEL_STRONG / MODEL_GAP are
 # Anthropic reasoning models whose extended-thinking tokens bill against that
-# SAME completion budget — 16000 is too tight for them and previously caused
+# SAME completion budget - 16000 is too tight for them and previously caused
 # openai.LengthFinishReasonError on real writer runs (reasoning ate the ceiling
 # before the structured output could be emitted). These calls need a distinct,
 # higher default; the gpt-4o-mini calls must NOT get pushed past their real cap.
@@ -272,7 +272,7 @@ def test_parse_gap_caller_can_still_override_effort(monkeypatch):
 
 
 def test_parse_fast_never_forwards_an_effort(monkeypatch):
-    """gpt-4o-mini isn't a reasoning model — parse_fast must not set an effort."""
+    """gpt-4o-mini isn't a reasoning model - parse_fast must not set an effort."""
     import src.pipeline.llm as llm
 
     captured = {}
@@ -289,7 +289,7 @@ def test_parse_fast_never_forwards_an_effort(monkeypatch):
 
 
 def test_parse_scoring_never_forwards_an_effort(monkeypatch):
-    """gpt-4o-mini isn't a reasoning model — parse_scoring must not set an effort."""
+    """gpt-4o-mini isn't a reasoning model - parse_scoring must not set an effort."""
     import src.pipeline.llm as llm
 
     captured = {}
@@ -315,7 +315,7 @@ def test_parse_scoring_never_forwards_an_effort(monkeypatch):
 
 
 def test_parse_skills_does_not_forward_effort_by_default(monkeypatch):
-    """gpt-4o-mini isn't a reasoning model — parse_skills must not set an effort."""
+    """gpt-4o-mini isn't a reasoning model - parse_skills must not set an effort."""
     import src.pipeline.llm as llm
 
     captured = {}
@@ -332,7 +332,7 @@ def test_parse_skills_does_not_forward_effort_by_default(monkeypatch):
 
 
 def test_parse_skills_defaults_to_default_max_tokens(monkeypatch):
-    """gpt-4o-mini-backed — must use DEFAULT_MAX_TOKENS, NOT the reasoning ceiling."""
+    """gpt-4o-mini-backed - must use DEFAULT_MAX_TOKENS, NOT the reasoning ceiling."""
     import src.pipeline.llm as llm
 
     captured = {}
@@ -410,7 +410,7 @@ def test_model_context_skills_override_wins_in_parse_skills(monkeypatch):
 
 
 def test_parse_forwards_effort_via_openrouter_reasoning_extra_body(monkeypatch):
-    """_parse must translate effort into OpenRouter's unified reasoning field —
+    """_parse must translate effort into OpenRouter's unified reasoning field -
     it is not a native OpenAI SDK kwarg, so it has to ride in extra_body."""
     import src.pipeline.llm as llm
 
@@ -425,7 +425,7 @@ def test_parse_forwards_effort_via_openrouter_reasoning_extra_body(monkeypatch):
 
 def test_parse_omits_extra_body_when_effort_is_none(monkeypatch):
     """Non-reasoning calls (parse_fast / parse_scoring) must not send a reasoning
-    field at all — gpt-4o-mini has no effort knob."""
+    field at all - gpt-4o-mini has no effort knob."""
     import src.pipeline.llm as llm
 
     captured = {}

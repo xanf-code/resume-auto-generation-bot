@@ -1,4 +1,4 @@
-"""Tests for src.pipeline.emit — output writer. NO LLM, NO network.
+"""Tests for src.pipeline.emit - output writer. NO LLM, NO network.
 
 Uses a temp out dir and a fake state (fake pdf file, panel_scores, gap_targets
 including a no_evidence target). Asserts:

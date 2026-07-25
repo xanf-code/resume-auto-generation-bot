@@ -1,4 +1,4 @@
-"""Phase 8 — API-boundary DTO validation + web settings defaults."""
+"""Phase 8 - API-boundary DTO validation + web settings defaults."""
 import pytest
 from pydantic import ValidationError
 
@@ -62,3 +62,96 @@ def test_web_settings_defaults():
     assert s.max_concurrent_jobs == 3
     assert s.out_root == "out"
     assert s.event_buffer_max == 500
+
+
+# --- Per-application tuning DTO ----------------------------------------------
+
+
+def _weights(**over):
+    base = {
+        "keyword_match": 0.30,
+        "impact_quality": 0.20,
+        "coherence": 0.20,
+        "plausibility": 0.15,
+        "formatting": 0.15,
+    }
+    base.update(over)
+    return base
+
+
+def test_job_submit_tuning_defaults_to_none():
+    from src.web.schemas import JobSubmitRequest
+    r = JobSubmitRequest(label="X", resume_tex="t", jd_text="j")
+    assert r.tuning is None
+
+
+def test_tuning_dto_normalizes_weights_to_sum_one():
+    from src.web.schemas import TuningDTO
+    # Weights that sum to 2.0 → each halved so they sum to 1.0.
+    dto = TuningDTO(
+        threshold=78,
+        plausibility_floor=20,
+        max_iterations=4,
+        max_compile_retries=2,
+        max_identity_retries=2,
+        max_length_retries=3,
+        rubric_weights=_weights(
+            keyword_match=0.60, impact_quality=0.40, coherence=0.40,
+            plausibility=0.30, formatting=0.30,
+        ),
+    )
+    w = dto.rubric_weights
+    assert sum(vars(w).values()) == pytest.approx(1.0)
+    assert w.keyword_match == pytest.approx(0.30)
+
+
+def test_tuning_dto_rejects_all_zero_weights():
+    from src.web.schemas import TuningDTO
+    with pytest.raises(ValidationError):
+        TuningDTO(
+            threshold=78, plausibility_floor=20, max_iterations=4,
+            max_compile_retries=2, max_identity_retries=2, max_length_retries=3,
+            rubric_weights=_weights(
+                keyword_match=0.0, impact_quality=0.0, coherence=0.0,
+                plausibility=0.0, formatting=0.0,
+            ),
+        )
+
+
+def test_tuning_dto_rejects_out_of_range_threshold():
+    from src.web.schemas import TuningDTO
+    with pytest.raises(ValidationError):
+        TuningDTO(
+            threshold=150, plausibility_floor=20, max_iterations=4,
+            max_compile_retries=2, max_identity_retries=2, max_length_retries=3,
+            rubric_weights=_weights(),
+        )
+
+
+def test_tuning_dto_rejects_zero_iterations():
+    from src.web.schemas import TuningDTO
+    with pytest.raises(ValidationError):
+        TuningDTO(
+            threshold=78, plausibility_floor=20, max_iterations=0,
+            max_compile_retries=2, max_identity_retries=2, max_length_retries=3,
+            rubric_weights=_weights(),
+        )
+
+
+def test_tuning_dto_to_tuning_maps_all_fields():
+    from src.web.schemas import TuningDTO
+    from src.pipeline.tuning import PipelineTuning
+    dto = TuningDTO(
+        threshold=85, plausibility_floor=30, max_iterations=6,
+        max_compile_retries=1, max_identity_retries=3, max_length_retries=4,
+        rubric_weights=_weights(),
+    )
+    t = dto.to_tuning()
+    assert isinstance(t, PipelineTuning)
+    assert t.threshold == 85
+    assert t.plausibility_floor == 30
+    assert t.max_iterations == 6
+    assert t.max_compile_retries == 1
+    assert t.max_identity_retries == 3
+    assert t.max_length_retries == 4
+    assert dict(t.rubric_weights) == pytest.approx(_weights())

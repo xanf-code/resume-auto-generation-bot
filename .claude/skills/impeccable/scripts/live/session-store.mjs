@@ -222,7 +222,7 @@ function applyEvent(snapshot, entry, inheritedDiagnostics = []) {
       next.phase = event.carbonize === true ? 'carbonize_required' : 'variants_ready';
       // Durable completion marker: later browser checkpoints (a resumed page
       // reporting phase "generating") regress `phase`, but generation staying
-      // finished is monotone — the live server keys missed-`done` redelivery
+      // finished is monotone - the live server keys missed-`done` redelivery
       // on this field.
       next.generationCompletedAt = event.at ?? (Date.parse(entry.ts || '') || Date.now());
       next.sourceFile = event.sourceFile ?? event.file ?? next.sourceFile;

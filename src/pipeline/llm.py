@@ -1,7 +1,7 @@
 """OpenRouter client helpers for structured-output parsing.
 
 Uses the OpenAI-compatible API at https://openrouter.ai/api/v1.
-Importable with no API key present — the client is instantiated lazily and
+Importable with no API key present - the client is instantiated lazily and
 cached, so ``require_api_key`` only fires on the first real call.
 """
 from contextlib import contextmanager
@@ -26,16 +26,16 @@ from config.settings import (
 SchemaT = TypeVar("SchemaT", bound=BaseModel)
 
 # Sized just under gpt-4o-mini's real 16,384-token output ceiling
-# (MODEL_FAST / MODEL_SCORING) — do not raise this without checking that cap.
+# (MODEL_FAST / MODEL_SCORING) - do not raise this without checking that cap.
 DEFAULT_MAX_TOKENS = 16000
 # MODEL_STRONG / MODEL_GAP are Anthropic reasoning models whose extended-
 # thinking tokens bill against the SAME completion budget as the structured
-# output. DEFAULT_MAX_TOKENS is too tight for them — reasoning alone can eat
+# output. DEFAULT_MAX_TOKENS is too tight for them - reasoning alone can eat
 # the ceiling before the schema is emitted, surfacing as
 # openai.LengthFinishReasonError. These two calls get more headroom.
 REASONING_MAX_TOKENS = 32000
 
-# Per-run model overrides — set by model_context(); default to None (→ config constants).
+# Per-run model overrides - set by model_context(); default to None (→ config constants).
 _ctx_model_fast: ContextVar[str | None] = ContextVar("model_fast", default=None)
 _ctx_model_strong: ContextVar[str | None] = ContextVar("model_strong", default=None)
 _ctx_model_gap: ContextVar[str | None] = ContextVar("model_gap", default=None)
@@ -112,7 +112,7 @@ def _parse(
 ) -> SchemaT:
     extra_kwargs = {}
     if effort is not None:
-        # OpenRouter's unified reasoning parameter — not a native OpenAI SDK
+        # OpenRouter's unified reasoning parameter - not a native OpenAI SDK
         # field, so it must go through extra_body. Anthropic reasoning models
         # translate this into a thinking-effort depth; the thinking token
         # budget itself is calculated from max_tokens.
@@ -163,7 +163,7 @@ def parse_strong(
     """Structured parse on the strong model.
 
     ``effort`` defaults to ``config.settings.EFFORT_STRONG`` and is forwarded
-    to OpenRouter's unified reasoning parameter — change it in settings to
+    to OpenRouter's unified reasoning parameter - change it in settings to
     retune reasoning depth without touching call sites.
     """
     model = _ctx_model_strong.get() or MODEL_STRONG
@@ -184,7 +184,7 @@ def parse_gap(
     more capable model than the parser/JD analyzer.
 
     ``effort`` defaults to ``config.settings.EFFORT_GAP`` and is forwarded to
-    OpenRouter's unified reasoning parameter — change it in settings to
+    OpenRouter's unified reasoning parameter - change it in settings to
     retune reasoning depth without touching call sites.
     """
     model = _ctx_model_gap.get() or MODEL_GAP
@@ -216,7 +216,7 @@ def parse_skills(
     """Structured parse on the skills model (categorized skill dump).
 
     Uses MODEL_SKILLS by default (gpt-4o-mini). No effort is forwarded by
-    default — gpt-4o-mini is not a reasoning model and rejects the field.
+    default - gpt-4o-mini is not a reasoning model and rejects the field.
     Pass an explicit ``effort`` only when overriding to a reasoning model.
     ``max_tokens`` defaults to DEFAULT_MAX_TOKENS (not REASONING_MAX_TOKENS)
     since gpt-4o-mini caps completions at ~16k.

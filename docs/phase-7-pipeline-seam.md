@@ -1,4 +1,4 @@
-# Phase 7 — Pipeline Seam Refactor
+# Phase 7 - Pipeline Seam Refactor
 
 **Goal:** Expose the LangGraph pipeline to a web layer via raw string inputs + a per-node progress callback, without duplicating graph logic. This is the **only** edit to core pipeline code.
 
@@ -28,12 +28,12 @@ def stream_pipeline(
 
 - Body = current `run()` lines 140-168 + 182-183 (initial-state build + stream loop), with `on_step(flat, final_state)` called after `final_state.update(flat)`.
 - `run()` becomes: `require_api_key()` → `_read_text` both files → `stream_pipeline(..., jd_name=Path(jd_path).stem, on_step=_stdout_adapter)` → `_print_summary`. `_stdout_adapter` reproduces the current per-node log + `_print_progress` on fresh aggregate.
-- Reuse `_KEY_TO_NODE` (main.py:49-65) and `_RECURSION_LIMIT` (main.py:43) — unchanged, single source of truth.
+- Reuse `_KEY_TO_NODE` (main.py:49-65) and `_RECURSION_LIMIT` (main.py:43) - unchanged, single source of truth.
 - Correct the stale `ANTHROPIC_API_KEY` mention in the module docstring → `OPENROUTER_API_KEY`.
 
 ## TDD
 
-### RED — `tests/test_stream_pipeline.py`
+### RED - `tests/test_stream_pipeline.py`
 Monkeypatch `src.main.build_graph` to return a fake graph whose `.stream()` yields a scripted list of `{node: {state_updates}}` dicts (reuse the stubbing approach in `tests/test_main.py`/`tests/test_graph.py`). Assert:
 1. `require_api_key` is called before the graph is built (patch it, assert call order).
 2. `on_step` is invoked once per streamed node, receiving `(flat_delta, accumulated_state)` where `accumulated_state` reflects all prior updates merged.

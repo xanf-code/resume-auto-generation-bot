@@ -24,7 +24,7 @@ from src.web.routers import jobs as jobs_router
 
 
 def create_app() -> FastAPI:
-    """Application factory — called by uvicorn --factory and test fixtures."""
+    """Application factory - called by uvicorn --factory and test fixtures."""
     settings: WebSettings = load_settings()
     manager: JobManager = JobManager(settings)
 
@@ -42,7 +42,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS — allow the Vite dev server during local development.
+    # CORS - allow the Vite dev server during local development.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173"],
@@ -55,7 +55,7 @@ def create_app() -> FastAPI:
     app.state.manager = manager
     app.state.settings = settings
 
-    # Routers — all mounted under /api.
+    # Routers - all mounted under /api.
     app.include_router(jobs_router.router, prefix="/api")
     app.include_router(compile_router.router, prefix="/api")
 

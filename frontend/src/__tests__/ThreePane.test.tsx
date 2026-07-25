@@ -22,7 +22,7 @@ function renderPane() {
   );
 }
 
-describe('ThreePane — Scores tab', () => {
+describe('ThreePane - Scores tab', () => {
   beforeEach(() => {
     mockMediaQuery.mockReset();
     useStore.setState({ scoresSidebarCollapsed: true, skillsSidebarCollapsed: false });

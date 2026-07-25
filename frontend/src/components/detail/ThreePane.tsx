@@ -30,7 +30,7 @@ const TABS: { id: PaneId; label: string }[] = [
 
 /**
  * Wide desktops keep the three-pane split. Below that, panes become a
- * segmented control — phones and tablets can't usefully show LaTeX + PDF +
+ * segmented control - phones and tablets can't usefully show LaTeX + PDF +
  * skills side by side.
  */
 export function ThreePane({ main, proof, scores, skills, focusRequest }: Props) {

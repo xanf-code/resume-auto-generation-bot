@@ -7,7 +7,7 @@ import type { JobSlice } from '../store/jobsSlice';
 function makeJob(overrides: Partial<JobSlice> = {}): JobSlice {
   return {
     job_id: 'job-1',
-    label: 'Software Engineer — Acme Corp',
+    label: 'Software Engineer - Acme Corp',
     status: 'done',
     iteration: 3,
     pct: 100,
@@ -32,7 +32,7 @@ function renderCard(
 describe('JobCard', () => {
   it('renders the job label', () => {
     renderCard(makeJob());
-    expect(screen.getByText('Software Engineer — Acme Corp')).toBeInTheDocument();
+    expect(screen.getByText('Software Engineer - Acme Corp')).toBeInTheDocument();
   });
 
   it('renders "Complete" status for done job', () => {
@@ -68,7 +68,7 @@ describe('JobCard', () => {
   it('calls onClick when the card body is clicked', () => {
     const onClick = vi.fn();
     renderCard(makeJob(), onClick);
-    fireEvent.click(screen.getByText('Software Engineer — Acme Corp'));
+    fireEvent.click(screen.getByText('Software Engineer - Acme Corp'));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
@@ -112,7 +112,7 @@ describe('JobCard', () => {
     fireEvent.change(input, { target: { value: 'Discarded' } });
     fireEvent.keyDown(input, { key: 'Escape' });
     expect(onRename).not.toHaveBeenCalled();
-    expect(screen.getByText('Software Engineer — Acme Corp')).toBeInTheDocument();
+    expect(screen.getByText('Software Engineer - Acme Corp')).toBeInTheDocument();
   });
 
   it('calls onDelete after confirm dialog is accepted', async () => {

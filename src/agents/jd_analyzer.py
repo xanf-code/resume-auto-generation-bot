@@ -1,4 +1,4 @@
-"""JD Analyzer agent — raw job description -> JDVector.
+"""JD Analyzer agent - raw job description -> JDVector.
 
 A cheap, fast (Haiku) pass that turns the target JD into the requirement vector
 the Writer optimizes against: weighted skills, literal ATS keywords, seniority,
@@ -21,7 +21,7 @@ def analyze_jd(state: PipelineState) -> dict:
     log.info("analyze_jd  | sending %d chars to %s", len(jd_raw), MODEL_FAST)
     vector = parse_fast(JD_SYSTEM, jd_raw, JDVector)
     log.info(
-        "analyze_jd  | done — %d weighted skills, %d ATS keywords, "
+        "analyze_jd  | done - %d weighted skills, %d ATS keywords, "
         "%d must-mirror, seniority=%r",
         len(vector.weighted_skills),
         len(vector.ats_keywords),

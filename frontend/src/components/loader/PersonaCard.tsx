@@ -35,11 +35,11 @@ export function PersonaCard({ score }: Props) {
           </div>
         ))}
       </dl>
-      {/* {score.notes && (
+      {score.notes && (
         <p className="mt-3 pt-3 border-t border-rule font-serif italic text-[13px] leading-relaxed text-ink-soft">
           {score.notes}
         </p>
-      )} */}
+      )}
     </div>
   );
 }
