@@ -198,8 +198,14 @@ export function JobDetail() {
 
   // While the live stream is down, poll the authoritative status so a job that
   // finished (or failed) on the backend can't stay frozen mid-progress in the UI.
+  // Same poll runs while a stop is in flight: cancel is cooperative (waits for
+  // the in-flight LLM), and a missed terminal SSE frame must not leave the UI
+  // stuck on "Stopping…" forever.
   useEffect(() => {
-    if (connState !== 'reconnecting' || !jobId) return;
+    const shouldPoll =
+      Boolean(jobId) && (connState === 'reconnecting' || aborting);
+    if (!shouldPoll || !jobId) return;
+    if (job?.status === 'done' || job?.status === 'failed') return;
     let cancelled = false;
     const reconcile = () => {
       getJob(jobId)
@@ -208,6 +214,7 @@ export function JobDetail() {
           syncJob(detail);
           if (detail.status === 'done' || detail.status === 'failed') {
             streamManager.stop(jobId);
+            setAborting(false);
           }
         })
         .catch(() => {
@@ -215,12 +222,20 @@ export function JobDetail() {
         });
     };
     reconcile();
-    const id = window.setInterval(reconcile, 4000);
+    const id = window.setInterval(reconcile, aborting ? 2000 : 4000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [connState, jobId, syncJob]);
+  }, [connState, jobId, aborting, job?.status, syncJob]);
+
+  // Drop the local abort spinner once the store reflects a terminal status
+  // (via SSE or the poll above).
+  useEffect(() => {
+    if (job?.status === 'done' || job?.status === 'failed') {
+      setAborting(false);
+    }
+  }, [job?.status]);
 
   useEffect(() => {
     if (job?.status === 'done' && latex === null && jobId) {
@@ -296,10 +311,14 @@ export function JobDetail() {
   const main = isFailed ? (
     <div className="p-8 max-w-2xl mx-auto">
       <span className="eyebrow" style={{ color: 'var(--color-fail)' }}>
-        Press jam
+        {(job.error ?? '').toLowerCase().includes('stopped')
+          ? 'Stopped'
+          : 'Press jam'}
       </span>
       <h2 className="font-serif text-[26px] text-ink mt-2 mb-3">
-        This run didn't finish.
+        {(job.error ?? '').toLowerCase().includes('stopped')
+          ? 'You stopped this run.'
+          : "This run didn't finish."}
       </h2>
       <p className="font-mono text-[13px] leading-relaxed text-ink-soft border-l-2 border-fail pl-4">
         {job.error ?? 'Unknown error.'}

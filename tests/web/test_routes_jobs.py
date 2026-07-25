@@ -484,7 +484,29 @@ async def test_cancel_queued_job_returns_202_and_sets_event(client):
     assert resp.status_code == 202
 
     app = _get_app_from_client(client)
-    assert app.state.manager.get(job_id).cancel_event.is_set()
+    job = app.state.manager.get(job_id)
+    assert job.cancel_event.is_set()
+    # Immediate ack so the UI isn't stuck on a mute "Stopping…" button.
+    ack_events = [e for e in job.events.since(0) if e.human_label == "Stopping…"]
+    assert len(ack_events) == 1
+    assert "Stop requested" in (ack_events[0].detail or "")
+
+
+@pytest.mark.asyncio
+async def test_cancel_is_idempotent_while_winding_down(client):
+    submit = await client.post("/api/jobs", json=_job_payload())
+    job_id = submit.json()["job_id"]
+
+    first = await client.post(f"/api/jobs/{job_id}/cancel")
+    second = await client.post(f"/api/jobs/{job_id}/cancel")
+    assert first.status_code == 202
+    assert second.status_code == 202
+
+    app = _get_app_from_client(client)
+    job = app.state.manager.get(job_id)
+    # Only one ack - a second click must not spam the activity feed.
+    ack_events = [e for e in job.events.since(0) if e.human_label == "Stopping…"]
+    assert len(ack_events) == 1
 
 
 @pytest.mark.asyncio

@@ -2,21 +2,21 @@
 from __future__ import annotations
 
 import asyncio
-import threading
-from datetime import datetime, timezone
 
 import pytest
 
-from src.web.job import EventBuffer, Job
-from src.web.schemas import JobStatus, ProgressEvent
+from src.web.job import Job
+from src.web.schemas import ProgressEvent
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_event(job_id: str = "j1", stage: str = "writer", seq: int = 0) -> ProgressEvent:
-    return ProgressEvent(job_id=job_id, stage=stage, human_label="Writing", pct=30, iteration=1, seq=seq)
+def _make_event(job_id: str = "j1", stage: str = "writer") -> ProgressEvent:
+    return ProgressEvent(
+        job_id=job_id, stage=stage, human_label="Writing", pct=30, iteration=1,
+    )
 
 
 def _make_job() -> Job:
@@ -25,13 +25,12 @@ def _make_job() -> Job:
     return job
 
 
-async def _collect(gen, limit: int = 20) -> list[ProgressEvent]:
-    results = []
-    async for event in gen:
-        results.append(event)
-        if len(results) >= limit:
-            break
-    return results
+def _emit(job: Job, event: ProgressEvent) -> ProgressEvent:
+    """Stamp seq via the buffer and fan out to live subscribers - mirrors JobManager._emit."""
+    job.events.append(event)
+    for q in list(job.subscribers):
+        q.put_nowait(event)
+    return event
 
 
 # ---------------------------------------------------------------------------
@@ -43,19 +42,12 @@ async def test_yields_buffered_and_live_events():
     from src.web.sse import event_stream
 
     job = _make_job()
-
-    e1 = _make_event(stage="parse_resume")
-    e2 = _make_event(stage="writer")
-    job.events.append(e1)
-    job.events.append(e2)
-
-    # Push a live event after the generator starts
-    live_event = _make_event(stage="done")
+    job.events.append(_make_event(stage="parse_resume"))
+    job.events.append(_make_event(stage="writer"))
 
     async def push_later():
         await asyncio.sleep(0.05)
-        for q in list(job.subscribers):
-            q.put_nowait(live_event)
+        _emit(job, _make_event(stage="done"))
 
     gen = event_stream(job, last_event_id=0)
     task = asyncio.ensure_future(push_later())
@@ -88,13 +80,9 @@ async def test_last_event_id_replay():
     for s in stages:
         job.events.append(_make_event(stage=s))
 
-    # Seqs 1-5, last_event_id=3 → should only replay seqs 4 and 5
-    done_event = _make_event(stage="done")
-
     async def push_done():
         await asyncio.sleep(0.05)
-        for q in list(job.subscribers):
-            q.put_nowait(done_event)
+        _emit(job, _make_event(stage="done"))
 
     gen = event_stream(job, last_event_id=3)
     task = asyncio.ensure_future(push_done())
@@ -124,12 +112,9 @@ async def test_stops_on_done_event():
 
     job = _make_job()
 
-    done_event = _make_event(stage="done")
-
     async def push_done():
         await asyncio.sleep(0.02)
-        for q in list(job.subscribers):
-            q.put_nowait(done_event)
+        _emit(job, _make_event(stage="done"))
 
     gen = event_stream(job, last_event_id=0)
     task = asyncio.ensure_future(push_done())
@@ -175,3 +160,86 @@ async def test_subscriber_removed_on_aclose():
     # Give event loop a tick to flush the finally block
     await asyncio.sleep(0.02)
     assert len(job.subscribers) == 0
+
+
+# ---------------------------------------------------------------------------
+# Test 5: terminal already in the buffer must end the stream (no hang)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_stops_when_terminal_already_buffered():
+    """Reconnecting after a stop/fail must not hang waiting for a live event.
+
+    Regression: event_stream used to replay a buffered ``failed``/``done`` and
+    then block forever on the subscriber queue, leaving the UI stuck on
+    ``Stopping…`` even though the job was already terminal.
+    """
+    from src.web.sse import event_stream
+
+    job = _make_job()
+    job.events.append(_make_event(stage="writer"))
+    job.events.append(
+        ProgressEvent(
+            job_id="j1",
+            stage="failed",
+            human_label="Stopped",
+            pct=0,
+            iteration=1,
+            error="You stopped this run before it finished.",
+        )
+    )
+
+    results = []
+
+    async def collect():
+        async for event in event_stream(job, last_event_id=0):
+            results.append(event)
+
+    await asyncio.wait_for(collect(), timeout=1.0)
+
+    assert [r.stage for r in results] == ["writer", "failed"]
+
+
+# ---------------------------------------------------------------------------
+# Test 6: event emitted during replay is not lost (subscribe-before-replay)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_event_emitted_during_replay_is_not_lost():
+    """A terminal that lands while replaying must still reach the client.
+
+    Subscribe-before-replay + seq dedupe closes the classic window where an
+    event is appended after ``since()`` returns but before ``subscribers.add``.
+    """
+    from src.web.sse import event_stream
+
+    job = _make_job()
+    for _ in range(50):
+        job.events.append(_make_event(stage="writer"))
+
+    failed = ProgressEvent(
+        job_id="j1",
+        stage="failed",
+        human_label="Stopped",
+        pct=0,
+        iteration=1,
+        error="You stopped this run before it finished.",
+    )
+
+    results = []
+
+    async def collect():
+        async for event in event_stream(job, last_event_id=0):
+            results.append(event)
+
+    task = asyncio.ensure_future(collect())
+    # Land the terminal while the generator is still replaying the buffer.
+    await asyncio.sleep(0)
+    _emit(job, failed)
+
+    await asyncio.wait_for(task, timeout=1.0)
+
+    assert results[-1].stage == "failed"
+    # Deduped - the failed frame must appear exactly once even though it was
+    # both buffered and queued.
+    assert sum(1 for r in results if r.stage == "failed") == 1

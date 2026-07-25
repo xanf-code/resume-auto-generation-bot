@@ -73,15 +73,33 @@ class JobManager:
 
         Sets the job's cancel event; the worker thread's ``on_step`` callback
         observes it and aborts at the next node boundary (an in-flight LLM call
-        finishes first - Python threads can't be force-killed). Returns False if
-        the job is missing or already in a terminal state.
+        finishes first - Python threads can't be force-killed). Emits an
+        immediate progress ack so the UI can leave a frozen "Stopping…" state
+        and show that the stop was heard. Returns False if the job is missing
+        or already in a terminal state.
         """
         job = self._registry.get(job_id)
         if job is None:
             return False
         if job.status in (JobStatus.DONE, JobStatus.FAILED):
             return False
+        # Idempotent for a second click while already winding down.
+        if job.cancel_event.is_set():
+            return True
         job.cancel_event.set()
+        prior = job.events.since(0)
+        last = prior[-1] if prior else None
+        self._emit(
+            job,
+            ProgressEvent(
+                job_id=job.job_id,
+                stage=last.stage if last else "init",
+                human_label="Stopping…",
+                pct=last.pct if last else 0,
+                iteration=last.iteration if last else 1,
+                detail="Stop requested — finishing the current step, then winding down.",
+            ),
+        )
         return True
 
     def delete(self, job_id: str) -> bool:
