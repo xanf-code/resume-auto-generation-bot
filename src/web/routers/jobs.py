@@ -6,8 +6,14 @@ import os
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
+
+try:
+    from src.db.storage import download_pdf_bytes
+except ImportError:
+    download_pdf_bytes = None  # type: ignore[assignment]
 
 from src.web.schemas import (
     CompileErrorResponse,
@@ -323,20 +329,43 @@ async def get_pdf(
     job_id: str,
     request: Request,
     download: int = 0,
-) -> FileResponse:
+):
     manager = request.app.state.manager
     job = manager.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    if job.status != JobStatus.DONE or not job.output_pdf:
-        raise HTTPException(status_code=404, detail="PDF not available")
-    if not os.path.isfile(job.output_pdf):
-        raise HTTPException(status_code=404, detail="PDF file not found")
 
     headers: dict[str, str] = {}
     if download:
         filename = f"{job.label or job.job_id}.pdf"
         headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    # --- Primary path: stream from Supabase Storage ---
+    if job.pdf_object_key and manager._repo is not None and download_pdf_bytes is not None:
+        try:
+            # Resolve client+bucket from env; pass None when unconfigured so
+            # tests can monkeypatch download_pdf_bytes without real Supabase creds.
+            _client = None
+            _bucket = "resumes"
+            from src.web.config import _optional_db_settings
+            from src.db.client import get_client
+            db_settings = _optional_db_settings()
+            if db_settings is not None:
+                _client = get_client(db_settings)
+                _bucket = db_settings.bucket
+            data = await run_in_threadpool(
+                download_pdf_bytes, job.pdf_object_key, _client, _bucket
+            )
+            if data:
+                return Response(content=data, media_type="application/pdf", headers=headers)
+        except Exception:
+            pass  # Fall through to disk path
+
+    # --- Fallback: serve from disk (current-run files and backward compat) ---
+    if job.status != JobStatus.DONE or not job.output_pdf:
+        raise HTTPException(status_code=404, detail="PDF not available")
+    if not os.path.isfile(job.output_pdf):
+        raise HTTPException(status_code=404, detail="PDF file not found")
 
     return FileResponse(
         job.output_pdf,

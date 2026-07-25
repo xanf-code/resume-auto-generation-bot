@@ -78,6 +78,9 @@ class Job:
     score_report_md: str | None = None
     aggregate_score: float | None = None
     passed: bool | None = None
+    # Supabase Storage object key for the compiled PDF, set after upload.
+    # When set, GET /jobs/{id}/pdf streams bytes from Storage rather than disk.
+    pdf_object_key: str | None = None
 
     # Per-job SSE replay buffer (set by job_manager at creation)
     events: EventBuffer = field(default_factory=lambda: EventBuffer(maxlen=500))

@@ -28,6 +28,26 @@ class WebSettings:
     port: int = 8000
 
 
+def _optional_db_settings():
+    """Return a ``DbSettings`` when Supabase env vars are present, else ``None``.
+
+    Importing this function never raises — secrets are resolved lazily.
+    """
+    url = os.environ.get("SUPABASE_URL", "").strip()
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    if not url or not key:
+        return None
+    try:
+        from src.db.config import DbSettings
+        return DbSettings(
+            url=url,
+            service_key=key,
+            bucket=os.environ.get("SUPABASE_BUCKET", "resumes"),
+        )
+    except Exception:
+        return None
+
+
 def load_settings() -> WebSettings:
     """Build ``WebSettings`` from environment variables (all optional)."""
     return WebSettings(

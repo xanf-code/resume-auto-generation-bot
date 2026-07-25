@@ -2,9 +2,14 @@
 
 Never called on the FastAPI async event loop directly; the event loop is only
 touched via ``loop.call_soon_threadsafe`` inside ``JobManager._emit``.
+
+On completion the runner writes artifacts to Supabase (when a repo is
+configured) and uploads the PDF to Storage.  All persistence failures are
+logged but never propagated — the in-memory job state is always authoritative.
 """
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +23,8 @@ from src.web.schemas import JobStatus, ProgressEvent
 
 if TYPE_CHECKING:
     from src.web.job_manager import JobManager
+
+log = logging.getLogger(__name__)
 
 
 class JobCancelled(Exception):
@@ -37,6 +44,7 @@ def run_job(job: Job, manager: "JobManager") -> None:
     """Execute the pipeline for *job* synchronously (called from a worker thread)."""
     job.status = JobStatus.RUNNING
     job.started_at = _now()
+    _db_set_status(job, manager, status="running", started_at=job.started_at)
 
     out_dir = f"{manager.settings.out_root}/{job.job_id}"
     os.makedirs(out_dir, exist_ok=True)
@@ -86,6 +94,7 @@ def run_job(job: Job, manager: "JobManager") -> None:
         job.status = JobStatus.FAILED
         job.error = "You stopped this run before it finished."
         job.finished_at = _now()
+        _db_set_status(job, manager, status="failed", finished_at=job.finished_at, error=job.error)
         _emit_terminal(job, manager, stage="failed", human_label="Stopped")
         return
     except Exception as exc:
@@ -96,6 +105,7 @@ def run_job(job: Job, manager: "JobManager") -> None:
         else:
             job.error = str(exc)
         job.finished_at = _now()
+        _db_set_status(job, manager, status="failed", finished_at=job.finished_at, error=job.error)
         _emit_terminal(job, manager, stage="failed")
         return
 
@@ -116,7 +126,81 @@ def run_job(job: Job, manager: "JobManager") -> None:
 
     job.status = JobStatus.DONE
     job.finished_at = _now()
+
+    # Persist artifacts to Supabase if a repo is available.
+    _db_save_artifacts(job, manager, final_state)
+
     _emit_terminal(job, manager, stage="done")
+
+
+# ---------------------------------------------------------------------------
+# DB helpers (no-ops when _repo is None)
+# ---------------------------------------------------------------------------
+
+def _db_set_status(
+    job: "Job",
+    manager: "JobManager",
+    status: str,
+    started_at: datetime | None = None,
+    finished_at: datetime | None = None,
+    error: str | None = None,
+) -> None:
+    """Mirror a status transition to Supabase — no-op when repo is absent."""
+    if manager._repo is None:
+        return
+    try:
+        manager._repo.set_status(
+            job.job_id,
+            status,
+            started_at=started_at,
+            finished_at=finished_at,
+            error=error,
+        )
+    except Exception:
+        log.exception("Failed to set status %s for job %s", status, job.job_id)
+
+
+def _db_save_artifacts(
+    job: "Job",
+    manager: "JobManager",
+    final_state: dict,
+) -> None:
+    """Upload PDF to Storage and persist artifacts to Supabase — no-op when repo is absent."""
+    if manager._repo is None:
+        return
+    try:
+        from src.pipeline.emit import build_score_report
+        from src.web.config import _optional_db_settings
+        from src.db.client import get_client
+        from src.db.storage import upload_pdf
+
+        # Build structured artifacts from pipeline state.
+        score_report_dict = build_score_report(final_state)
+        skill_dump = final_state.get("skill_dump")
+        skills_dict = skill_dump.model_dump() if skill_dump is not None else None
+
+        # Upload PDF to Storage if it was compiled successfully.
+        pdf_object_key: str | None = None
+        if job.output_pdf and os.path.isfile(job.output_pdf):
+            db_settings = _optional_db_settings()
+            if db_settings is not None:
+                pdf_object_key = upload_pdf(
+                    job.job_id, job.output_pdf, get_client(db_settings), db_settings.bucket
+                )
+                job.pdf_object_key = pdf_object_key
+
+        manager._repo.save_artifacts(
+            job.job_id,
+            best_latex=job.best_latex,
+            output_skills=skills_dict,
+            score_report=score_report_dict,
+            aggregate_score=job.aggregate_score,
+            passed=job.passed,
+            pdf_object_key=pdf_object_key,
+        )
+        manager._repo.set_status(job.job_id, "done", finished_at=job.finished_at)
+    except Exception:
+        log.exception("Failed to persist artifacts for job %s", job.job_id)
 
 
 def _emit_terminal(

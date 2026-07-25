@@ -17,22 +17,77 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from src.web.config import WebSettings, load_settings
+from src.web.config import WebSettings, load_settings, _optional_db_settings
 from src.web.job_manager import JobManager
 from src.web.routers import compile as compile_router
 from src.web.routers import jobs as jobs_router
 from src.web.routers import models as models_router
 
 
-def create_app() -> FastAPI:
-    """Application factory - called by uvicorn --factory and test fixtures."""
+def _build_repo():
+    """Build a ``ResumeRepository`` from env, or return ``None`` if unconfigured."""
+    db_settings = _optional_db_settings()
+    if db_settings is None:
+        return None
+    try:
+        from src.db.client import get_client
+        from src.db.repository import ResumeRepository
+        return ResumeRepository(get_client(db_settings), db_settings)
+    except Exception:
+        return None
+
+
+def _rehydrate_registry(manager: JobManager, repo) -> None:
+    """Populate the in-memory registry from persisted DB records on startup."""
+    try:
+        from src.web.job import Job
+        from src.web.schemas import JobStatus
+        records = repo.list()
+        for rec in records:
+            job = Job(
+                job_id=rec.job_id,
+                label=rec.label,
+                status=JobStatus(rec.status),
+                created_at=rec.created_at,
+                started_at=rec.started_at,
+                finished_at=rec.finished_at,
+                error=rec.error,
+                resume_tex_raw=rec.resume_tex_raw,
+                jd_raw=rec.jd_raw,
+                jd_name=rec.jd_name,
+                enable_scoring=rec.enable_scoring,
+                best_latex=rec.best_latex,
+                aggregate_score=rec.aggregate_score,
+                passed=rec.passed,
+                pdf_object_key=rec.pdf_object_key,
+            )
+            manager._registry[job.job_id] = job
+    except Exception:
+        pass  # Rehydration failure must never crash the app
+
+
+def create_app(repo=None) -> FastAPI:
+    """Application factory - called by uvicorn --factory and test fixtures.
+
+    ``repo`` allows tests to inject a mock ``ResumeRepository`` without env vars.
+    When ``None`` (the default), the repo is auto-built from env if configured.
+    """
     settings: WebSettings = load_settings()
-    manager: JobManager = JobManager(settings)
+    if repo is None:
+        repo = _build_repo()
+    manager: JobManager = JobManager(settings, repo=repo)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Bind the running event loop so worker threads can fan out SSE events.
         manager.bind_loop(asyncio.get_running_loop())
+        # On startup: sweep interrupted runs to failed, then rehydrate registry.
+        if repo is not None:
+            try:
+                repo.mark_interrupted_running()
+                _rehydrate_registry(manager, repo)
+            except Exception:
+                pass
         yield
         # Graceful shutdown: don't wait for in-flight pipeline jobs.
         manager._executor.shutdown(wait=False)

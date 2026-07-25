@@ -8,27 +8,43 @@ running in that thread.
 The sync→async bridge: worker threads call ``_emit``, which uses
 ``loop.call_soon_threadsafe`` to push events into per-subscriber asyncio.Queue
 objects without touching the event loop from outside the loop thread.
+
+Persistence is write-through: if a ``ResumeRepository`` is configured all
+lifecycle state changes are mirrored to Supabase.  Failures are logged but
+never propagated — the in-memory state is always authoritative.
 """
 from __future__ import annotations
 
 import asyncio
+import logging
 import shutil
 from concurrent.futures import ThreadPoolExecutor
+from typing import TYPE_CHECKING
 
 from src.web.config import WebSettings
 from src.web.job import Job
 from src.web.schemas import JobStatus, JobSubmitRequest, ProgressEvent
 from src.web.runner import run_job
 
+if TYPE_CHECKING:
+    from src.db.repository import ResumeRepository
+
+log = logging.getLogger(__name__)
+
 
 class JobManager:
     """Manages job lifecycle: submission, registry, concurrency, and SSE fan-out."""
 
-    def __init__(self, settings: WebSettings) -> None:
+    def __init__(
+        self,
+        settings: WebSettings,
+        repo: "ResumeRepository | None" = None,
+    ) -> None:
         self.settings = settings
         self._registry: dict[str, Job] = {}
         self._executor = ThreadPoolExecutor(max_workers=settings.max_concurrent_jobs)
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._repo: "ResumeRepository | None" = repo
 
     def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         """Bind the running async event loop so ``_emit`` can bridge threads."""
@@ -52,6 +68,28 @@ class JobManager:
         job.out_dir = f"{self.settings.out_root}/{job.job_id}"
 
         self._registry[job.job_id] = job
+
+        # Write-through: persist the new job record to Supabase.
+        if self._repo is not None:
+            try:
+                from src.db.models import JobRecord
+                record = JobRecord(
+                    job_id=job.job_id,
+                    label=job.label,
+                    status="queued",
+                    created_at=job.created_at,
+                    resume_tex_raw=job.resume_tex_raw,
+                    jd_raw=job.jd_raw,
+                    jd_name=job.jd_name,
+                    enable_scoring=job.enable_scoring,
+                    tuning=req.tuning.model_dump() if req.tuning is not None else None,
+                    models=req.models.model_dump() if req.models is not None else None,
+                    bullet_shapes=job.bullet_shapes,
+                )
+                self._repo.create(record)
+            except Exception:
+                log.exception("Failed to persist job %s to Supabase", job.job_id)
+
         self._executor.submit(run_job, job, self)
         return job
 
@@ -67,6 +105,11 @@ class JobManager:
         if job is None:
             return None
         job.label = label
+        if self._repo is not None:
+            try:
+                self._repo.rename(job_id, label)
+            except Exception:
+                log.exception("Failed to rename job %s in Supabase", job_id)
         return job
 
     def cancel(self, job_id: str) -> bool:
@@ -104,7 +147,7 @@ class JobManager:
         return True
 
     def delete(self, job_id: str) -> bool:
-        """Remove a job from the registry and delete its on-disk artifacts.
+        """Remove a job from the registry, delete on-disk artifacts, and Supabase records.
 
         Returns False if the job was not found. A running pipeline may still
         finish in the pool afterward; its writes land on a removed directory.
@@ -114,6 +157,17 @@ class JobManager:
             return False
         if job.out_dir:
             shutil.rmtree(job.out_dir, ignore_errors=True)
+        if self._repo is not None:
+            try:
+                from src.db.storage import delete_prefix
+                from src.web.config import _optional_db_settings
+                from src.db.client import get_client
+                db_settings = _optional_db_settings()
+                if db_settings is not None:
+                    delete_prefix(job_id, get_client(db_settings), db_settings.bucket)
+                self._repo.delete(job_id)
+            except Exception:
+                log.exception("Failed to delete job %s from Supabase", job_id)
         return True
 
     def _emit(self, job: Job, event: ProgressEvent) -> None:
