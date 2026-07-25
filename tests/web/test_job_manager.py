@@ -247,3 +247,30 @@ def test_other_jobs_unaffected_by_failure():
     assert JobStatus.FAILED in statuses, "Expected at least one FAILED job"
 
     loop.call_soon_threadsafe(loop.stop)
+
+
+# ---------------------------------------------------------------------------
+# Test 6: rename + delete
+# ---------------------------------------------------------------------------
+
+def test_rename_and_delete(tmp_path):
+    from src.web.job import Job
+    from src.web.job_manager import JobManager
+
+    manager = JobManager(_make_settings(out_root=str(tmp_path)))
+    job = Job(label="Old", status=JobStatus.DONE)
+    out = tmp_path / job.job_id
+    out.mkdir()
+    (out / "artifact.txt").write_text("keep")
+    job.out_dir = str(out)
+    manager._registry[job.job_id] = job
+
+    renamed = manager.rename(job.job_id, "New Name")
+    assert renamed is not None
+    assert renamed.label == "New Name"
+    assert manager.rename("missing", "x") is None
+
+    assert manager.delete(job.job_id) is True
+    assert manager.get(job.job_id) is None
+    assert not out.exists()
+    assert manager.delete(job.job_id) is False

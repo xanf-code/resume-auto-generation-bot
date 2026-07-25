@@ -12,6 +12,7 @@ objects without touching the event loop from outside the loop thread.
 from __future__ import annotations
 
 import asyncio
+import shutil
 from concurrent.futures import ThreadPoolExecutor
 
 from src.web.config import WebSettings
@@ -54,6 +55,27 @@ class JobManager:
 
     def list(self) -> list[Job]:
         return list(self._registry.values())
+
+    def rename(self, job_id: str, label: str) -> Job | None:
+        """Update the display label. Returns None if the job is missing."""
+        job = self._registry.get(job_id)
+        if job is None:
+            return None
+        job.label = label
+        return job
+
+    def delete(self, job_id: str) -> bool:
+        """Remove a job from the registry and delete its on-disk artifacts.
+
+        Returns False if the job was not found. A running pipeline may still
+        finish in the pool afterward; its writes land on a removed directory.
+        """
+        job = self._registry.pop(job_id, None)
+        if job is None:
+            return False
+        if job.out_dir:
+            shutil.rmtree(job.out_dir, ignore_errors=True)
+        return True
 
     def _emit(self, job: Job, event: ProgressEvent) -> None:
         """Append event to the replay buffer and fan-out to all live subscribers.

@@ -12,6 +12,7 @@ from sse_starlette.sse import EventSourceResponse
 from src.web.schemas import (
     CompileErrorResponse,
     JobDetail,
+    JobRenameRequest,
     JobStatus,
     JobSubmitRequest,
     JobSummary,
@@ -92,6 +93,36 @@ async def get_job(job_id: str, request: Request) -> JobDetail:
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return _job_detail(job)
+
+
+# ---------------------------------------------------------------------------
+# PATCH /jobs/{job_id} — rename (update label)
+# ---------------------------------------------------------------------------
+
+@router.patch("/{job_id}", response_model=JobSummary)
+async def rename_job(
+    job_id: str,
+    req: JobRenameRequest,
+    request: Request,
+) -> JobSummary:
+    manager = request.app.state.manager
+    job = manager.rename(job_id, req.label)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return _job_summary(job)
+
+
+# ---------------------------------------------------------------------------
+# DELETE /jobs/{job_id} — remove job + artifacts
+# ---------------------------------------------------------------------------
+
+@router.delete("/{job_id}", status_code=204)
+async def delete_job(job_id: str, request: Request) -> Response:
+    manager = request.app.state.manager
+    deleted = manager.delete(job_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return Response(status_code=204)
 
 
 # ---------------------------------------------------------------------------

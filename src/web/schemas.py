@@ -39,6 +39,20 @@ class JobSubmitRequest(BaseModel):
         return v
 
 
+class JobRenameRequest(BaseModel):
+    """Body for PATCH /api/jobs/{id} — update display label."""
+
+    label: str
+
+    @field_validator("label")
+    @classmethod
+    def _label_non_blank(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("label must not be blank")
+        return stripped
+
+
 class CompileRequest(BaseModel):
     """Body for POST /api/compile (raw tectonic compile)."""
 

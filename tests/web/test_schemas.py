@@ -27,6 +27,16 @@ def test_job_submit_trims_label():
     assert r.label == "Amazon SDE"
 
 
+def test_job_rename_trims_and_rejects_blank():
+    from src.web.schemas import JobRenameRequest
+    from pydantic import ValidationError
+
+    r = JobRenameRequest(label="  Vestwell  ")
+    assert r.label == "Vestwell"
+    with pytest.raises(ValidationError):
+        JobRenameRequest(label="   ")
+
+
 def test_job_submit_defaults_enable_scoring_false():
     from src.web.schemas import JobSubmitRequest
     r = JobSubmitRequest(label="X", resume_tex="t", jd_text="j")

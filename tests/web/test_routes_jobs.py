@@ -193,3 +193,69 @@ async def test_get_skills_done_job_returns_200(client):
         assert "Python" in body["language_and_framework"]
     finally:
         os.unlink(skills_path)
+
+
+# ---------------------------------------------------------------------------
+# Test 9: PATCH /api/jobs/{id} renames label
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_rename_job_updates_label(client):
+    submit = await client.post("/api/jobs", json=_job_payload())
+    job_id = submit.json()["job_id"]
+
+    resp = await client.patch(f"/api/jobs/{job_id}", json={"label": "  New Label  "})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["label"] == "New Label"
+    assert body["job_id"] == job_id
+
+    detail = await client.get(f"/api/jobs/{job_id}")
+    assert detail.json()["label"] == "New Label"
+
+
+@pytest.mark.asyncio
+async def test_rename_unknown_job_returns_404(client):
+    resp = await client.patch("/api/jobs/missing-id", json={"label": "Nope"})
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_rename_blank_label_returns_422(client):
+    submit = await client.post("/api/jobs", json=_job_payload())
+    job_id = submit.json()["job_id"]
+    resp = await client.patch(f"/api/jobs/{job_id}", json={"label": "   "})
+    assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Test 10: DELETE /api/jobs/{id} removes job + artifacts
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_delete_job_returns_204_and_removes(client, tmp_path):
+    submit = await client.post("/api/jobs", json=_job_payload())
+    job_id = submit.json()["job_id"]
+
+    app = _get_app_from_client(client)
+    job = app.state.manager.get(job_id)
+    out_dir = tmp_path / job_id
+    out_dir.mkdir()
+    (out_dir / "marker.txt").write_text("x")
+    job.out_dir = str(out_dir)
+
+    resp = await client.delete(f"/api/jobs/{job_id}")
+    assert resp.status_code == 204
+
+    assert app.state.manager.get(job_id) is None
+    assert not out_dir.exists()
+
+    list_resp = await client.get("/api/jobs")
+    ids = [j["job_id"] for j in list_resp.json()["jobs"]]
+    assert job_id not in ids
+
+
+@pytest.mark.asyncio
+async def test_delete_unknown_job_returns_404(client):
+    resp = await client.delete("/api/jobs/missing-id")
+    assert resp.status_code == 404
