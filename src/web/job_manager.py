@@ -48,6 +48,7 @@ class JobManager:
         job.models = (
             req.models.to_pipeline_models() if req.models is not None else None
         )
+        job.bullet_shapes = req.bullet_shapes
         job.out_dir = f"{self.settings.out_root}/{job.job_id}"
 
         self._registry[job.job_id] = job

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FileOrPasteField } from './FileOrPasteField';
 import { ModelControls } from './ModelControls';
 import { TuningControls } from './TuningControls';
+import { BulletShapeControls } from './BulletShapeControls';
 import { createJob } from '../../api/jobs';
 import {
   DEFAULT_MODELS,
@@ -11,6 +12,7 @@ import {
   type ModelsConfig,
 } from '../../lib/models';
 import { DEFAULT_TUNING, type Tuning } from '../../lib/tuning';
+import { DEFAULT_BULLET_SHAPES, type BulletShape } from '../../lib/bulletShapes';
 import { useStore } from '../../store';
 
 type MobilePane = 'inputs' | 'config';
@@ -26,6 +28,7 @@ export function NewJobModal() {
   const [enableScoring, setEnableScoring] = useState(false);
   const [tuning, setTuning] = useState<Tuning>(DEFAULT_TUNING);
   const [models, setModels] = useState<ModelsConfig>(DEFAULT_MODELS);
+  const [bulletShapes, setBulletShapes] = useState<BulletShape[]>(DEFAULT_BULLET_SHAPES);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<MobilePane>('inputs');
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +92,7 @@ export function NewJobModal() {
         enable_scoring: enableScoring,
         tuning,
         models,
+        bullet_shapes: bulletShapes,
       });
       addJob({ job_id: job.job_id, label: job.label });
       closeModal();
@@ -270,6 +274,13 @@ export function NewJobModal() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              <div className="border-t border-rule pt-4">
+                <BulletShapeControls
+                  shapes={bulletShapes}
+                  onChange={setBulletShapes}
+                />
               </div>
             </aside>
           </div>

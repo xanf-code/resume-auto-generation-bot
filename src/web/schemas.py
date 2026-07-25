@@ -144,6 +144,7 @@ class JobSubmitRequest(BaseModel):
     enable_scoring: bool = False
     tuning: TuningDTO | None = None
     models: ModelsDTO | None = None
+    bullet_shapes: list[str] | None = None
 
     @field_validator("label")
     @classmethod
@@ -159,6 +160,26 @@ class JobSubmitRequest(BaseModel):
         if not v.strip():
             raise ValueError("must not be blank")
         return v
+
+    @field_validator("bullet_shapes")
+    @classmethod
+    def _validate_bullet_shapes(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        if len(v) == 0:
+            return None
+        from src.prompts.writer import SHAPE_NAMES
+        unknown = [name for name in v if name not in SHAPE_NAMES]
+        if unknown:
+            raise ValueError(f"unknown bullet shape names: {unknown!r}")
+        # Deduplicate while preserving first-occurrence order
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for name in v:
+            if name not in seen:
+                seen.add(name)
+                deduped.append(name)
+        return deduped
 
 
 class JobRenameRequest(BaseModel):

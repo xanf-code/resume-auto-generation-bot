@@ -17,7 +17,7 @@ from src.pipeline.llm import parse_strong
 log = logging.getLogger(__name__)
 from src.pipeline.schemas import WriterOutput
 from src.pipeline.state import PipelineState
-from src.prompts.writer import WRITER_SYSTEM
+from src.prompts.writer import BULLET_SHAPES, SHAPE_NAMES, WRITER_SYSTEM
 
 # The Writer prompt asks the model to self-verify length by appending a
 # ``[chars: N]`` tag to each bullet. Those tags are a model-only scratchpad -
@@ -66,6 +66,61 @@ def render_revision_notes(revision_notes: list[str] | None) -> str:
     return "\n".join(f"{i}. {note}" for i, note in enumerate(directives, start=1))
 
 
+def build_shape_directive(shapes: list[str] | None) -> str:
+    """Compose the per-run bullet shape directive from BULLET_SHAPES.
+
+    - ``None`` / ``[]`` / all four names → full rotation directive (semantically
+      equivalent to the original hardcoded SHAPE ROTATION block).
+    - one name → "USE ONLY {name} for every bullet. Do not rotate." + definition.
+    - 2-3 names → "Rotate ONLY among: {…}." + selected definitions in canonical order.
+
+    The function is pure and deterministic — the same input always gives the same string.
+    """
+    effective: set[str] = set(shapes) if shapes else set()
+
+    # All four (or none) → full rotation directive rebuilt from catalog
+    if not effective or effective >= set(SHAPE_NAMES):
+        lines = [
+            "SHAPE ROTATION (mandatory - not a menu):",
+            "  Four bullet shapes exist. You MUST rotate them within each role - no two",
+            "  consecutive bullets may use the same shape. Cycle through, don't default.",
+            "",
+        ]
+        for name in SHAPE_NAMES:
+            info = BULLET_SHAPES[name]
+            lines.append(f"    {name} - {info['description']}")
+        lines.append("")
+        lines.append("  Example each, same underlying win, different shape:")
+        for name in SHAPE_NAMES:
+            info = BULLET_SHAPES[name]
+            lines.append(f'    {name}: "{info["example"]}"')
+        return "\n".join(lines)
+
+    if len(effective) == 1:
+        name = next(iter(effective))
+        info = BULLET_SHAPES[name]
+        return (
+            f"USE ONLY {name} for every bullet. Do not rotate.\n\n"
+            f"  {name} - {info['description']}\n"
+            f'  Example: "{info["example"]}"'
+        )
+
+    # Subset (2 or 3 shapes) — output in canonical order
+    ordered = [n for n in SHAPE_NAMES if n in effective]
+    names_str = ", ".join(ordered)
+    lines = [
+        f"Rotate ONLY among: {names_str}. "
+        "No two consecutive bullets in a role may share a shape.",
+        "",
+    ]
+    for name in ordered:
+        info = BULLET_SHAPES[name]
+        lines.append(f"  {name} - {info['description']}")
+        lines.append(f'  Example: "{info["example"]}"')
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
 def build_writer_user_message(state: PipelineState) -> str:
     """Assemble the Writer's user prompt from the current pipeline state.
 
@@ -85,7 +140,12 @@ def build_writer_user_message(state: PipelineState) -> str:
         t.model_dump_json(indent=2) for t in targets
     ) + "\n]" if targets else "[]"
 
+    shape_directive = build_shape_directive(state.get("bullet_shapes"))
+
     sections = [
+        "## BULLET SHAPE DIRECTIVE",
+        shape_directive,
+        "",
         "## RESUME (structured - the ONLY ground truth for every claim)",
         struct.model_dump_json(indent=2),
         "",

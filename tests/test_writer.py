@@ -371,3 +371,46 @@ def test_writer_system_does_not_mention_summary():
     from src.prompts.writer import WRITER_SYSTEM
 
     assert "summary" not in WRITER_SYSTEM.lower()
+
+
+# --- build_writer_user_message: BULLET SHAPE DIRECTIVE section ----------------
+
+
+def test_build_writer_user_message_always_includes_bullet_shape_directive():
+    """Every call to build_writer_user_message must include the shape directive header."""
+    msg = writer.build_writer_user_message(_first_iteration_state())
+    assert "## BULLET SHAPE DIRECTIVE" in msg
+
+
+def test_build_writer_user_message_default_state_has_rotation_text():
+    """No bullet_shapes in state → full rotation directive text."""
+    msg = writer.build_writer_user_message(_first_iteration_state())
+    # Full rotation directive should include all four shape names
+    for name in ("PAR", "RESULT-FIRST", "ACTION+STACK", "CONTEXT-PAR"):
+        assert name in msg, f"Shape {name!r} missing from default-state message"
+
+
+def test_build_writer_user_message_single_shape_has_only():
+    """bullet_shapes=["PAR"] → USE ONLY PAR language in the message."""
+    state = _first_iteration_state()
+    state["bullet_shapes"] = ["PAR"]
+    msg = writer.build_writer_user_message(state)
+    assert "USE ONLY PAR" in msg
+    assert "## BULLET SHAPE DIRECTIVE" in msg
+
+
+def test_build_writer_user_message_bullet_shape_directive_precedes_resume():
+    """The BULLET SHAPE DIRECTIVE section appears before the RESUME section."""
+    msg = writer.build_writer_user_message(_first_iteration_state())
+    directive_pos = msg.index("## BULLET SHAPE DIRECTIVE")
+    resume_pos = msg.index("## RESUME")
+    assert directive_pos < resume_pos
+
+
+def test_build_writer_user_message_subset_shapes_rotates_among():
+    """bullet_shapes subset → 'Rotate ONLY among' language."""
+    state = _first_iteration_state()
+    state["bullet_shapes"] = ["PAR", "RESULT-FIRST"]
+    msg = writer.build_writer_user_message(state)
+    assert "Rotate ONLY among" in msg
+    assert "## BULLET SHAPE DIRECTIVE" in msg

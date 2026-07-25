@@ -68,6 +68,8 @@ class Job:
     tuning: PipelineTuning | None = None
     # Per-application model overrides. None → config.settings MODEL_* defaults.
     models: PipelineModels | None = None
+    # Per-résumé bullet shape selection. None → default rotation over all four.
+    bullet_shapes: list[str] | None = None
 
     # Pipeline artifacts (populated on completion)
     best_latex: str | None = None

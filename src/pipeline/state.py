@@ -28,6 +28,9 @@ class PipelineState(TypedDict, total=False):
     # weights). Absent → nodes fall back to PipelineTuning.defaults() via
     # get_tuning(), which mirrors the config.settings constants.
     tuning: "PipelineTuning"
+    # Per-résumé bullet shape selection. None / absent → default rotation over
+    # all four shapes. One name → use only that shape. Subset → rotate within it.
+    bullet_shapes: list[str] | None
 
     # --- extraction -----------------------------------------------------------
     resume_struct: ResumeStruct

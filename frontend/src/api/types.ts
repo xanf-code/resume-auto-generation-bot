@@ -56,6 +56,8 @@ export interface CreateJobRequest {
   tuning?: Tuning;
   // Per-application model overrides. Omitted → config.settings MODEL_* defaults.
   models?: ModelsConfig;
+  // Bullet shape selection. Empty / omitted → default rotation over all four shapes.
+  bullet_shapes?: string[];
 }
 
 export interface CreateJobResponse {

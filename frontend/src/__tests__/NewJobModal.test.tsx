@@ -204,6 +204,58 @@ describe('NewJobModal', () => {
     expect(arg.models.gap.model).toBe('openai/gpt-4o-mini');
   });
 
+  it('renders the Bullet shapes section in the config panel', async () => {
+    await renderModalReady();
+    expect(screen.getByText(/Bullet shapes/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Leave all unchecked to rotate shapes automatically/i),
+    ).toBeInTheDocument();
+  });
+
+  it('default submit sends empty bullet_shapes (rotation)', async () => {
+    (createJob as unknown as Mock).mockResolvedValue({
+      job_id: 'abc',
+      label: 'Backend Engineer',
+    });
+    await renderModalReady();
+
+    fillRequiredFields();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /start typesetting/i }));
+    });
+
+    const arg = (createJob as unknown as Mock).mock.calls.at(-1)![0];
+    // No shapes selected → bullet_shapes is empty (backend normalises to default rotation)
+    expect(arg.bullet_shapes ?? []).toEqual([]);
+  });
+
+  it('selecting bullet shapes sends them in canonical order', async () => {
+    (createJob as unknown as Mock).mockResolvedValue({
+      job_id: 'abc',
+      label: 'Backend Engineer',
+    });
+    await renderModalReady();
+
+    // The bullet shape checkboxes come after the scoring checkbox.
+    // We need only those inside the bullet-shape-controls section.
+    const shapeControls = screen.getByTestId('bullet-shape-controls');
+    const [parCb, , actionStackCb] = Array.from(
+      shapeControls.querySelectorAll('input[type="checkbox"]'),
+    ) as HTMLInputElement[];
+
+    // Select ACTION+STACK first, then PAR — canonical order must still be [PAR, ACTION+STACK]
+    fireEvent.click(actionStackCb);
+    fireEvent.click(parCb);
+
+    fillRequiredFields();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /start typesetting/i }));
+    });
+
+    const arg = (createJob as unknown as Mock).mock.calls.at(-1)![0];
+    expect(arg.bullet_shapes).toEqual(['PAR', 'ACTION+STACK']);
+  });
+
   it('does not close on Escape while a submission is in flight', async () => {
     const closeSpy = vi.fn();
     useStore.setState({ closeNewJobModal: closeSpy });

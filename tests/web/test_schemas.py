@@ -155,3 +155,71 @@ def test_tuning_dto_to_tuning_maps_all_fields():
     assert t.max_identity_retries == 3
     assert t.max_length_retries == 4
     assert dict(t.rubric_weights) == pytest.approx(_weights())
+
+
+# --- bullet_shapes field on JobSubmitRequest -----------------------------------
+
+
+def test_bullet_shapes_absent_defaults_to_none():
+    from src.web.schemas import JobSubmitRequest
+    r = JobSubmitRequest(label="X", resume_tex="t", jd_text="j")
+    assert r.bullet_shapes is None
+
+
+def test_bullet_shapes_empty_list_normalizes_to_none():
+    from src.web.schemas import JobSubmitRequest
+    r = JobSubmitRequest(label="X", resume_tex="t", jd_text="j", bullet_shapes=[])
+    assert r.bullet_shapes is None
+
+
+def test_bullet_shapes_rejects_unknown_name():
+    from src.web.schemas import JobSubmitRequest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        JobSubmitRequest(label="X", resume_tex="t", jd_text="j", bullet_shapes=["INVALID"])
+
+
+def test_bullet_shapes_rejects_partial_unknown():
+    from src.web.schemas import JobSubmitRequest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        JobSubmitRequest(label="X", resume_tex="t", jd_text="j", bullet_shapes=["PAR", "INVALID"])
+
+
+def test_bullet_shapes_valid_single():
+    from src.web.schemas import JobSubmitRequest
+    r = JobSubmitRequest(label="X", resume_tex="t", jd_text="j", bullet_shapes=["PAR"])
+    assert r.bullet_shapes == ["PAR"]
+
+
+def test_bullet_shapes_valid_subset():
+    from src.web.schemas import JobSubmitRequest
+    r = JobSubmitRequest(
+        label="X", resume_tex="t", jd_text="j",
+        bullet_shapes=["PAR", "RESULT-FIRST"],
+    )
+    assert r.bullet_shapes == ["PAR", "RESULT-FIRST"]
+
+
+def test_bullet_shapes_all_four_accepted():
+    from src.web.schemas import JobSubmitRequest
+    r = JobSubmitRequest(
+        label="X", resume_tex="t", jd_text="j",
+        bullet_shapes=["PAR", "RESULT-FIRST", "ACTION+STACK", "CONTEXT-PAR"],
+    )
+    assert r.bullet_shapes == ["PAR", "RESULT-FIRST", "ACTION+STACK", "CONTEXT-PAR"]
+
+
+def test_bullet_shapes_deduplicates_preserving_order():
+    from src.web.schemas import JobSubmitRequest
+    r = JobSubmitRequest(
+        label="X", resume_tex="t", jd_text="j",
+        bullet_shapes=["PAR", "RESULT-FIRST", "PAR"],
+    )
+    assert r.bullet_shapes == ["PAR", "RESULT-FIRST"]
+
+
+def test_bullet_shapes_none_explicitly_stays_none():
+    from src.web.schemas import JobSubmitRequest
+    r = JobSubmitRequest(label="X", resume_tex="t", jd_text="j", bullet_shapes=None)
+    assert r.bullet_shapes is None

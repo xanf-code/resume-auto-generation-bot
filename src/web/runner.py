@@ -53,6 +53,8 @@ def run_job(job: Job, manager: "JobManager") -> None:
     extra: dict = {}
     if job.tuning is not None:
         extra["tuning"] = job.tuning
+    if job.bullet_shapes is not None:
+        extra["bullet_shapes"] = job.bullet_shapes
 
     def _stream():
         return main_module.stream_pipeline(

@@ -134,6 +134,7 @@ def stream_pipeline(
     identity_ledger: IdentityLedger | None = None,
     on_step: Callable[[dict, dict], None] | None = None,
     tuning: PipelineTuning | None = None,
+    bullet_shapes: list[str] | None = None,
 ) -> dict:
     """Run the pipeline from raw content, streaming per-node progress.
 
@@ -173,6 +174,8 @@ def stream_pipeline(
         initial_state["resume_struct"] = resume_struct
     if identity_ledger is not None:
         initial_state["identity_ledger"] = identity_ledger
+    if bullet_shapes is not None:
+        initial_state["bullet_shapes"] = bullet_shapes
 
     graph = build_graph(enable_scoring=enable_scoring)
     recursion_limit = effective_tuning.max_iterations * 12 + 20

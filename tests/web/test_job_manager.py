@@ -386,7 +386,7 @@ def test_submit_without_tuning_passes_none():
 
     def capturing_pipeline(
         resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring,
-        on_step=None, tuning=None,
+        on_step=None, tuning=None, bullet_shapes=None,
     ):
         captured["seen"] = True
         captured["tuning"] = tuning
@@ -399,5 +399,74 @@ def test_submit_without_tuning_passes_none():
     assert job.tuning is None
     assert captured["seen"] is True
     assert captured["tuning"] is None
+
+    loop.call_soon_threadsafe(loop.stop)
+
+
+# ---------------------------------------------------------------------------
+# Test: bullet_shapes threading
+# ---------------------------------------------------------------------------
+
+def test_submit_threads_bullet_shapes_onto_job_and_into_pipeline():
+    """bullet_shapes from the request is copied to the job and seeded into the pipeline."""
+    from src.web.job_manager import JobManager
+
+    settings = _make_settings()
+    manager = JobManager(settings)
+
+    loop = asyncio.new_event_loop()
+    loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
+    loop_thread.start()
+    manager.bind_loop(loop)
+
+    captured: dict = {}
+
+    def capturing_pipeline(
+        resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring,
+        on_step=None, tuning=None, bullet_shapes=None,
+    ):
+        captured["bullet_shapes"] = bullet_shapes
+        return {"best_latex": "x", "aggregate_score": 80.0, "passed": True, "output_pdf": "x.pdf"}
+
+    with patch.object(runner_module.main_module, "stream_pipeline", side_effect=capturing_pipeline):
+        req = _make_req(bullet_shapes=["PAR"])
+        job = manager.submit(req)
+        assert _wait_for(lambda: job.status == JobStatus.DONE, timeout=10.0)
+
+    assert job.bullet_shapes == ["PAR"]
+    assert captured.get("bullet_shapes") == ["PAR"]
+
+    loop.call_soon_threadsafe(loop.stop)
+
+
+def test_submit_without_bullet_shapes_passes_none_to_pipeline():
+    """No bullet_shapes on request → job.bullet_shapes is None, pipeline called without it."""
+    from src.web.job_manager import JobManager
+
+    settings = _make_settings()
+    manager = JobManager(settings)
+
+    loop = asyncio.new_event_loop()
+    loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
+    loop_thread.start()
+    manager.bind_loop(loop)
+
+    captured: dict = {"seen": False}
+
+    def capturing_pipeline(
+        resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring,
+        on_step=None, tuning=None, bullet_shapes=None,
+    ):
+        captured["seen"] = True
+        captured["bullet_shapes"] = bullet_shapes
+        return {"best_latex": "x", "aggregate_score": 80.0, "passed": True, "output_pdf": "x.pdf"}
+
+    with patch.object(runner_module.main_module, "stream_pipeline", side_effect=capturing_pipeline):
+        job = manager.submit(_make_req())
+        assert _wait_for(lambda: job.status == JobStatus.DONE, timeout=10.0)
+
+    assert job.bullet_shapes is None
+    assert captured["seen"] is True
+    assert captured["bullet_shapes"] is None
 
     loop.call_soon_threadsafe(loop.stop)
