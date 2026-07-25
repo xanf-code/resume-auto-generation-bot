@@ -1,0 +1,83 @@
+# Phase 1 — Dynamic bullet-shape selection (backend)
+
+## Goal
+Let each application choose which bullet shapes the Writer may use, instead of
+the fixed "rotate through all four" instruction hardcoded in the system prompt.
+Absent a selection, behaviour is **byte-identical to today** (full rotation over
+all four shapes).
+
+The four shapes (unchanged, canonical names):
+
+| Shape | Meaning |
+|-------|---------|
+| `PAR` | Problem → Action → Result. The workhorse. |
+| `RESULT-FIRST` | Lead with the number when it's strong enough to open cold. |
+| `ACTION+STACK` | Verb + tools + outcome. Use when the stack is the point. |
+| `CONTEXT-PAR` | Add situation/scope when the scenario needs framing. |
+
+## Selection semantics
+- **none selected** (default) → rotate through all four, no two consecutive the
+  same. Exactly today's rule.
+- **one selected** → use ONLY that shape for every bullet; no rotation.
+- **two or three selected** → rotate ONLY within that subset; no two consecutive
+  bullets in a role may share a shape.
+- **all four selected** → identical to "none selected".
+
+Scope is **global** (one selection per résumé, applied to every role).
+
+## Design
+The static `SHAPE ROTATION` block moves out of the system prompt and becomes a
+per-run directive with a **single home**, so the model never sees two
+contradictory shape rules.
+
+1. **`src/prompts/writer.py`** — extract the shape catalog into a
+   `BULLET_SHAPES` constant: an ordered mapping of canonical name →
+   `{description, example}` (the text/examples currently at lines 27-40).
+   Add `SHAPE_NAMES` tuple for validation reuse. **Remove** the hardcoded
+   `SHAPE ROTATION` block (lines 23-40) from `WRITER_SYSTEM`, replacing it with a
+   one-line pointer: shape guidance is supplied per-run in the user message.
+2. **`src/agents/writer.py`** — add a pure
+   `build_shape_directive(shapes: list[str] | None) -> str` that composes the
+   directive from `BULLET_SHAPES`:
+   - empty / `None` / all four → the full rotation directive (text byte-identical
+     to today's block, rebuilt from the catalog);
+   - one → `USE ONLY {shape} for every bullet. Do not rotate.` + that shape's
+     definition;
+   - subset → `Rotate ONLY among: {…}. No two consecutive bullets in a role may
+     share a shape.` + definitions for the selected shapes only.
+3. **`src/agents/writer.py`** — `build_writer_user_message` prepends a
+   `## BULLET SHAPE DIRECTIVE` section (output of `build_shape_directive`,
+   read from `state.get("bullet_shapes")`) above the core inputs. Stays pure and
+   deterministic.
+4. **`src/pipeline/state.py`** — `PipelineState` gains a
+   `bullet_shapes: list[str] | None` channel (sibling of `tuning`; `None` = default).
+5. **Web boundary — `src/web/schemas.py`** —
+   `JobSubmitRequest.bullet_shapes: list[str] | None = None`, with a validator
+   that: rejects unknown names (against `SHAPE_NAMES`), de-duplicates while
+   preserving order, and normalises the empty list to `None`.
+6. **Threading** — `Job.bullet_shapes`; `JobManager.submit` maps
+   `req.bullet_shapes`; `run_job` passes it through; `stream_pipeline(...,
+   bullet_shapes=None)` seeds `initial_state["bullet_shapes"]`. Mirrors the
+   `tuning` channel exactly.
+
+## Reliability note
+The single-shape case is the only real risk (will Opus honour "ONLY X" with no
+rotation?). Step 1 de-risks it: because the directive is the *sole* source of
+shape instruction, there is no residual "you MUST rotate" text to contradict it.
+Eyeball two single-shape generations after wiring to confirm.
+
+## Tests (write first, pytest)
+- `tests/test_bullet_shapes.py` (new): `build_shape_directive` for each case —
+  empty→full-rotation text; single→"USE ONLY", no rotate language; subset→
+  "rotate only among" + only-selected definitions; all-four≡empty; catalog
+  round-trips all four names/examples.
+- `tests/web/test_schemas.py`: `bullet_shapes` rejects unknown names; dedups &
+  preserves order; empty list → `None`; absent → `None`.
+- `tests/test_writer.py`: `build_writer_user_message` emits a BULLET SHAPE
+  DIRECTIVE section; default state → rotation text; single-shape state → "ONLY".
+- `tests/test_state.py` / existing: `bullet_shapes` defaults to `None`.
+- `tests/web/test_job_manager.py`: `submit` threads `bullet_shapes` onto the Job
+  and into the seeded pipeline state.
+
+## Out of scope (Phase 2)
+UI checkbox group and payload wiring live in `docs/dynamic_prompt/phase_2.mdx`.

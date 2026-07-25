@@ -1,0 +1,49 @@
+# Phase 2 — Dynamic bullet-shape selection (frontend)
+
+## Goal
+In the "New résumé" modal, add a **Bullet shapes** section — its own block
+**below** the Advanced disclosure (not inside it; this is a per-résumé creative
+choice, not a power-user tuning knob). Four checkboxes, **all unchecked by
+default = automatic rotation** (today's behaviour). The selection is sent with
+the job and consumed by the Phase-1 backend.
+
+## Selection → payload
+- checkboxes map to canonical names: `PAR`, `RESULT-FIRST`, `ACTION+STACK`,
+  `CONTEXT-PAR`;
+- payload is `bullet_shapes: string[]` — the selected names in canonical order;
+- none selected → omit / empty (backend treats as default rotation).
+
+## Design (Manuscript editorial system — warm paper/serif, never terminal)
+1. **`frontend/src/lib/bulletShapes.ts`** — `BulletShape` union type; ordered
+   `BULLET_SHAPES` metadata `[{ name, label, help }]` (friendly label + one-line
+   description for the HelpTip, e.g. `PAR` → "Problem → Action → Result");
+   `DEFAULT_BULLET_SHAPES: BulletShape[] = []`; a `toggleShape(list, name)`
+   helper that adds/removes while preserving canonical order.
+2. **`frontend/src/components/newjob/BulletShapeControls.tsx`** — an `.eyebrow`
+   "Bullet shapes" header + a short hint line ("Leave all unchecked to rotate
+   shapes automatically."), then four checkbox rows. Reuse the existing scorer
+   checkbox pattern (`accent-[#c0362c] w-4 h-4`, `NewJobModal.tsx:219-227`); each
+   row pairs the checkbox with a `HelpTip` carrying the shape's description.
+3. **`frontend/src/components/newjob/NewJobModal.tsx`** — hold
+   `bulletShapes` state (init `DEFAULT_BULLET_SHAPES`); render
+   `<BulletShapeControls>` **after** the Advanced block closes (`~line 274`,
+   before the error message); pass `bullet_shapes: bulletShapes` to `createJob`
+   in `handleSubmit`.
+4. **`frontend/src/api/types.ts`** — `CreateJobRequest.bullet_shapes?: string[]`.
+
+## Accessibility
+- Each checkbox has an associated `<label>` (click target includes the name).
+- `HelpTip` reveals on hover AND focus, keyboard-reachable, honours
+  reduced-motion (same component used by the tuning sliders).
+
+## Tests (write first, vitest)
+- `frontend/src/__tests__/bulletShapes.test.ts`: `toggleShape` adds/removes and
+  keeps canonical order; `DEFAULT_BULLET_SHAPES` is empty.
+- `frontend/src/__tests__/BulletShapeControls.test.tsx`: renders four checkboxes,
+  all unchecked by default; help tips exposed; toggling updates state; hint line
+  present.
+- `frontend/src/__tests__/NewJobModal.test.tsx` (extend): default submit sends no
+  shapes (rotation); selecting a subset sends those names in canonical order.
+
+## Depends on
+`docs/dynamic_prompt/phase_1.mdx` (backend must accept & honour `bullet_shapes`).
