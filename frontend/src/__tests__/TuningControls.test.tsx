@@ -9,21 +9,9 @@ function setup(tuning: Tuning = DEFAULT_TUNING) {
   return { onChange };
 }
 
-function reveal() {
-  fireEvent.click(screen.getByRole('button', { name: /tuning/i }));
-}
-
 describe('TuningControls', () => {
-  it('keeps the sliders collapsed until the disclosure is opened', () => {
+  it('renders all six scalar sliders by default (always visible)', () => {
     setup();
-    expect(screen.queryByLabelText('Pass threshold')).not.toBeInTheDocument();
-    reveal();
-    expect(screen.getByLabelText('Pass threshold')).toBeInTheDocument();
-  });
-
-  it('renders all six scalar sliders defaulted to the backend values', () => {
-    setup();
-    reveal();
     const val = (name: string) =>
       (screen.getByLabelText(name) as HTMLInputElement).value;
     expect(val('Pass threshold')).toBe('78');
@@ -36,7 +24,6 @@ describe('TuningControls', () => {
 
   it('exposes a keyboard-reachable help tip that explains a field on focus', () => {
     setup();
-    reveal();
     const help = screen.getByRole('button', { name: /about pass threshold/i });
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
     fireEvent.focus(help);
@@ -45,7 +32,6 @@ describe('TuningControls', () => {
 
   it('emits a changed scalar value as a number', () => {
     const { onChange } = setup();
-    reveal();
     fireEvent.change(screen.getByLabelText('Pass threshold'), {
       target: { value: '90' },
     });
@@ -56,7 +42,6 @@ describe('TuningControls', () => {
 
   it('live-balances rubric weights so they keep summing to 100%', () => {
     const { onChange } = setup();
-    reveal();
     fireEvent.change(screen.getByLabelText('Keyword match'), {
       target: { value: '0.5' },
     });
@@ -68,7 +53,6 @@ describe('TuningControls', () => {
 
   it('shows a live sum readout for the rubric weights', () => {
     setup();
-    reveal();
     expect(screen.getByText(/Σ\s*100%/)).toBeInTheDocument();
   });
 });

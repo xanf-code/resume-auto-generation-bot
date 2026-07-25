@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
+from src.pipeline.models import PipelineModels
 from src.pipeline.tuning import PipelineTuning
 from src.web.schemas import JobStatus
 
@@ -65,6 +66,8 @@ class Job:
     # Per-application pipeline tuning. None → the pipeline uses its defaults
     # (config.settings constants).
     tuning: PipelineTuning | None = None
+    # Per-application model overrides. None → config.settings MODEL_* defaults.
+    models: PipelineModels | None = None
 
     # Pipeline artifacts (populated on completion)
     best_latex: str | None = None

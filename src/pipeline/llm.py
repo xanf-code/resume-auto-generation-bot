@@ -7,7 +7,7 @@ cached, so ``require_api_key`` only fires on the first real call.
 from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import lru_cache
-from typing import Generator, TypeVar
+from typing import Any, Generator, TypeVar
 
 import openai
 from pydantic import BaseModel
@@ -35,12 +35,22 @@ DEFAULT_MAX_TOKENS = 16000
 # openai.LengthFinishReasonError. These two calls get more headroom.
 REASONING_MAX_TOKENS = 32000
 
+# Sentinel: ContextVar / kwarg default meaning "use role settings default".
+_UNSET: Any = object()
+
 # Per-run model overrides - set by model_context(); default to None (→ config constants).
 _ctx_model_fast: ContextVar[str | None] = ContextVar("model_fast", default=None)
 _ctx_model_strong: ContextVar[str | None] = ContextVar("model_strong", default=None)
 _ctx_model_gap: ContextVar[str | None] = ContextVar("model_gap", default=None)
 _ctx_model_scoring: ContextVar[str | None] = ContextVar("model_scoring", default=None)
 _ctx_model_skills: ContextVar[str | None] = ContextVar("model_skills", default=None)
+
+# Per-run effort overrides. Default _UNSET → use EFFORT_* / no effort for fast roles.
+# Explicit None in context means "do not send reasoning" (non-reasoning model).
+_ctx_effort_fast: ContextVar[Any] = ContextVar("effort_fast", default=_UNSET)
+_ctx_effort_strong: ContextVar[Any] = ContextVar("effort_strong", default=_UNSET)
+_ctx_effort_gap: ContextVar[Any] = ContextVar("effort_gap", default=_UNSET)
+_ctx_effort_scoring: ContextVar[Any] = ContextVar("effort_scoring", default=_UNSET)
 
 # Accumulates raw usage dicts [{model, input_tokens, output_tokens}] when set.
 _ctx_usage: ContextVar[list | None] = ContextVar("usage", default=None)
@@ -53,8 +63,13 @@ def model_context(
     gap: str | None = None,
     scoring: str | None = None,
     skills: str | None = None,
+    *,
+    effort_fast: str | None | Any = _UNSET,
+    effort_strong: str | None | Any = _UNSET,
+    effort_gap: str | None | Any = _UNSET,
+    effort_scoring: str | None | Any = _UNSET,
 ) -> Generator[list[dict], None, None]:
-    """Inject model overrides and collect token usage for one pipeline run.
+    """Inject model (and optional effort) overrides for one pipeline run.
 
     Args:
         fast: Model for extraction (parser, JD analyzer).
@@ -65,13 +80,16 @@ def model_context(
                  Defaults to ``fast`` if not provided.
         skills: Model for the skill-dump node.
                 Defaults to ``MODEL_SKILLS`` (config constant) if not provided.
+        effort_*: Optional reasoning effort per role. Omit to keep role defaults;
+            pass ``None`` to suppress the reasoning parameter entirely.
 
     Usage::
 
         with model_context(fast="openai/gpt-4o-mini",
                            strong="anthropic/claude-opus-5",
                            gap="anthropic/claude-opus-5",
-                           scoring="openai/gpt-4o-mini") as usage:
+                           scoring="openai/gpt-4o-mini",
+                           effort_strong="high") as usage:
             run_pipeline(...)
         cost = compute_cost(usage)
     """
@@ -80,6 +98,10 @@ def model_context(
     t_gap = _ctx_model_gap.set(gap or strong)
     t_scoring = _ctx_model_scoring.set(scoring or fast)
     t_skills = _ctx_model_skills.set(skills)
+    t_ef = _ctx_effort_fast.set(effort_fast)
+    t_es = _ctx_effort_strong.set(effort_strong)
+    t_eg = _ctx_effort_gap.set(effort_gap)
+    t_esc = _ctx_effort_scoring.set(effort_scoring)
     usage: list[dict] = []
     t_usage = _ctx_usage.set(usage)
     try:
@@ -90,6 +112,10 @@ def model_context(
         _ctx_model_gap.reset(t_gap)
         _ctx_model_scoring.reset(t_scoring)
         _ctx_model_skills.reset(t_skills)
+        _ctx_effort_fast.reset(t_ef)
+        _ctx_effort_strong.reset(t_es)
+        _ctx_effort_gap.reset(t_eg)
+        _ctx_effort_scoring.reset(t_esc)
         _ctx_usage.reset(t_usage)
 
 
@@ -142,6 +168,16 @@ def _parse(
     return parsed
 
 
+def _resolve_effort(explicit: Any, ctx_var: ContextVar[Any], default: str | None) -> str | None:
+    """Resolve effort: explicit kwarg > context override > role default."""
+    if explicit is not _UNSET:
+        return explicit  # type: ignore[return-value]
+    ctx = ctx_var.get()
+    if ctx is not _UNSET:
+        return ctx  # may be None (suppress reasoning)
+    return default
+
+
 def parse_fast(
     system: str,
     user: str,
@@ -150,31 +186,35 @@ def parse_fast(
 ) -> SchemaT:
     """Structured parse on the fast model. Returns a ``schema`` instance."""
     model = _ctx_model_fast.get() or MODEL_FAST
-    return _parse(system, user, schema, model, max_tokens)
+    effort = _resolve_effort(_UNSET, _ctx_effort_fast, None)
+    if effort is None:
+        return _parse(system, user, schema, model, max_tokens)
+    return _parse(system, user, schema, model, max_tokens, effort=effort)
 
 
 def parse_strong(
     system: str,
     user: str,
     schema: type[SchemaT],
-    effort: str = EFFORT_STRONG,
+    effort: Any = _UNSET,
     max_tokens: int = REASONING_MAX_TOKENS,
 ) -> SchemaT:
     """Structured parse on the strong model.
 
-    ``effort`` defaults to ``config.settings.EFFORT_STRONG`` and is forwarded
-    to OpenRouter's unified reasoning parameter - change it in settings to
-    retune reasoning depth without touching call sites.
+    ``effort`` defaults to ``config.settings.EFFORT_STRONG`` (or a
+    ``model_context`` override) and is forwarded to OpenRouter's unified
+    reasoning parameter. Pass ``None`` to suppress reasoning entirely.
     """
     model = _ctx_model_strong.get() or MODEL_STRONG
-    return _parse(system, user, schema, model, max_tokens, effort=effort)
+    resolved = _resolve_effort(effort, _ctx_effort_strong, EFFORT_STRONG)
+    return _parse(system, user, schema, model, max_tokens, effort=resolved)
 
 
 def parse_gap(
     system: str,
     user: str,
     schema: type[SchemaT],
-    effort: str = EFFORT_GAP,
+    effort: Any = _UNSET,
     max_tokens: int = REASONING_MAX_TOKENS,
 ) -> SchemaT:
     """Structured parse on the gap analyzer model.
@@ -183,12 +223,12 @@ def parse_gap(
     and strong reasoning to produce effective framing guidance, so it uses a
     more capable model than the parser/JD analyzer.
 
-    ``effort`` defaults to ``config.settings.EFFORT_GAP`` and is forwarded to
-    OpenRouter's unified reasoning parameter - change it in settings to
-    retune reasoning depth without touching call sites.
+    ``effort`` defaults to ``config.settings.EFFORT_GAP`` (or a
+    ``model_context`` override).
     """
     model = _ctx_model_gap.get() or MODEL_GAP
-    return _parse(system, user, schema, model, max_tokens, effort=effort)
+    resolved = _resolve_effort(effort, _ctx_effort_gap, EFFORT_GAP)
+    return _parse(system, user, schema, model, max_tokens, effort=resolved)
 
 
 def parse_scoring(
@@ -203,7 +243,10 @@ def parse_scoring(
     of the writer model to eliminate bias.
     """
     model = _ctx_model_scoring.get() or MODEL_SCORING
-    return _parse(system, user, schema, model, max_tokens)
+    effort = _resolve_effort(_UNSET, _ctx_effort_scoring, None)
+    if effort is None:
+        return _parse(system, user, schema, model, max_tokens)
+    return _parse(system, user, schema, model, max_tokens, effort=effort)
 
 
 def parse_skills(

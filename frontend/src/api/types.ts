@@ -1,3 +1,4 @@
+import type { ModelsConfig } from '../lib/models';
 import type { Tuning } from '../lib/tuning';
 
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed';
@@ -51,6 +52,8 @@ export interface CreateJobRequest {
   enable_scoring?: boolean;
   // Per-application pipeline tuning. Omitted → the backend uses its defaults.
   tuning?: Tuning;
+  // Per-application model overrides. Omitted → config.settings MODEL_* defaults.
+  models?: ModelsConfig;
 }
 
 export interface CreateJobResponse {

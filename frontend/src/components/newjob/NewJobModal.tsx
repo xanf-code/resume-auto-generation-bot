@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileOrPasteField } from './FileOrPasteField';
+import { ModelControls } from './ModelControls';
 import { TuningControls } from './TuningControls';
 import { createJob } from '../../api/jobs';
+import { DEFAULT_MODELS, type ModelsConfig } from '../../lib/models';
 import { DEFAULT_TUNING, type Tuning } from '../../lib/tuning';
 import { useStore } from '../../store';
+
+type MobilePane = 'inputs' | 'config';
 
 export function NewJobModal() {
   const closeModal = useStore((s) => s.closeNewJobModal);
@@ -16,23 +20,19 @@ export function NewJobModal() {
   const [jdText, setJdText] = useState('');
   const [enableScoring, setEnableScoring] = useState(false);
   const [tuning, setTuning] = useState<Tuning>(DEFAULT_TUNING);
+  const [models, setModels] = useState<ModelsConfig>(DEFAULT_MODELS);
+  const [mobilePane, setMobilePane] = useState<MobilePane>('inputs');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLInputElement>(null);
 
-  // Move focus into the dialog on open and hand it back to whatever was focused
-  // (the trigger) on close, so keyboard users aren't dropped at the top of the
-  // page behind the overlay.
   useEffect(() => {
     const restoreTo = document.activeElement as HTMLElement | null;
     labelRef.current?.focus();
     return () => restoreTo?.focus?.();
   }, []);
 
-  // Escape closes and Tab is trapped inside the dialog - but never while a
-  // submission is in flight, since the job has already been created and losing
-  // the modal would strand the user off the navigation.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -78,6 +78,7 @@ export function NewJobModal() {
         jd_text: jdText,
         enable_scoring: enableScoring,
         tuning,
+        models,
       });
       addJob({ job_id: job.job_id, label: job.label });
       closeModal();
@@ -105,10 +106,10 @@ export function NewJobModal() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="new-job-title"
-        className="bg-paper border-rule w-full sm:max-w-2xl sm:rounded-[4px] sm:border sm:shadow-[0_24px_60px_rgba(28,27,25,0.25)] h-dvh sm:h-auto sm:max-h-[90vh] overflow-y-auto flex flex-col"
+        className="bg-paper border-rule w-full sm:max-w-6xl sm:rounded-[4px] sm:border sm:shadow-[0_24px_60px_rgba(28,27,25,0.25)] h-dvh sm:h-[min(90vh,880px)] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between px-5 sm:px-8 pt-5 sm:pt-7 pb-4 sm:pb-5 border-b border-rule shrink-0">
+        <div className="flex items-start justify-between px-5 sm:px-7 pt-5 sm:pt-6 pb-4 border-b border-rule shrink-0">
           <div>
             <span className="eyebrow">New application</span>
             <h2
@@ -127,58 +128,109 @@ export function NewJobModal() {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5 px-5 sm:px-8 py-5 sm:py-6 flex-1">
-          <div className="flex flex-col gap-2">
-            <label className="eyebrow" htmlFor="job-label">
-              Label
-            </label>
-            <input
-              id="job-label"
-              ref={labelRef}
-              type="text"
-              value={label}
-              maxLength={200}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="e.g. Vestwell - Backend Engineer"
-              className="bg-paper-raised border border-rule text-ink text-[14px] px-3 py-2.5 rounded-[3px] focus:outline-none focus:border-accent/60 placeholder:text-ink-faint"
-            />
+        {/* Mobile pane switcher */}
+        <div
+          className="md:hidden flex border-b border-rule shrink-0"
+          role="tablist"
+          aria-label="Playground panes"
+        >
+          {(
+            [
+              ['inputs', 'Inputs'],
+              ['config', 'Configuration'],
+            ] as const
+          ).map(([id, labelText]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={mobilePane === id}
+              onClick={() => setMobilePane(id)}
+              className={`flex-1 text-[13px] py-2.5 transition-colors ${
+                mobilePane === id
+                  ? 'text-ink border-b-2 border-accent font-medium'
+                  : 'text-ink-soft'
+              }`}
+            >
+              {labelText}
+            </button>
+          ))}
+        </div>
+
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col flex-1 min-h-0"
+        >
+          <div className="flex-1 min-h-0 grid md:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
+            <div
+              data-testid="playground-inputs"
+              className={`flex flex-col gap-5 px-5 sm:px-7 py-5 overflow-y-auto min-h-0 ${
+                mobilePane === 'inputs' ? 'flex' : 'hidden md:flex'
+              }`}
+            >
+              <div className="flex flex-col gap-2">
+                <label className="eyebrow" htmlFor="job-label">
+                  Label
+                </label>
+                <input
+                  id="job-label"
+                  ref={labelRef}
+                  type="text"
+                  value={label}
+                  maxLength={200}
+                  onChange={(e) => setLabel(e.target.value)}
+                  placeholder="e.g. Vestwell - Backend Engineer"
+                  className="bg-paper-raised border border-rule text-ink text-[14px] px-3 py-2.5 rounded-[3px] focus:outline-none focus:border-accent/60 placeholder:text-ink-faint"
+                />
+              </div>
+
+              <FileOrPasteField
+                label="Résumé · main.tex"
+                value={resumeTex}
+                onChange={setResumeTex}
+                placeholder="Paste your LaTeX résumé source here…"
+                accept=".tex"
+              />
+
+              <FileOrPasteField
+                label="Job description"
+                value={jdText}
+                onChange={setJdText}
+                placeholder="Paste the job description here…"
+                accept=".txt,.md"
+              />
+
+              <label className="flex items-center gap-2.5 text-[13px] text-ink-soft cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={enableScoring}
+                  onChange={(e) => setEnableScoring(e.target.checked)}
+                  className="accent-[#c0362c] w-4 h-4"
+                />
+                Enable recruiter persona scoring
+              </label>
+            </div>
+
+            <aside
+              data-testid="playground-config"
+              className={`flex flex-col gap-6 px-5 sm:px-6 py-5 overflow-y-auto min-h-0 border-t md:border-t-0 md:border-l border-rule bg-paper-sunk/40 ${
+                mobilePane === 'config' ? 'flex' : 'hidden md:flex'
+              }`}
+            >
+              <ModelControls models={models} onChange={setModels} />
+              <div className="border-t border-rule pt-5">
+                <TuningControls tuning={tuning} onChange={setTuning} />
+              </div>
+            </aside>
           </div>
 
-          <FileOrPasteField
-            label="Résumé · main.tex"
-            value={resumeTex}
-            onChange={setResumeTex}
-            placeholder="Paste your LaTeX résumé source here…"
-            accept=".tex"
-          />
-
-          <FileOrPasteField
-            label="Job description"
-            value={jdText}
-            onChange={setJdText}
-            placeholder="Paste the job description here…"
-            accept=".txt,.md"
-          />
-
-          <label className="flex items-center gap-2.5 text-[13px] text-ink-soft cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={enableScoring}
-              onChange={(e) => setEnableScoring(e.target.checked)}
-              className="accent-[#c0362c] w-4 h-4"
-            />
-            Enable recruiter persona scoring
-          </label>
-
-          <TuningControls tuning={tuning} onChange={setTuning} />
-
           {error && (
-            <p className="text-[13px] text-fail border border-fail/30 bg-[#fbeeec] px-3 py-2 rounded-[3px] break-words">
+            <p className="mx-5 sm:mx-7 mb-2 text-[13px] text-fail border border-fail/30 bg-[#fbeeec] px-3 py-2 rounded-[3px] break-words shrink-0">
               {error}
             </p>
           )}
 
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-4 border-t border-rule mt-auto sticky bottom-0 bg-paper pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 px-5 sm:px-7 py-4 border-t border-rule shrink-0 bg-paper pb-[max(0.5rem,env(safe-area-inset-bottom))]">
             <button
               type="button"
               onClick={closeModal}

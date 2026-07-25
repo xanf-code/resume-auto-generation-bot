@@ -21,6 +21,7 @@ from src.web.config import WebSettings, load_settings
 from src.web.job_manager import JobManager
 from src.web.routers import compile as compile_router
 from src.web.routers import jobs as jobs_router
+from src.web.routers import models as models_router
 
 
 def create_app() -> FastAPI:
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     # Routers - all mounted under /api.
     app.include_router(jobs_router.router, prefix="/api")
     app.include_router(compile_router.router, prefix="/api")
+    app.include_router(models_router.router, prefix="/api")
 
     # Health check endpoint.
     @app.get("/api/healthz", tags=["health"])

@@ -434,3 +434,87 @@ def test_parse_omits_extra_body_when_effort_is_none(monkeypatch):
     llm._parse("sys", "user", _DummySchema, "some/model", 1234)
 
     assert "extra_body" not in captured
+
+
+# --- per-run effort overrides via model_context ---------------------------------
+
+
+def test_model_context_effort_overrides_parse_strong_default(monkeypatch):
+    """model_context(effort_strong=...) wins over EFFORT_STRONG for parse_strong."""
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, effort=None):
+        captured["effort"] = effort
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    with llm.model_context(fast="f", strong="s", effort_strong="max"):
+        llm.parse_strong("sys", "user", _DummySchema)
+
+    assert captured["effort"] == "max"
+
+
+def test_model_context_effort_none_suppresses_parse_strong_reasoning(monkeypatch):
+    """Explicit None effort in context means no reasoning param (non-reasoning writer)."""
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, effort=None):
+        captured["effort"] = effort
+        captured["called_with_effort_kw"] = True
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    with llm.model_context(fast="f", strong="s", effort_strong=None):
+        llm.parse_strong("sys", "user", _DummySchema)
+
+    assert captured["effort"] is None
+
+
+def test_model_context_effort_fast_forwards_from_parse_fast(monkeypatch):
+    """When context sets effort_fast, parse_fast forwards it."""
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, effort=None):
+        captured["effort"] = effort
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    with llm.model_context(fast="f", strong="s", effort_fast="low"):
+        llm.parse_fast("sys", "user", _DummySchema)
+
+    assert captured["effort"] == "low"
+
+
+def test_model_context_effort_scoring_forwards_from_parse_scoring(monkeypatch):
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, effort=None):
+        captured["effort"] = effort
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    with llm.model_context(fast="f", strong="s", effort_scoring="high"):
+        llm.parse_scoring("sys", "user", _DummySchema)
+
+    assert captured["effort"] == "high"
+
+
+def test_model_context_resets_effort_vars():
+    from src.pipeline.llm import _UNSET, _ctx_effort_strong, model_context
+
+    with model_context(fast="f", strong="s", effort_strong="high"):
+        assert _ctx_effort_strong.get() == "high"
+
+    assert _ctx_effort_strong.get() is _UNSET

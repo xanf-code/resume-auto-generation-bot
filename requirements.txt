@@ -4,6 +4,7 @@ python-dotenv>=1.0
 pydantic>=2
 jinja2>=3
 fastapi>=0.110
+httpx>=0.27
 uvicorn[standard]>=0.29
 sse-starlette>=2.1
 pytest>=8

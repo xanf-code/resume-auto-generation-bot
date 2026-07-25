@@ -84,6 +84,57 @@ class TuningDTO(BaseModel):
         )
 
 
+_KNOWN_EFFORTS = frozenset(
+    {"minimal", "low", "medium", "high", "xhigh", "max"}
+)
+
+
+class ModelRoleDTO(BaseModel):
+    """One LLM role: OpenRouter model slug + optional reasoning effort."""
+
+    model: str
+    effort: str | None = None
+
+    @field_validator("model")
+    @classmethod
+    def _model_non_blank(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("model must not be blank")
+        return stripped
+
+    @field_validator("effort")
+    @classmethod
+    def _effort_known_or_none(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        if v not in _KNOWN_EFFORTS:
+            raise ValueError(
+                f"effort must be one of {sorted(_KNOWN_EFFORTS)}, got {v!r}"
+            )
+        return v
+
+
+class ModelsDTO(BaseModel):
+    """Per-application model overrides for the four user-facing LLM roles."""
+
+    writer: ModelRoleDTO
+    parser: ModelRoleDTO
+    gap: ModelRoleDTO
+    scoring: ModelRoleDTO
+
+    def to_pipeline_models(self):
+        """Convert to the internal PipelineModels dataclass."""
+        from src.pipeline.models import ModelRole, PipelineModels
+
+        return PipelineModels(
+            writer=ModelRole(self.writer.model, self.writer.effort),
+            parser=ModelRole(self.parser.model, self.parser.effort),
+            gap=ModelRole(self.gap.model, self.gap.effort),
+            scoring=ModelRole(self.scoring.model, self.scoring.effort),
+        )
+
+
 class JobSubmitRequest(BaseModel):
     """Body for POST /api/jobs."""
 
@@ -92,6 +143,7 @@ class JobSubmitRequest(BaseModel):
     jd_text: str
     enable_scoring: bool = False
     tuning: TuningDTO | None = None
+    models: ModelsDTO | None = None
 
     @field_validator("label")
     @classmethod

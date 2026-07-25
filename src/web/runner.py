@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import src.main as main_module
+from src.pipeline.llm import model_context
 from src.web import events
 from src.web.job import Job
 from src.web.schemas import JobStatus, ProgressEvent
@@ -53,8 +54,8 @@ def run_job(job: Job, manager: "JobManager") -> None:
     if job.tuning is not None:
         extra["tuning"] = job.tuning
 
-    try:
-        final_state = main_module.stream_pipeline(
+    def _stream():
+        return main_module.stream_pipeline(
             resume_tex_raw=job.resume_tex_raw,
             jd_raw=job.jd_raw,
             out_dir=out_dir,
@@ -63,6 +64,22 @@ def run_job(job: Job, manager: "JobManager") -> None:
             on_step=on_step,
             **extra,
         )
+
+    try:
+        if job.models is not None:
+            with model_context(
+                fast=job.models.parser.model,
+                strong=job.models.writer.model,
+                gap=job.models.gap.model,
+                scoring=job.models.scoring.model,
+                effort_fast=job.models.parser.effort,
+                effort_strong=job.models.writer.effort,
+                effort_gap=job.models.gap.effort,
+                effort_scoring=job.models.scoring.effort,
+            ):
+                final_state = _stream()
+        else:
+            final_state = _stream()
     except JobCancelled:
         job.status = JobStatus.FAILED
         job.error = "You stopped this run before it finished."
