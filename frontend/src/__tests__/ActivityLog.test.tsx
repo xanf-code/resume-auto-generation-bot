@@ -31,4 +31,30 @@ describe('ActivityLog', () => {
     render(<ActivityLog entries={entries} />);
     expect(screen.getByTestId('activity-log')).toHaveAttribute('aria-live', 'polite');
   });
+
+  it('holds a fixed-height viewport that clips overflow (no layout push)', () => {
+    render(<ActivityLog entries={entries} />);
+    const viewport = screen.getByTestId('activity-log');
+    expect(viewport.style.height).not.toBe('');
+    expect(viewport).toHaveClass('overflow-hidden');
+  });
+
+  it('does not translate the list while entries fit the visible window', () => {
+    render(<ActivityLog entries={entries} />);
+    const list = screen.getByRole('list');
+    expect(list.style.transform).toBe('translateY(0px)');
+  });
+
+  it('scrolls the list up once entries exceed the visible window', () => {
+    const many: ActivityEntry[] = Array.from({ length: 6 }, (_, i) => ({
+      seq: i + 1,
+      stage: 'writer',
+      text: `line ${i + 1}`,
+    }));
+    render(<ActivityLog entries={many} />);
+    const list = screen.getByRole('list');
+    const match = list.style.transform.match(/translateY\(-(\d+(?:\.\d+)?)px\)/);
+    expect(match).not.toBeNull();
+    expect(Number(match![1])).toBeGreaterThan(0);
+  });
 });

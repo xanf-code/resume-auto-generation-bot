@@ -4,7 +4,12 @@ import { FileOrPasteField } from './FileOrPasteField';
 import { ModelControls } from './ModelControls';
 import { TuningControls } from './TuningControls';
 import { createJob } from '../../api/jobs';
-import { DEFAULT_MODELS, type ModelsConfig } from '../../lib/models';
+import {
+  DEFAULT_MODELS,
+  matchPreset,
+  presetLabel,
+  type ModelsConfig,
+} from '../../lib/models';
 import { DEFAULT_TUNING, type Tuning } from '../../lib/tuning';
 import { useStore } from '../../store';
 
@@ -21,11 +26,16 @@ export function NewJobModal() {
   const [enableScoring, setEnableScoring] = useState(false);
   const [tuning, setTuning] = useState<Tuning>(DEFAULT_TUNING);
   const [models, setModels] = useState<ModelsConfig>(DEFAULT_MODELS);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<MobilePane>('inputs');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLInputElement>(null);
+
+  const canSubmit =
+    label.trim() !== '' && resumeTex.trim() !== '' && jdText.trim() !== '';
+  const activePreset = matchPreset(models);
 
   useEffect(() => {
     const restoreTo = document.activeElement as HTMLElement | null;
@@ -118,6 +128,10 @@ export function NewJobModal() {
             >
               Feed the press
             </h2>
+            <p className="text-[13px] text-ink-soft mt-1.5 max-w-md leading-snug">
+              Paste a master résumé and job description — the desk rewrites,
+              scores, and typesets a submission-ready PDF.
+            </p>
           </div>
           <button
             onClick={closeModal}
@@ -190,6 +204,7 @@ export function NewJobModal() {
                 onChange={setResumeTex}
                 placeholder="Paste your LaTeX résumé source here…"
                 accept=".tex"
+                rows={9}
               />
 
               <FileOrPasteField
@@ -198,6 +213,7 @@ export function NewJobModal() {
                 onChange={setJdText}
                 placeholder="Paste the job description here…"
                 accept=".txt,.md"
+                rows={5}
               />
 
               <label className="flex items-center gap-2.5 text-[13px] text-ink-soft cursor-pointer select-none">
@@ -213,13 +229,47 @@ export function NewJobModal() {
 
             <aside
               data-testid="playground-config"
-              className={`flex flex-col gap-6 px-5 sm:px-6 py-5 overflow-y-auto min-h-0 border-t md:border-t-0 md:border-l border-rule bg-paper-sunk/40 ${
+              className={`flex flex-col gap-5 px-5 sm:px-6 py-5 overflow-y-auto min-h-0 border-t md:border-t-0 md:border-l border-rule bg-paper-sunk/40 ${
                 mobilePane === 'config' ? 'flex' : 'hidden md:flex'
               }`}
             >
-              <ModelControls models={models} onChange={setModels} />
-              <div className="border-t border-rule pt-5">
-                <TuningControls tuning={tuning} onChange={setTuning} />
+              <ModelControls
+                models={models}
+                onChange={setModels}
+                showScoring={enableScoring}
+                showRoleDetails={false}
+              />
+
+              <div className="border-t border-rule pt-4">
+                <button
+                  type="button"
+                  aria-expanded={advancedOpen}
+                  onClick={() => setAdvancedOpen((o) => !o)}
+                  className="flex w-full items-center justify-between gap-2 text-[12px] font-medium text-ink-soft hover:text-ink transition-colors"
+                >
+                  <span>Advanced</span>
+                  <span className="font-mono text-[11px] text-ink-faint" aria-hidden>
+                    {advancedOpen ? '−' : '+'}
+                  </span>
+                </button>
+                {advancedOpen && (
+                  <div className="mt-4 flex flex-col gap-6">
+                    <ModelControls
+                      models={models}
+                      onChange={setModels}
+                      showScoring={enableScoring}
+                      showPresets={false}
+                      showRoleDetails
+                    />
+                    <div className="border-t border-rule pt-5">
+                      <TuningControls
+                        tuning={tuning}
+                        onChange={setTuning}
+                        showRubric={enableScoring}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </aside>
           </div>
@@ -230,21 +280,36 @@ export function NewJobModal() {
             </p>
           )}
 
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 px-5 sm:px-7 py-4 border-t border-rule shrink-0 bg-paper pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-            <button
-              type="button"
-              onClick={closeModal}
-              className="text-[13px] text-ink-soft border border-rule hover:border-ink-faint hover:text-ink px-4 min-h-11 h-11 sm:h-9 sm:min-h-9 rounded-[3px] transition-colors"
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-5 sm:px-7 py-4 border-t border-rule shrink-0 bg-paper pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            <p
+              className="text-[12px] text-ink-faint font-mono tabular-nums order-2 sm:order-1"
+              data-testid="config-summary"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="text-[13px] font-medium text-paper bg-accent hover:bg-accent-deep px-5 min-h-11 h-11 sm:h-9 sm:min-h-9 rounded-[3px] transition-colors disabled:opacity-50"
-            >
-              {submitting ? 'Sending to press…' : 'Start typesetting'}
-            </button>
+              {presetLabel(activePreset)}
+              <span className="mx-1.5 text-rule">·</span>
+              Scoring {enableScoring ? 'on' : 'off'}
+            </p>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 order-1 sm:order-2">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="text-[13px] text-ink-soft border border-rule hover:border-ink-faint hover:text-ink px-4 min-h-11 h-11 sm:h-9 sm:min-h-9 rounded-[3px] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || !canSubmit}
+                title={
+                  canSubmit
+                    ? undefined
+                    : 'Add a label, résumé, and job description to continue'
+                }
+                className="text-[13px] font-medium text-paper bg-accent hover:bg-accent-deep px-5 min-h-11 h-11 sm:h-9 sm:min-h-9 rounded-[3px] transition-colors disabled:opacity-50"
+              >
+                {submitting ? 'Sending to press…' : 'Start typesetting'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

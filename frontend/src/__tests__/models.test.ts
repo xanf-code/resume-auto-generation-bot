@@ -1,8 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
+  DEFAULT_MODELS,
   effortOptionsFor,
   GATEWAY_EFFORTS,
+  MODEL_PRESETS,
+  matchPreset,
+  modelsEqual,
+  presetLabel,
   type ModelReasoning,
+  type ModelsConfig,
 } from '../lib/models';
 
 describe('effortOptionsFor', () => {
@@ -30,5 +36,30 @@ describe('effortOptionsFor', () => {
       default_effort: 'medium',
     };
     expect(effortOptionsFor(reasoning)).toEqual([...GATEWAY_EFFORTS]);
+  });
+});
+
+describe('model presets', () => {
+  it('treats DEFAULT_MODELS as the Balanced preset', () => {
+    expect(matchPreset(DEFAULT_MODELS)).toBe('balanced');
+    expect(modelsEqual(DEFAULT_MODELS, MODEL_PRESETS[1].models)).toBe(true);
+  });
+
+  it('detects Fast and Best presets', () => {
+    const fast = MODEL_PRESETS.find((p) => p.id === 'fast')!.models;
+    const best = MODEL_PRESETS.find((p) => p.id === 'best')!.models;
+    expect(matchPreset(fast)).toBe('fast');
+    expect(matchPreset(best)).toBe('best');
+    expect(presetLabel('fast')).toBe('Fast');
+    expect(presetLabel('best')).toBe('Best');
+  });
+
+  it('returns custom when any role differs', () => {
+    const custom: ModelsConfig = {
+      ...DEFAULT_MODELS,
+      writer: { model: 'openai/gpt-4o-mini', effort: null },
+    };
+    expect(matchPreset(custom)).toBe('custom');
+    expect(presetLabel('custom')).toBe('Custom');
   });
 });

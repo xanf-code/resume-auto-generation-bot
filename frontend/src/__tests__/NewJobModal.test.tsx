@@ -53,7 +53,13 @@ function renderModal() {
 
 async function renderModalReady() {
   renderModal();
-  // Flush ModelControls catalog fetch so async setState is inside act.
+  await waitFor(() => {
+    expect(screen.getByRole('group', { name: /model presets/i })).toBeInTheDocument();
+  });
+}
+
+async function openAdvanced() {
+  fireEvent.click(screen.getByRole('button', { name: /^advanced$/i }));
   await waitFor(() => {
     expect(screen.getByLabelText('Writer model')).toBeInTheDocument();
   });
@@ -87,6 +93,7 @@ describe('NewJobModal', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(dialog).toHaveAttribute('aria-labelledby', 'new-job-title');
     expect(document.getElementById('new-job-title')).toHaveTextContent('Feed the press');
+    expect(screen.getByText(/submission-ready PDF/i)).toBeInTheDocument();
   });
 
   it('moves focus to the label field on open and caps its length', async () => {
@@ -106,13 +113,46 @@ describe('NewJobModal', () => {
     expect(closeSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('uses a playground layout with inputs left and configuration right', async () => {
+  it('uses a playground layout with presets visible and advanced collapsed', async () => {
     await renderModalReady();
     expect(screen.getByTestId('playground-inputs')).toBeInTheDocument();
     expect(screen.getByTestId('playground-config')).toBeInTheDocument();
-    // Tuning sliders are always visible (no disclosure gate).
+    expect(screen.getByRole('button', { name: 'Balanced' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.queryByLabelText('Pass threshold')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Writer model')).not.toBeInTheDocument();
+
+    await openAdvanced();
     expect(screen.getByLabelText('Pass threshold')).toBeInTheDocument();
     expect(screen.getByLabelText('Writer model')).toBeInTheDocument();
+    // Rubric hidden until scoring is enabled
+    expect(screen.queryByLabelText('Keyword match')).not.toBeInTheDocument();
+  });
+
+  it('disables the CTA until required fields are filled', async () => {
+    await renderModalReady();
+    const submit = screen.getByRole('button', { name: /start typesetting/i });
+    expect(submit).toBeDisabled();
+    fillRequiredFields();
+    expect(submit).not.toBeDisabled();
+  });
+
+  it('shows a footer summary of preset and scoring', async () => {
+    await renderModalReady();
+    expect(screen.getByTestId('config-summary')).toHaveTextContent(/Balanced/);
+    expect(screen.getByTestId('config-summary')).toHaveTextContent(/Scoring off/);
+    fireEvent.click(screen.getByLabelText(/recruiter persona scoring/i));
+    expect(screen.getByTestId('config-summary')).toHaveTextContent(/Scoring on/);
+  });
+
+  it('reveals rubric weights when scoring is enabled and advanced is open', async () => {
+    await renderModalReady();
+    fireEvent.click(screen.getByLabelText(/recruiter persona scoring/i));
+    await openAdvanced();
+    expect(screen.getByLabelText('Keyword match')).toBeInTheDocument();
+    expect(screen.getByLabelText('Scoring model')).toBeInTheDocument();
   });
 
   it('submits default tuning and models with the job', async () => {
@@ -143,6 +183,25 @@ describe('NewJobModal', () => {
     expect(arg.models.parser.effort).toBeNull();
     expect(arg.models.gap.model).toBe('anthropic/claude-opus-5');
     expect(arg.models.scoring.model).toBe('openai/gpt-4o-mini');
+  });
+
+  it('applies a model preset without opening advanced', async () => {
+    (createJob as unknown as Mock).mockResolvedValue({
+      job_id: 'abc',
+      label: 'Backend Engineer',
+    });
+    await renderModalReady();
+    fireEvent.click(screen.getByRole('button', { name: 'Fast' }));
+    expect(screen.getByTestId('config-summary')).toHaveTextContent(/Fast/);
+
+    fillRequiredFields();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /start typesetting/i }));
+    });
+
+    const arg = (createJob as unknown as Mock).mock.calls.at(-1)![0];
+    expect(arg.models.writer.model).toBe('openai/gpt-4o-mini');
+    expect(arg.models.gap.model).toBe('openai/gpt-4o-mini');
   });
 
   it('does not close on Escape while a submission is in flight', async () => {

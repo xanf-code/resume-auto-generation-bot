@@ -67,6 +67,48 @@ describe('ModelControls', () => {
     expect(screen.getByLabelText('Scoring model')).toBeInTheDocument();
   });
 
+  it('renders preset chips with Balanced pressed by default', async () => {
+    setup();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Writer model')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Balanced' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'Fast' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
+  it('applies a preset via onChange', async () => {
+    const { onChange } = setup();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Writer model')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Best' }));
+    const arg = onChange.mock.calls.at(-1)![0] as ModelsConfig;
+    expect(arg.writer.model).toBe('anthropic/claude-opus-5');
+    expect(arg.writer.effort).toBe('high');
+    expect(arg.gap.effort).toBe('high');
+  });
+
+  it('hides the scoring role when showScoring is false', async () => {
+    const onChange = vi.fn();
+    render(
+      <ModelControls
+        models={DEFAULT_MODELS}
+        onChange={onChange}
+        showScoring={false}
+      />,
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Writer model')).toBeInTheDocument();
+    });
+    expect(screen.queryByLabelText('Scoring model')).not.toBeInTheDocument();
+  });
+
   it('shows an effort dropdown for reasoning models with supported_efforts', async () => {
     setup();
     await waitFor(() => {

@@ -12,15 +12,21 @@ import { SliderRow } from './SliderRow';
 interface Props {
   tuning: Tuning;
   onChange: (tuning: Tuning) => void;
+  /** When false, hide rubric weights (scoring is off for this application). */
+  showRubric?: boolean;
 }
 
 const pct = (v: number): string => `${Math.round(v * 100)}%`;
 
 /**
- * Always-visible pipeline tuning panel for the New Application playground
- * config column: scalar knobs plus live-balanced rubric weights (sum to 100%).
+ * Pipeline tuning panel: scalar knobs plus live-balanced rubric weights
+ * (sum to 100%). Rubric block is optional when recruiter scoring is disabled.
  */
-export function TuningControls({ tuning, onChange }: Props) {
+export function TuningControls({
+  tuning,
+  onChange,
+  showRubric = true,
+}: Props) {
   const setScalar = (key: ScalarKey, value: number) =>
     onChange({ ...tuning, [key]: value });
 
@@ -51,32 +57,34 @@ export function TuningControls({ tuning, onChange }: Props) {
         ))}
       </div>
 
-      <div className="flex flex-col gap-3 border border-rule rounded-[3px] p-3.5 bg-paper-raised">
-        <div className="flex items-center justify-between">
-          <span className="eyebrow">Rubric weights</span>
-          <span className="font-mono text-[12px] text-ink-soft tabular-nums">
-            Σ {pct(sum)}
-          </span>
+      {showRubric && (
+        <div className="flex flex-col gap-3 border border-rule rounded-[3px] p-3.5 bg-paper-raised">
+          <div className="flex items-center justify-between">
+            <span className="eyebrow">Rubric weights</span>
+            <span className="font-mono text-[12px] text-ink-soft tabular-nums">
+              Σ {pct(sum)}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-y-4">
+            {RUBRIC_FIELDS.map((f) => (
+              <SliderRow
+                key={f.key}
+                label={f.label}
+                help={f.help}
+                min={0}
+                max={1}
+                step={0.01}
+                value={tuning.rubric_weights[f.key]}
+                onChange={(v) => setWeight(f.key, v)}
+                valueLabel={pct(tuning.rubric_weights[f.key])}
+              />
+            ))}
+          </div>
+          <p className="text-[11px] text-ink-faint leading-snug">
+            Moving one weight rebalances the rest so the five always total 100%.
+          </p>
         </div>
-        <div className="grid grid-cols-1 gap-y-4">
-          {RUBRIC_FIELDS.map((f) => (
-            <SliderRow
-              key={f.key}
-              label={f.label}
-              help={f.help}
-              min={0}
-              max={1}
-              step={0.01}
-              value={tuning.rubric_weights[f.key]}
-              onChange={(v) => setWeight(f.key, v)}
-              valueLabel={pct(tuning.rubric_weights[f.key])}
-            />
-          ))}
-        </div>
-        <p className="text-[11px] text-ink-faint leading-snug">
-          Moving one weight rebalances the rest so the five always total 100%.
-        </p>
-      </div>
+      )}
     </div>
   );
 }

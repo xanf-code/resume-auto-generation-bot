@@ -55,4 +55,18 @@ describe('TuningControls', () => {
     setup();
     expect(screen.getByText(/Σ\s*100%/)).toBeInTheDocument();
   });
+
+  it('hides rubric weights when showRubric is false', () => {
+    const onChange = vi.fn();
+    render(
+      <TuningControls
+        tuning={DEFAULT_TUNING}
+        onChange={onChange}
+        showRubric={false}
+      />,
+    );
+    expect(screen.getByLabelText('Pass threshold')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Keyword match')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Σ\s*100%/)).not.toBeInTheDocument();
+  });
 });
