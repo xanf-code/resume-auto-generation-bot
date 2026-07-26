@@ -13,6 +13,8 @@ together with ``asyncio.gather``.
 import asyncio
 import logging
 
+import openai
+
 from config.settings import MODEL_SCORING
 from src.pipeline.llm import parse_scoring
 
@@ -64,6 +66,19 @@ def build_user_message(
     return "\n".join(sections) + "\n"
 
 
+# gpt-4o-mini occasionally rambles past its completion cap instead of emitting
+# the (tiny) PanelScore schema - a known repetition failure mode, not a real
+# evaluation. One retry usually clears it; a second miss falls back to this
+# neutral placeholder (below THRESHOLD so a broken score can't wrongly pass the
+# panel, but above PLAUSIBILITY_FLOOR so it can't wrongly veto one either)
+# rather than crashing the whole run.
+_FALLBACK_SCORE_VALUE = 50
+_LENGTH_LIMIT_NOTE = (
+    "Scoring call exceeded the model's output length limit twice; this is a "
+    "neutral placeholder score, not a real evaluation."
+)
+
+
 async def score_one(persona_name: str, system: str, user: str) -> PanelScore:
     """Score one persona, running the sync ``parse_scoring`` off the event loop.
 
@@ -74,7 +89,30 @@ async def score_one(persona_name: str, system: str, user: str) -> PanelScore:
     the call - the model may return a paraphrase, but the display/aggregator rely
     on exact string matching against ``PERSONAS`` keys.
     """
-    score = await asyncio.to_thread(parse_scoring, system, user, PanelScore)
+    try:
+        score = await asyncio.to_thread(parse_scoring, system, user, PanelScore)
+    except openai.LengthFinishReasonError:
+        log.warning(
+            "recruiter    | %-22s hit the output length cap - retrying once",
+            persona_name,
+        )
+        try:
+            score = await asyncio.to_thread(parse_scoring, system, user, PanelScore)
+        except openai.LengthFinishReasonError:
+            log.error(
+                "recruiter    | %-22s hit the output length cap twice - "
+                "falling back to a neutral placeholder score",
+                persona_name,
+            )
+            return PanelScore(
+                persona=persona_name,
+                keyword_match=_FALLBACK_SCORE_VALUE,
+                impact_quality=_FALLBACK_SCORE_VALUE,
+                coherence=_FALLBACK_SCORE_VALUE,
+                plausibility=_FALLBACK_SCORE_VALUE,
+                formatting=_FALLBACK_SCORE_VALUE,
+                notes=_LENGTH_LIMIT_NOTE,
+            )
     return score.model_copy(update={"persona": persona_name})
 
 

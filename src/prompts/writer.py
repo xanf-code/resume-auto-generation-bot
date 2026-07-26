@@ -61,8 +61,7 @@ latency 40% by rewriting ingestion in Kafka" = bullet. No exceptions.
 BULLET SHAPES: Guidance is injected per-run in the user message under \
 ## BULLET SHAPE DIRECTIVE; follow it exactly.
 
-TENSE: present for the current/most-recent role (builds, leads); past for all
-  prior roles (built, led).
+TENSE: past for all roles (built, led).
 
 PROVE, DON'T LIST: bake JD tools into a working bullet - "Built an ETL pipeline
   in Python and SQL that cut reporting 5 days → 1" proves Python+SQL harder

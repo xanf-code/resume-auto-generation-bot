@@ -385,9 +385,12 @@ def test_submit_threads_tuning_into_pipeline():
     loop.call_soon_threadsafe(loop.stop)
 
 
-def test_submit_without_tuning_passes_none():
-    """No tuning on the request → the pipeline is called with tuning=None."""
+def test_submit_without_tuning_resolves_defaults_when_learning_is_on():
+    """No tuning on the request, learning on (default) → resolve_tuning fills in
+    PipelineTuning.defaults() (Phase 7): the pipeline no longer sees a bare None.
+    """
     from src.web.job_manager import JobManager
+    from src.pipeline.tuning import PipelineTuning
 
     settings = _make_settings()
     manager = JobManager(settings, repo=InMemoryResumeRepository())
@@ -410,6 +413,40 @@ def test_submit_without_tuning_passes_none():
 
     with patch.object(runner_module.main_module, "stream_pipeline", side_effect=capturing_pipeline):
         job = manager.submit(_make_req())
+        assert _wait_for(lambda: job.status == JobStatus.DONE, timeout=10.0)
+
+    assert job.tuning is None
+    assert captured["seen"] is True
+    assert captured["tuning"] == PipelineTuning.defaults()
+
+
+def test_submit_without_tuning_passes_none_when_learning_is_off():
+    """No tuning on the request, learning off → the pipeline sees tuning=None,
+    exactly as it did before Phase 7 (no vault involvement at all).
+    """
+    from src.web.job_manager import JobManager
+
+    settings = _make_settings()
+    manager = JobManager(settings, repo=InMemoryResumeRepository())
+
+    loop = asyncio.new_event_loop()
+    loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
+    loop_thread.start()
+    manager.bind_loop(loop)
+
+    captured: dict = {"seen": False}
+
+    def capturing_pipeline(
+        resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring,
+        on_step=None, tuning=None, bullet_shapes=None,
+        **kwargs,
+    ):
+        captured["seen"] = True
+        captured["tuning"] = tuning
+        return {"best_latex": "x", "aggregate_score": 80.0, "passed": True, "output_pdf": "x.pdf"}
+
+    with patch.object(runner_module.main_module, "stream_pipeline", side_effect=capturing_pipeline):
+        job = manager.submit(_make_req(obsidian_learn=False))
         assert _wait_for(lambda: job.status == JobStatus.DONE, timeout=10.0)
 
     assert job.tuning is None
@@ -486,5 +523,55 @@ def test_submit_without_bullet_shapes_passes_none_to_pipeline():
     assert job.bullet_shapes is None
     assert captured["seen"] is True
     assert captured["bullet_shapes"] is None
+
+    loop.call_soon_threadsafe(loop.stop)
+
+
+# ---------------------------------------------------------------------------
+# Test: obsidian_learn threading (Phase 7)
+# ---------------------------------------------------------------------------
+
+def test_submit_maps_obsidian_learn_default_true_onto_job():
+    """No obsidian_learn on the request → job.obsidian_learn defaults True."""
+    from src.web.job_manager import JobManager
+
+    settings = _make_settings()
+    manager = JobManager(settings, repo=InMemoryResumeRepository())
+
+    loop = asyncio.new_event_loop()
+    loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
+    loop_thread.start()
+    manager.bind_loop(loop)
+
+    fake = _fake_pipeline_factory(on_step_calls=0)
+
+    with patch.object(runner_module.main_module, "stream_pipeline", side_effect=fake):
+        job = manager.submit(_make_req())
+        assert _wait_for(lambda: job.status == JobStatus.DONE, timeout=10.0)
+
+    assert job.obsidian_learn is True
+
+    loop.call_soon_threadsafe(loop.stop)
+
+
+def test_submit_maps_obsidian_learn_false_onto_job():
+    """obsidian_learn=False on the request is copied onto the job unchanged."""
+    from src.web.job_manager import JobManager
+
+    settings = _make_settings()
+    manager = JobManager(settings, repo=InMemoryResumeRepository())
+
+    loop = asyncio.new_event_loop()
+    loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
+    loop_thread.start()
+    manager.bind_loop(loop)
+
+    fake = _fake_pipeline_factory(on_step_calls=0)
+
+    with patch.object(runner_module.main_module, "stream_pipeline", side_effect=fake):
+        job = manager.submit(_make_req(obsidian_learn=False))
+        assert _wait_for(lambda: job.status == JobStatus.DONE, timeout=10.0)
+
+    assert job.obsidian_learn is False
 
     loop.call_soon_threadsafe(loop.stop)

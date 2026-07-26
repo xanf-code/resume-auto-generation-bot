@@ -145,6 +145,10 @@ class JobSubmitRequest(BaseModel):
     tuning: TuningDTO | None = None
     models: ModelsDTO | None = None
     bullet_shapes: list[str] | None = None
+    # Obsidian vault "learning" toggle - when False, this run skips retrieval
+    # of proven examples and vault tuning overrides (the run note is still
+    # always written). Defaults True; the UI exposes this as an opt-out.
+    obsidian_learn: bool = True
 
     @field_validator("label")
     @classmethod

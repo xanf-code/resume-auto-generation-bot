@@ -58,6 +58,8 @@ export interface CreateJobRequest {
   models?: ModelsConfig;
   // Bullet shape selection. Empty / omitted → default rotation over all four shapes.
   bullet_shapes?: string[];
+  // Obsidian vault "learning" toggle. Omitted → backend defaults to true.
+  obsidian_learn?: boolean;
 }
 
 export interface CreateJobResponse {

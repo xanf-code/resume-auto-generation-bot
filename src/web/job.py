@@ -72,6 +72,11 @@ class Job:
     models: PipelineModels | None = None
     # Per-résumé bullet shape selection. None → default rotation over all four.
     bullet_shapes: list[str] | None = None
+    # JD classification tags (always computed by run_job; not user input).
+    jd_type: list[str] | None = None
+    # Obsidian vault "learning" toggle - retrieval + tuning override resolution
+    # for this run. The run note is always written regardless of this flag.
+    obsidian_learn: bool = True
 
     # Pipeline artifacts (populated on completion; persisted to the repository)
     best_latex: str | None = None

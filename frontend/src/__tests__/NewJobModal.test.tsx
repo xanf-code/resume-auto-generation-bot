@@ -256,6 +256,41 @@ describe('NewJobModal', () => {
     expect(arg.bullet_shapes).toEqual(['PAR', 'ACTION+STACK']);
   });
 
+  it('sends obsidian_learn true by default (checkbox unchecked)', async () => {
+    (createJob as unknown as Mock).mockResolvedValue({
+      job_id: 'abc',
+      label: 'Backend Engineer',
+    });
+    await renderModalReady();
+
+    expect(screen.getByLabelText(/turn off obsidian learning/i)).not.toBeChecked();
+
+    fillRequiredFields();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /start typesetting/i }));
+    });
+
+    const arg = (createJob as unknown as Mock).mock.calls.at(-1)![0];
+    expect(arg.obsidian_learn).toBe(true);
+  });
+
+  it('sends obsidian_learn false when the toggle checkbox is checked', async () => {
+    (createJob as unknown as Mock).mockResolvedValue({
+      job_id: 'abc',
+      label: 'Backend Engineer',
+    });
+    await renderModalReady();
+
+    fireEvent.click(screen.getByLabelText(/turn off obsidian learning/i));
+    fillRequiredFields();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /start typesetting/i }));
+    });
+
+    const arg = (createJob as unknown as Mock).mock.calls.at(-1)![0];
+    expect(arg.obsidian_learn).toBe(false);
+  });
+
   it('does not close on Escape while a submission is in flight', async () => {
     const closeSpy = vi.fn();
     useStore.setState({ closeNewJobModal: closeSpy });

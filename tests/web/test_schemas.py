@@ -223,3 +223,18 @@ def test_bullet_shapes_none_explicitly_stays_none():
     from src.web.schemas import JobSubmitRequest
     r = JobSubmitRequest(label="X", resume_tex="t", jd_text="j", bullet_shapes=None)
     assert r.bullet_shapes is None
+
+
+# --- obsidian_learn field on JobSubmitRequest --------------------------------
+
+
+def test_obsidian_learn_defaults_true():
+    from src.web.schemas import JobSubmitRequest
+    r = JobSubmitRequest(label="X", resume_tex="t", jd_text="j")
+    assert r.obsidian_learn is True
+
+
+def test_obsidian_learn_explicit_false():
+    from src.web.schemas import JobSubmitRequest
+    r = JobSubmitRequest(label="X", resume_tex="t", jd_text="j", obsidian_learn=False)
+    assert r.obsidian_learn is False

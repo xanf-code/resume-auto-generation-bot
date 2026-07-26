@@ -9,6 +9,7 @@ NO live API calls (ANTHROPIC_API_KEY is intentionally unset). These tests pin:
   ``resume_struct``) while the ATS Matcher's does not;
 - the node never mutates input state.
 """
+import openai
 import pytest
 
 from src.agents import recruiters
@@ -19,6 +20,18 @@ from src.pipeline.schemas import (
     ResumeStruct,
     SkillWeight,
 )
+
+
+def _length_finish_reason_error() -> openai.LengthFinishReasonError:
+    class _Usage:
+        completion_tokens = 16000
+        prompt_tokens = 100
+        total_tokens = 16100
+
+    class _Completion:
+        usage = _Usage()
+
+    return openai.LengthFinishReasonError(completion=_Completion())
 
 
 def _resume_struct() -> ResumeStruct:
@@ -133,6 +146,49 @@ async def test_score_one_wraps_parse_scoring_in_thread(monkeypatch):
     # model_copy returns a new object; check equality and that persona is canonical.
     assert result == canned
     assert result.persona == "ATS Matcher"
+
+
+@pytest.mark.asyncio
+async def test_score_one_retries_once_on_length_error_and_succeeds(monkeypatch):
+    """A single LengthFinishReasonError is retried transparently - the caller
+    never sees it as long as the retry succeeds."""
+    canned = _canned("Hiring Manager")
+    calls = {"n": 0}
+
+    def fake_parse_scoring(system, user, schema, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise _length_finish_reason_error()
+        return canned
+
+    monkeypatch.setattr(recruiters, "parse_scoring", fake_parse_scoring)
+
+    result = await recruiters.score_one("Hiring Manager", "sys", "user")
+
+    assert calls["n"] == 2
+    assert result.persona == "Hiring Manager"
+    assert result.notes == "Hiring Manager note"
+
+
+@pytest.mark.asyncio
+async def test_score_one_falls_back_to_neutral_score_after_two_length_errors(monkeypatch):
+    """Two consecutive LengthFinishReasonErrors must not crash the run - the
+    persona gets a neutral placeholder score instead."""
+    calls = {"n": 0}
+
+    def fake_parse_scoring(system, user, schema, **kwargs):
+        calls["n"] += 1
+        raise _length_finish_reason_error()
+
+    monkeypatch.setattr(recruiters, "parse_scoring", fake_parse_scoring)
+
+    result = await recruiters.score_one("Skeptic", "sys", "user")
+
+    assert calls["n"] == 2, "must retry exactly once before falling back"
+    assert result.persona == "Skeptic"
+    assert result.keyword_match == recruiters._FALLBACK_SCORE_VALUE
+    assert result.plausibility == recruiters._FALLBACK_SCORE_VALUE
+    assert "length limit" in result.notes
 
 
 def test_recruiter_panel_does_not_mutate_input_state(monkeypatch):

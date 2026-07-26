@@ -136,6 +136,7 @@ def stream_pipeline(
     tuning: PipelineTuning | None = None,
     bullet_shapes: list[str] | None = None,
     write_files: bool = True,
+    proven_examples: str | None = None,
 ) -> dict:
     """Run the pipeline from raw content, streaming per-node progress.
 
@@ -155,6 +156,10 @@ def stream_pipeline(
     budgets, rubric weights) onto the state so nodes read them instead of the
     ``config.settings`` defaults. The LangGraph recursion budget scales off the
     run's ``max_iterations`` so a larger loop budget doesn't trip the limit.
+
+    ``proven_examples`` - when given - is seeded onto the state so the Writer's
+    prompt includes the PROVEN EXAMPLES section; every revision back-edge
+    re-enters at ``writer``, so the value persists across the loop for free.
     """
     require_api_key()  # fail fast before any node runs
 
@@ -178,6 +183,8 @@ def stream_pipeline(
         initial_state["identity_ledger"] = identity_ledger
     if bullet_shapes is not None:
         initial_state["bullet_shapes"] = bullet_shapes
+    if proven_examples is not None:
+        initial_state["proven_examples"] = proven_examples
 
     graph = build_graph(enable_scoring=enable_scoring)
     recursion_limit = effective_tuning.max_iterations * 12 + 20

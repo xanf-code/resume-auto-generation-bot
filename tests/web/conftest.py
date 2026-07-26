@@ -14,6 +14,18 @@ def pytest_configure(config):
     )
 
 
+@pytest.fixture(autouse=True)
+def _no_real_jd_tagging(monkeypatch):
+    """Never let a test hit the real jd_tagger LLM call.
+
+    ``run_job`` always classifies the JD into tags (Phase 7 wiring), so any
+    test that drives a job through the manager now reaches
+    ``src.web.runner.classify_jd_type``. Default it to a no-op here; tests
+    that care about specific tags override it locally within their own scope.
+    """
+    monkeypatch.setattr("src.web.runner.classify_jd_type", lambda jd_raw: [])
+
+
 def seed_job_done(manager, job_id: str, **artifacts) -> None:
     """Persist a done status + artifacts via the repository (SSOT)."""
     repo = manager._repo

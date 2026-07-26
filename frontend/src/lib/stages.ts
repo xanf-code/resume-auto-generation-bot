@@ -16,6 +16,10 @@ export type StageName = (typeof STAGE_ORDER)[number];
 // backend stage maps to a bucket, in monotonic execution order.
 const FINE_TO_COARSE: Record<string, StageName> = {
   init: 'init',
+  // pre-pipeline vault lookup (proven examples + tuning overrides) - runs
+  // before the graph starts, so it belongs in the same bucket as 'init'.
+  vault_retrieval: 'init',
+  tuning: 'init',
   // extraction spine
   parse_resume: 'parse',
   analyze_jd: 'parse',
@@ -35,6 +39,9 @@ const FINE_TO_COARSE: Record<string, StageName> = {
   // finalization
   emit: 'done',
   score_report: 'done',
+  // post-pipeline vault write (run note) - happens after scoring, so it stays
+  // in the 'done' bucket rather than regressing the stepper back to 'init'.
+  vault_write: 'done',
   done: 'done',
 };
 

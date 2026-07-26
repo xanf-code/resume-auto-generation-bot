@@ -88,6 +88,7 @@ class JobManager:
             req.models.to_pipeline_models() if req.models is not None else None
         )
         job.bullet_shapes = req.bullet_shapes
+        job.obsidian_learn = req.obsidian_learn
         job.out_dir = f"{self.settings.out_root}/{job.job_id}"
 
         record = JobRecord(

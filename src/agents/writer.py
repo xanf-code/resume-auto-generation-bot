@@ -127,6 +127,8 @@ def build_writer_user_message(state: PipelineState) -> str:
     Always includes the core inputs (structured resume, JD vector, reframing
     targets). Conditionally appends:
 
+    - the PROVEN EXAMPLES block (already labelled by the retrieval layer) when
+      ``proven_examples`` is set;
     - a REVISION section (prior draft + ranked revision notes) when
       ``revision_notes`` is present or ``iteration`` >= 2;
     - a COMPILE ERRORS section when ``compile_errors`` is present (compile bounce).
@@ -155,6 +157,10 @@ def build_writer_user_message(state: PipelineState) -> str:
         "## REFRAMING TARGETS (apply each framing_guidance to its host_role_index)",
         targets_json,
     ]
+
+    proven_examples = state.get("proven_examples")
+    if proven_examples:
+        sections += ["", proven_examples]
 
     revision_notes = state.get("revision_notes")
     if revision_notes or state.get("iteration", 1) >= 2:

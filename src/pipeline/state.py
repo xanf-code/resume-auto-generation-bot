@@ -31,6 +31,9 @@ class PipelineState(TypedDict, total=False):
     # Per-résumé bullet shape selection. None / absent → default rotation over
     # all four shapes. One name → use only that shape. Subset → rotate within it.
     bullet_shapes: list[str] | None
+    # Retrieved-examples prompt block (Phase 4's retrieval output, already
+    # labelled). Absent/None → the Writer's PROVEN EXAMPLES section is omitted.
+    proven_examples: str | None
 
     # --- extraction -----------------------------------------------------------
     resume_struct: ResumeStruct

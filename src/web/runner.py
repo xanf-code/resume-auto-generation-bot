@@ -13,11 +13,17 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import src.main as main_module
+from src.agents.jd_tagger import classify_jd_type
 from src.pipeline.emit import build_score_report
 from src.pipeline.llm import model_context
+from src.vault.config import VaultSettings
+from src.vault.retrieval import retrieve_examples
+from src.vault.tuning import resolve_tuning
+from src.vault.writer import write_run_note
 from src.web import events
 from src.web.job import Job
 from src.web.schemas import JobStatus, ProgressEvent
@@ -41,6 +47,55 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _vault_retrieval_event(job: Job, tags: list[str], found: bool) -> ProgressEvent:
+    """Build a visibility event for the proven-examples lookup (Loop A, read side)."""
+    tag_label = ", ".join(tags) if tags else "untagged"
+    detail = (
+        f"Vault: found proven examples for [{tag_label}]"
+        if found
+        else f"Vault: no proven examples yet for [{tag_label}]"
+    )
+    return ProgressEvent(
+        job_id=job.job_id,
+        stage="vault_retrieval",
+        human_label="Checking vault for proven examples",
+        pct=2,
+        detail=detail,
+    )
+
+
+def _vault_write_event(job: Job, path: Path) -> ProgressEvent:
+    """Build a visibility event for the run note that was just written."""
+    return ProgressEvent(
+        job_id=job.job_id,
+        stage="vault_write",
+        human_label="Saving learning note",
+        pct=95,
+        detail=f"Vault: saved run note {path.name}",
+    )
+
+
+def _tuning_diff_event(job: Job, tags: list[str], diff: dict) -> ProgressEvent:
+    """Build a visibility event describing a vault tuning override.
+
+    Surfaces *what* changed (and for which tags) in the activity stream, since
+    this replaces an explicit "Proceed?" confirmation step - the run just
+    proceeds with the learned tuning, and this event is how the user finds out.
+    """
+    tag_label = ", ".join(tags) if tags else "untagged"
+    parts = [
+        "rubric weights adjusted" if field == "rubric_weights" else f"{field} {old}→{new}"
+        for field, (old, new) in diff.items()
+    ]
+    return ProgressEvent(
+        job_id=job.job_id,
+        stage="tuning",
+        human_label="Applying learned tuning",
+        pct=5,
+        detail=f"Learned tuning for [{tag_label}]: " + "; ".join(parts),
+    )
+
+
 def run_job(job: Job, manager: "JobManager") -> None:
     """Execute the pipeline for *job* synchronously (called from a worker thread)."""
     job.status = JobStatus.RUNNING
@@ -60,13 +115,38 @@ def run_job(job: Job, manager: "JobManager") -> None:
         if event is not None:
             manager._emit(job, event)
 
+    # JD tagging always runs - the run note needs tags regardless of the
+    # learning toggle. classify_jd_type never raises (empty list on failure).
+    vault_settings = VaultSettings.load()
+    tags = classify_jd_type(job.jd_raw)
+    job.jd_type = tags
+
+    # Retrieval + tuning-override resolution are opt-out via job.obsidian_learn.
+    # A vault error here must never fail the run - fall back to no examples and
+    # the explicit/default tuning, exactly like the learning-off path.
+    proven_examples: str | None = None
+    tuning = job.tuning
+    if job.obsidian_learn:
+        try:
+            proven_examples = retrieve_examples(tags, settings=vault_settings)
+            if vault_settings.enabled:
+                manager._emit(job, _vault_retrieval_event(job, tags, found=proven_examples is not None))
+            tuning, diff = resolve_tuning(tags, job.tuning, settings=vault_settings)
+            if diff:
+                manager._emit(job, _tuning_diff_event(job, tags, diff))
+        except Exception:
+            log.exception("Vault retrieval/tuning failed for job %s - continuing without", job.job_id)
+            proven_examples, tuning = None, job.tuning
+
     # Forward the per-application tuning only when set - a None config keeps the
     # call shape (and the pipeline's default behaviour) exactly as before.
     extra: dict = {}
-    if job.tuning is not None:
-        extra["tuning"] = job.tuning
+    if tuning is not None:
+        extra["tuning"] = tuning
     if job.bullet_shapes is not None:
         extra["bullet_shapes"] = job.bullet_shapes
+    if proven_examples is not None:
+        extra["proven_examples"] = proven_examples
 
     def _stream():
         return main_module.stream_pipeline(
@@ -130,6 +210,14 @@ def run_job(job: Job, manager: "JobManager") -> None:
     job.finished_at = _now()
 
     _db_save_artifacts(job, manager)
+
+    # Always write the run note - a vault error here must never fail the run.
+    try:
+        note_path = write_run_note(job, final_state, tags, settings=vault_settings)
+        if note_path is not None:
+            manager._emit(job, _vault_write_event(job, note_path))
+    except Exception:
+        log.exception("Failed to write vault run note for job %s", job.job_id)
 
     _emit_terminal(job, manager, stage="done")
 

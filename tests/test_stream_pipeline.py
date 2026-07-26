@@ -162,6 +162,41 @@ def test_stream_pipeline_does_no_file_io_and_no_stdout(capsys):
     assert "=" * 52 not in out
 
 
+def test_stream_pipeline_seeds_proven_examples_when_set():
+    captured: dict = {}
+
+    def capture_stream(state, config, stream_mode):
+        captured.update(state)
+        return iter([])
+
+    from src.main import stream_pipeline
+    g = MagicMock()
+    g.stream = capture_stream
+    with patch("src.main.require_api_key", return_value="key"), \
+         patch("src.main.build_graph", return_value=g):
+        stream_pipeline("r", "j", out_dir="out", jd_name="acme",
+                        proven_examples="## PROVEN EXAMPLES\n- did a thing")
+
+    assert captured["proven_examples"] == "## PROVEN EXAMPLES\n- did a thing"
+
+
+def test_stream_pipeline_omits_proven_examples_key_when_none():
+    captured: dict = {}
+
+    def capture_stream(state, config, stream_mode):
+        captured.update(state)
+        return iter([])
+
+    from src.main import stream_pipeline
+    g = MagicMock()
+    g.stream = capture_stream
+    with patch("src.main.require_api_key", return_value="key"), \
+         patch("src.main.build_graph", return_value=g):
+        stream_pipeline("r", "j", out_dir="out", jd_name="acme")
+
+    assert "proven_examples" not in captured
+
+
 def test_stream_pipeline_forwards_cached_struct_and_ledger():
     captured: dict = {}
 

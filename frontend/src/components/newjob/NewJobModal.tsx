@@ -26,6 +26,7 @@ export function NewJobModal() {
   const [resumeTex, setResumeTex] = useState('');
   const [jdText, setJdText] = useState('');
   const [enableScoring, setEnableScoring] = useState(false);
+  const [obsidianLearnOff, setObsidianLearnOff] = useState(false);
   const [tuning, setTuning] = useState<Tuning>(DEFAULT_TUNING);
   const [models, setModels] = useState<ModelsConfig>(DEFAULT_MODELS);
   const [bulletShapes, setBulletShapes] = useState<BulletShape[]>(DEFAULT_BULLET_SHAPES);
@@ -93,6 +94,7 @@ export function NewJobModal() {
         tuning,
         models,
         bullet_shapes: bulletShapes,
+        obsidian_learn: !obsidianLearnOff,
       });
       addJob({ job_id: job.job_id, label: job.label });
       closeModal();
@@ -228,6 +230,16 @@ export function NewJobModal() {
                   className="accent-[#c0362c] w-4 h-4"
                 />
                 Enable recruiter persona scoring
+              </label>
+
+              <label className="flex items-center gap-2.5 text-[13px] text-ink-soft cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={obsidianLearnOff}
+                  onChange={(e) => setObsidianLearnOff(e.target.checked)}
+                  className="accent-[#c0362c] w-4 h-4"
+                />
+                Turn off Obsidian learning
               </label>
             </div>
 

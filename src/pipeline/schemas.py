@@ -76,6 +76,14 @@ class JDVector(BaseModel):
     must_mirror: list[str]
 
 
+class JDTags(BaseModel):
+    """The JD Tagger's controlled-vocabulary classification of a raw JD."""
+
+    model_config = _STRICT
+
+    tags: list[str]
+
+
 class ReframingTarget(BaseModel):
     """A competency the writer should surface, anchored to real evidence."""
 

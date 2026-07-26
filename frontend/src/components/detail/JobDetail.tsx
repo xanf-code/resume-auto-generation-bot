@@ -261,6 +261,21 @@ export function JobDetail() {
       });
   }, [jobId, job?.status]);
 
+  // Same gap for a job that failed before this view opened: the list endpoint
+  // that seeds the store on app load has no `error` field, and there is no
+  // terminal SSE frame left to carry it. Without this, the failure reason
+  // collapses to the "Unknown error." placeholder even though the backend
+  // recorded the real one. Guarded on a missing error so a job we watched
+  // fail live (already populated via SSE) is left untouched.
+  useEffect(() => {
+    if (!jobId || job?.status !== 'failed' || job.error) return;
+    getJob(jobId)
+      .then(syncJob)
+      .catch(() => {
+        /* error stays empty - the view keeps its "Unknown error." fallback */
+      });
+  }, [jobId, job?.status, job?.error]);
+
   if (!job) {
     return (
       <div className="flex items-center justify-center h-full font-serif italic text-[16px] text-ink-faint">
