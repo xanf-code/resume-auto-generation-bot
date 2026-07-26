@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 
 import pytest
 
+from src.agents.jd_tagger import JdClassification
+
 
 def pytest_configure(config):
     """Register custom marks so -m integration works cleanly."""
@@ -18,18 +20,22 @@ def pytest_configure(config):
 def _no_real_jd_tagging(monkeypatch):
     """Never let a test hit the real jd_tagger LLM call.
 
-    ``run_job`` always classifies the JD into tags (Phase 7 wiring), so any
-    test that drives a job through the manager now reaches
-    ``src.web.runner.classify_jd_type``. Default it to a no-op here; tests
-    that care about specific tags override it locally within their own scope.
+    ``run_job`` always classifies the JD into a role/domains split (Phase 9/10
+    wiring), so any test that drives a job through the manager now reaches
+    ``src.web.runner.classify_jd_type`` and accesses ``.role``/``.domains``/
+    ``.combined_tags`` on its return value. Default it to a neutral
+    classification here; tests that care about specific role/domains override
+    it locally within their own scope.
     """
-    monkeypatch.setattr("src.web.runner.classify_jd_type", lambda jd_raw: [])
+    monkeypatch.setattr(
+        "src.web.runner.classify_jd_type",
+        lambda jd_raw: JdClassification(role=None, domains=[]),
+    )
 
 
 def seed_job_done(manager, job_id: str, **artifacts) -> None:
     """Persist a done status + artifacts via the repository (SSOT)."""
     repo = manager._repo
-    repo.set_status(job_id, "done", finished_at=datetime.now(timezone.utc))
     existing = repo.get(job_id)
     repo.save_artifacts(
         job_id,
@@ -47,4 +53,6 @@ def seed_job_done(manager, job_id: str, **artifacts) -> None:
         pdf_object_key=artifacts.get(
             "pdf_object_key", existing.pdf_object_key if existing else None
         ),
+        status="done",
+        finished_at=datetime.now(timezone.utc),
     )

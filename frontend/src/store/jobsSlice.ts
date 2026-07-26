@@ -25,6 +25,9 @@ export interface JobSlice {
   activityLog: ActivityEntry[];
   error?: string;
   finishedAt?: string;
+  // JD classification (role/domain tag). None/empty until classification runs.
+  role?: string | null;
+  domains?: string[];
 }
 
 export type JobsMap = Record<string, JobSlice>;
@@ -140,6 +143,8 @@ export function reconcileJob(jobs: JobsMap, detail: JobDetail): JobsMap {
     aggregateScore: detail.aggregate_score ?? existing.aggregateScore,
     passed: detail.passed ?? existing.passed,
     error: detail.error ?? existing.error,
+    role: detail.role ?? existing.role,
+    domains: detail.domains ?? existing.domains,
   };
 
   if (detail.persona_scores && detail.persona_scores.length > 0) {

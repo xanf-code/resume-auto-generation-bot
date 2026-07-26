@@ -81,8 +81,22 @@ def _find_existing_note(runs_dir: Path, job_id: str) -> Path | None:
     return None
 
 
+def _derived_jd_type(role: str | None, domains: list[str]) -> list[str]:
+    """Human/Dataview display value: ``[role, *domains]`` (deduped, defensively)."""
+    tags = [role] if role else []
+    for domain in domains:
+        if domain not in tags:
+            tags.append(domain)
+    return tags
+
+
 def write_run_note(
-    job: Any, final_state: dict, tags: list[str], *, settings: VaultSettings
+    job: Any,
+    final_state: dict,
+    role: str | None,
+    domains: list[str],
+    *,
+    settings: VaultSettings,
 ) -> Path | None:
     """Write (or overwrite) the run note for *job*. No-op when disabled."""
     if not settings.enabled or settings.dir is None:
@@ -105,7 +119,9 @@ def write_run_note(
         "job_id": job.job_id,
         "label": job.label,
         "jd_name": job.jd_name,
-        "jd_type": list(tags),
+        "role": role,
+        "domains": list(domains),
+        "jd_type": _derived_jd_type(role, domains),
         "created": created.isoformat(),
         "internal_score": final_state.get("aggregate_score"),
         "passed": bool(final_state.get("passed", False)),

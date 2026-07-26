@@ -55,6 +55,8 @@ def _job_summary(job) -> JobSummary:
         error=job.error,
         aggregate_score=aggregate_score,
         passed=passed,
+        role=job.role,
+        domains=job.domains,
     )
 
 
@@ -97,6 +99,8 @@ def _job_detail(job) -> JobDetail:
         aggregate_score=aggregate_score,
         passed=passed,
         persona_scores=persona_scores,
+        role=job.role,
+        domains=job.domains,
     )
 
 

@@ -1,42 +1,6 @@
-import { useEffect, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useStore } from '../../store';
 import { DESKTOP_MQ, useMediaQuery } from '../../hooks/useMediaQuery';
-
-type Health = 'unknown' | 'ready' | 'nokey' | 'down';
-
-const HEALTH_META: Record<Health, { color: string; label: string }> = {
-  unknown: { color: 'var(--color-ink-faint)', label: 'Connecting' },
-  ready: { color: 'var(--color-pass)', label: 'Connected' },
-  nokey: { color: 'var(--color-accent)', label: 'No API key' },
-  down: { color: 'var(--color-fail)', label: 'Offline' },
-};
-
-function useHealth(): Health {
-  const [health, setHealth] = useState<Health>('unknown');
-
-  useEffect(() => {
-    let active = true;
-    const ping = async () => {
-      try {
-        const res = await fetch('/api/healthz');
-        if (!res.ok) throw new Error('bad status');
-        const data = (await res.json()) as { api_key_present?: boolean };
-        if (active) setHealth(data.api_key_present ? 'ready' : 'nokey');
-      } catch {
-        if (active) setHealth('down');
-      }
-    };
-    ping();
-    const timer = setInterval(ping, 20000);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
-  }, []);
-
-  return health;
-}
 
 interface Props {
   /** Show the applications menu (phone/tablet workspace). */
@@ -47,8 +11,6 @@ export function TopBar({ showNavToggle = false }: Props) {
   const openModal = useStore((s) => s.openNewJobModal);
   const toggleMobileNav = useStore((s) => s.toggleMobileNav);
   const mobileNavOpen = useStore((s) => s.mobileNavOpen);
-  const health = useHealth();
-  const meta = HEALTH_META[health];
   const isDesktop = useMediaQuery(DESKTOP_MQ);
 
   return (
@@ -110,15 +72,6 @@ export function TopBar({ showNavToggle = false }: Props) {
         >
           A/B
         </NavLink>
-        <span className="flex items-center gap-2" title={meta.label}>
-          <span
-            className="inline-block w-1.5 h-1.5 rounded-full"
-            style={{ backgroundColor: meta.color }}
-          />
-          <span className="text-[11px] text-ink-faint hidden sm:inline">
-            {meta.label}
-          </span>
-        </span>
         <button
           onClick={openModal}
           className="text-[13px] font-medium text-paper bg-accent hover:bg-accent-deep px-3 sm:px-4 min-h-11 sm:min-h-9 h-11 sm:h-9 rounded-[3px] transition-colors"

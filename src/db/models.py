@@ -36,6 +36,10 @@ class JobRecord:
     models: dict | None = None
     bullet_shapes: list | None = None
 
+    # --- JD classification (computed by run_job; not user input) ---
+    role: str | None = None
+    domains: list | None = None
+
     # --- artifacts ---
     best_latex: str | None = None
     output_skills: dict | None = None
@@ -81,6 +85,8 @@ def record_to_row(rec: JobRecord) -> dict:
         "tuning": rec.tuning,
         "models": rec.models,
         "bullet_shapes": rec.bullet_shapes,
+        "role": rec.role,
+        "domains": rec.domains,
         "best_latex": rec.best_latex,
         "output_skills": rec.output_skills,
         "score_report": rec.score_report,
@@ -112,6 +118,8 @@ def row_to_record(row: dict) -> JobRecord:
         tuning=row.get("tuning"),
         models=row.get("models"),
         bullet_shapes=row.get("bullet_shapes"),
+        role=row.get("role"),
+        domains=row.get("domains"),
         best_latex=row.get("best_latex"),
         output_skills=row.get("output_skills"),
         score_report=row.get("score_report"),

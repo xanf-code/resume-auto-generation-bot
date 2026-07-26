@@ -13,6 +13,7 @@ import type { StreamStatus } from '../../sse/JobStream';
 import { ErrorBoundary } from '../ErrorBoundary';
 import type { JobSlice } from '../../store/jobsSlice';
 import type { PaneId } from './ThreePane';
+import { formatClassification } from '../../lib/classification';
 
 const streamManager = new StreamManager();
 
@@ -33,6 +34,7 @@ function WorkspaceHeader({
   onDelete: () => Promise<void>;
 }) {
   const meta = STATUS_META[job.status];
+  const classification = formatClassification(job.role, job.domains);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(job.label);
   const [busy, setBusy] = useState(false);
@@ -124,6 +126,11 @@ function WorkspaceHeader({
             {job.label}
           </button>
         )}
+        {classification && (
+          <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-faint mt-1">
+            {classification}
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-3 sm:gap-5 shrink-0 flex-wrap">
         {job.aggregateScore !== undefined && (
@@ -139,15 +146,17 @@ function WorkspaceHeader({
             </span>
           </div>
         )}
-        <span className="flex items-center gap-2">
-          <span
-            className={`inline-block w-1.5 h-1.5 rounded-full ${job.status === 'running' ? 'animate-pulse' : ''}`}
-            style={{ backgroundColor: meta.color }}
-          />
-          <span className="text-[12px]" style={{ color: meta.color }}>
-            {meta.label}
+        {job.status !== 'done' && (
+          <span className="flex items-center gap-2">
+            <span
+              className={`inline-block w-1.5 h-1.5 rounded-full ${job.status === 'running' ? 'animate-pulse' : ''}`}
+              style={{ backgroundColor: meta.color }}
+            />
+            <span className="text-[12px]" style={{ color: meta.color }}>
+              {meta.label}
+            </span>
           </span>
-        </span>
+        )}
         <button
           type="button"
           disabled={busy}

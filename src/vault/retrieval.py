@@ -1,8 +1,11 @@
 """Retrieval of proven bullets from past winning runs (Loop A, read side).
 
-Surfaces bullets from prior runs that earned an interview or offer for a
-similar role, so the writer can reuse framing that already worked instead of
-starting cold every time.
+Surfaces bullets from prior runs that earned an interview or offer for the
+*same role* (hard-filtered, no partial credit), ranked by domain-tag Jaccard
+overlap. Role is the job function - disagreeing on it means the win is simply
+irrelevant, so it is an exclusion rather than a demotion (fix for the
+production bad-match bug: a Backend win leaking into a Product Owner run via
+shared tech-flavor tags).
 """
 from __future__ import annotations
 
@@ -21,21 +24,39 @@ _PROVEN_EXAMPLES_HEADER = (
 )
 
 
+def _jaccard(a: set[str], b: set[str]) -> float:
+    if not a and not b:
+        return 0.0
+    union = a | b
+    return len(a & b) / len(union) if union else 0.0
+
+
 def retrieve_examples(
-    tags: Iterable[str], *, settings: VaultSettings, k: int = 3
+    role: str | None, domains: Iterable[str], *, settings: VaultSettings, k: int = 3
 ) -> str | None:
     """Return a prompt-ready block of bullets from past runs that earned an
-    interview for a similar role, or ``None`` when nothing qualifies.
+    interview for the same role, or ``None`` when nothing qualifies.
+
+    Hard-filters on ``role`` equality (legacy notes missing the ``role``
+    frontmatter field are excluded, never crash) and only ranks eligible notes
+    by domain-tag Jaccard overlap.
     """
-    tag_set = set(tags)
+    if role is None:
+        return None
+
+    domain_set = set(domains)
     ranked = []
     for note in load_all_runs(settings):
         if _resolve_outcome(note) not in _WIN_OUTCOMES:
             continue
-        overlap = len(tag_set & set(note.frontmatter.get("jd_type") or []))
-        if overlap == 0:
+        note_role = note.frontmatter.get("role")
+        if not note_role:
             continue
-        ranked.append((overlap, note.frontmatter.get("internal_score", 0), note))
+        if note_role != role:
+            continue
+        note_domains = set(note.frontmatter.get("domains") or [])
+        jaccard = _jaccard(domain_set, note_domains)
+        ranked.append((jaccard, note.frontmatter.get("internal_score", 0), note))
 
     if not ranked:
         return None

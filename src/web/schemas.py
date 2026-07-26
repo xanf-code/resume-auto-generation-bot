@@ -274,6 +274,9 @@ class JobSummary(BaseModel):
     error: str | None = None
     aggregate_score: float | None = None
     passed: bool | None = None
+    # JD classification (role/domain tag) - None/empty until classification runs.
+    role: str | None = None
+    domains: list[str] = Field(default_factory=list)
 
 
 class JobDetail(JobSummary):

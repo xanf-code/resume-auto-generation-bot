@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import src.main as main_module
-from src.agents.jd_tagger import classify_jd_type
+from src.agents.jd_tagger import JdClassification, classify_jd_type
 from src.pipeline.emit import build_score_report
 from src.pipeline.llm import model_context
 from src.vault.config import VaultSettings
@@ -47,8 +47,9 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _vault_retrieval_event(job: Job, tags: list[str], found: bool) -> ProgressEvent:
+def _vault_retrieval_event(job: Job, classification: JdClassification, found: bool) -> ProgressEvent:
     """Build a visibility event for the proven-examples lookup (Loop A, read side)."""
+    tags = classification.combined_tags
     tag_label = ", ".join(tags) if tags else "untagged"
     detail = (
         f"Vault: found proven examples for [{tag_label}]"
@@ -115,11 +116,14 @@ def run_job(job: Job, manager: "JobManager") -> None:
         if event is not None:
             manager._emit(job, event)
 
-    # JD tagging always runs - the run note needs tags regardless of the
-    # learning toggle. classify_jd_type never raises (empty list on failure).
+    # JD tagging always runs - the run note needs the role/domains split
+    # regardless of the learning toggle. classify_jd_type never raises
+    # (JdClassification(role=None, domains=[]) on failure).
     vault_settings = VaultSettings.load()
-    tags = classify_jd_type(job.jd_raw)
-    job.jd_type = tags
+    classification = classify_jd_type(job.jd_raw)
+    job.role = classification.role
+    job.domains = classification.domains
+    _db_set_classification(job, manager, job.role, job.domains)
 
     # Retrieval + tuning-override resolution are opt-out via job.obsidian_learn.
     # A vault error here must never fail the run - fall back to no examples and
@@ -128,12 +132,18 @@ def run_job(job: Job, manager: "JobManager") -> None:
     tuning = job.tuning
     if job.obsidian_learn:
         try:
-            proven_examples = retrieve_examples(tags, settings=vault_settings)
+            proven_examples = retrieve_examples(
+                classification.role, classification.domains, settings=vault_settings
+            )
             if vault_settings.enabled:
-                manager._emit(job, _vault_retrieval_event(job, tags, found=proven_examples is not None))
-            tuning, diff = resolve_tuning(tags, job.tuning, settings=vault_settings)
+                manager._emit(
+                    job, _vault_retrieval_event(job, classification, found=proven_examples is not None)
+                )
+            # Loop B UNCHANGED: resolve_tuning still takes one flat list.
+            # combined_tags = [role, *domains].
+            tuning, diff = resolve_tuning(classification.combined_tags, job.tuning, settings=vault_settings)
             if diff:
-                manager._emit(job, _tuning_diff_event(job, tags, diff))
+                manager._emit(job, _tuning_diff_event(job, classification.combined_tags, diff))
         except Exception:
             log.exception("Vault retrieval/tuning failed for job %s - continuing without", job.job_id)
             proven_examples, tuning = None, job.tuning
@@ -213,7 +223,9 @@ def run_job(job: Job, manager: "JobManager") -> None:
 
     # Always write the run note - a vault error here must never fail the run.
     try:
-        note_path = write_run_note(job, final_state, tags, settings=vault_settings)
+        note_path = write_run_note(
+            job, final_state, classification.role, classification.domains, settings=vault_settings
+        )
         if note_path is not None:
             manager._emit(job, _vault_write_event(job, note_path))
     except Exception:
@@ -247,17 +259,36 @@ def _db_set_status(
         log.exception("Failed to set status %s for job %s", status, job.job_id)
 
 
+def _db_set_classification(
+    job: "Job",
+    manager: "JobManager",
+    role: str | None,
+    domains: list[str],
+) -> None:
+    """Persist the JD role/domain classification (best-effort).
+
+    Written as soon as it's computed - before the pipeline runs - so the
+    classification survives even if the run subsequently fails.
+    """
+    try:
+        manager._repo.set_classification(job.job_id, role, domains)
+    except Exception:
+        log.exception("Failed to persist classification for job %s", job.job_id)
+
+
 def _db_save_artifacts(
     job: "Job",
     manager: "JobManager",
 ) -> None:
     """Upload PDF to Storage (when configured) and persist artifacts to the repo.
 
-    Each step is isolated: a storage upload failure never blocks the artifact
-    save, and neither blocks the final status update to "done".  Storage is the
-    durable home for the PDF; ``job.output_pdf`` points at the compiler's temp
-    PDF (no local out/ copy is made), which is deleted after this function
-    returns regardless of upload outcome.
+    The storage upload is isolated from the artifact save (a failed upload never
+    blocks it). The artifact save and the terminal "done" status are written in
+    a single repository call so the row can never be left with artifacts saved
+    but status stuck at "running" - one write succeeds or fails atomically.
+    Storage is the durable home for the PDF; ``job.output_pdf`` points at the
+    compiler's temp PDF (no local out/ copy is made), which is deleted after
+    this function returns regardless of upload outcome.
     """
     from src.web.config import _optional_db_settings
     from src.db.client import get_client
@@ -281,7 +312,9 @@ def _db_save_artifacts(
         except OSError:
             log.warning("Failed to delete staged PDF for job %s", job.job_id)
 
-    # Step 2 — save artifacts (best-effort).
+    # Step 2 — save artifacts and mark done atomically (best-effort as a whole;
+    # if this fails the row correctly stays "running" for mark_interrupted_running
+    # to recover on the next restart, rather than landing in a half-done state).
     try:
         manager._repo.save_artifacts(
             job.job_id,
@@ -291,15 +324,11 @@ def _db_save_artifacts(
             aggregate_score=job.aggregate_score,
             passed=job.passed,
             pdf_object_key=pdf_object_key or job.pdf_object_key,
+            status="done",
+            finished_at=job.finished_at,
         )
     except Exception:
         log.exception("Failed to save artifacts for job %s", job.job_id)
-
-    # Step 3 — mark done; always runs even if steps above failed.
-    try:
-        manager._repo.set_status(job.job_id, "done", finished_at=job.finished_at)
-    except Exception:
-        log.exception("Failed to set done status for job %s", job.job_id)
 
 
 def _emit_terminal(

@@ -77,11 +77,12 @@ class JDVector(BaseModel):
 
 
 class JDTags(BaseModel):
-    """The JD Tagger's controlled-vocabulary classification of a raw JD."""
+    """The JD Tagger's role/domain classification of a raw JD."""
 
     model_config = _STRICT
 
-    tags: list[str]
+    role: str
+    domains: list[str]
 
 
 class ReframingTarget(BaseModel):

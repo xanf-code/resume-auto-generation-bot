@@ -1,5 +1,9 @@
 # Phase 3 - JD tagging
 
+> **Superseded/refined by [Phase 9 — Role/Domain tagger split](phase-9-role-domain-tagger.md).** The
+> single flat `jd_type`/`JD_TYPE_VOCAB` described below is replaced by an exclusive `role` plus a list
+> of secondary `domains`. Read Phase 9 for the current emitter contract.
+
 ## Goal
 Classify a raw JD into a small, controlled set of `jd_type` tags via one fast LLM call. Tags drive
 retrieval matching (Phase 4) and tuning segmentation (Phase 6), and are recorded on every note.

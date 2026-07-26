@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { JobSlice } from '../../store/jobsSlice';
+import { formatClassification } from '../../lib/classification';
 
 interface Props {
   job: JobSlice;
@@ -81,6 +82,7 @@ export function JobCard({ job, onClick, onRename, onDelete }: Props) {
   };
 
   const color = STATUS_COLOR[job.status];
+  const classification = formatClassification(job.role, job.domains);
 
   return (
     <div
@@ -151,6 +153,11 @@ export function JobCard({ job, onClick, onRename, onDelete }: Props) {
               }}
             >
               {job.label}
+            </span>
+          )}
+          {classification && (
+            <span className="block font-mono text-[10px] uppercase tracking-[0.1em] text-ink-faint mt-1 truncate">
+              {classification}
             </span>
           )}
         </div>

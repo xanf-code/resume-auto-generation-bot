@@ -48,7 +48,9 @@ def test_disabled_vault_returns_none_and_writes_nothing(monkeypatch):
     disabled = VaultSettings.load()
     assert disabled.enabled is False
 
-    result = write_run_note(_make_job(), _make_final_state(), ["backend"], settings=disabled)
+    result = write_run_note(
+        _make_job(), _make_final_state(), "backend", [], settings=disabled
+    )
 
     assert result is None
 
@@ -57,7 +59,9 @@ def test_writes_frontmatter_with_expected_fields_and_types(settings):
     job = _make_job()
     job.obsidian_learn = True
 
-    path = write_run_note(job, _make_final_state(), ["backend", "senior"], settings=settings)
+    path = write_run_note(
+        job, _make_final_state(), "backend", ["ai", "fintech"], settings=settings
+    )
 
     assert path is not None
     fm = read_note(path).frontmatter
@@ -65,7 +69,9 @@ def test_writes_frontmatter_with_expected_fields_and_types(settings):
     assert fm["job_id"] == job.job_id
     assert fm["label"] == job.label
     assert fm["jd_name"] == job.jd_name
-    assert fm["jd_type"] == ["backend", "senior"]
+    assert fm["role"] == "backend"
+    assert fm["domains"] == ["ai", "fintech"]
+    assert fm["jd_type"] == ["backend", "ai", "fintech"]
     assert isinstance(fm["created"], str) and fm["created"]
     assert fm["internal_score"] == 87.5
     assert fm["passed"] is True
@@ -77,10 +83,32 @@ def test_writes_frontmatter_with_expected_fields_and_types(settings):
     assert fm["outcome_date"] == ""
 
 
+def test_role_none_produces_none_role_and_domains_only_jd_type(settings):
+    job = _make_job()
+
+    path = write_run_note(job, _make_final_state(), None, [], settings=settings)
+
+    fm = read_note(path).frontmatter
+    assert fm["role"] is None
+    assert fm["domains"] == []
+    assert fm["jd_type"] == []
+
+
+def test_role_none_with_domains_derives_jd_type_from_domains_only(settings):
+    job = _make_job()
+
+    path = write_run_note(job, _make_final_state(), None, ["ai"], settings=settings)
+
+    fm = read_note(path).frontmatter
+    assert fm["role"] is None
+    assert fm["domains"] == ["ai"]
+    assert fm["jd_type"] == ["ai"]
+
+
 def test_final_bullets_section_contains_each_bullet_verbatim(settings):
     job = _make_job()
 
-    path = write_run_note(job, _make_final_state(), [], settings=settings)
+    path = write_run_note(job, _make_final_state(), "backend", [], settings=settings)
 
     body = read_note(path).body
     assert "## Final bullets" in body
@@ -91,7 +119,7 @@ def test_final_bullets_section_contains_each_bullet_verbatim(settings):
 
 def test_rewriting_preserves_existing_outcome_and_outcome_date(settings):
     job = _make_job()
-    path = write_run_note(job, _make_final_state(), [], settings=settings)
+    path = write_run_note(job, _make_final_state(), "backend", [], settings=settings)
 
     note = read_note(path)
     note.frontmatter["outcome"] = "interview"
@@ -99,7 +127,7 @@ def test_rewriting_preserves_existing_outcome_and_outcome_date(settings):
     write_note(path, note.frontmatter, note.body)
 
     second_path = write_run_note(
-        job, _make_final_state(aggregate_score=91.0), [], settings=settings
+        job, _make_final_state(aggregate_score=91.0), "backend", [], settings=settings
     )
 
     assert second_path == path
@@ -112,8 +140,8 @@ def test_rewriting_preserves_existing_outcome_and_outcome_date(settings):
 def test_slug_is_filesystem_safe_and_stable_for_same_job(settings):
     job = _make_job(label="Sr. Backend Engineer (Remote!) @ Acme/Co")
 
-    first = write_run_note(job, _make_final_state(), [], settings=settings)
-    second = write_run_note(job, _make_final_state(), [], settings=settings)
+    first = write_run_note(job, _make_final_state(), "backend", [], settings=settings)
+    second = write_run_note(job, _make_final_state(), "backend", [], settings=settings)
 
     assert first is not None
     assert first == second
@@ -132,7 +160,7 @@ def test_falls_back_to_parsing_bullets_from_latex_when_no_writer_output(settings
     )
     state = _make_final_state(writer_output=None, best_latex=latex)
 
-    path = write_run_note(job, state, [], settings=settings)
+    path = write_run_note(job, state, "backend", [], settings=settings)
 
     body = read_note(path).body
     assert "Improved throughput by 40" in body

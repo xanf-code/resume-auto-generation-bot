@@ -106,8 +106,15 @@ class ResumeRepository:
         aggregate_score: float | None,
         passed: bool | None,
         pdf_object_key: str | None,
+        status: str,
+        finished_at: datetime,
     ) -> None:
-        """Persist pipeline artifacts for a completed job."""
+        """Persist pipeline artifacts and the terminal status in one write.
+
+        ``status``/``finished_at`` are folded into this same update (rather than
+        a separate ``set_status`` call) so a row can never end up with artifacts
+        saved but status stuck at ``running`` if the second write were to fail.
+        """
         data: dict = {
             "best_latex": best_latex,
             "output_skills": output_skills,
@@ -115,7 +122,18 @@ class ResumeRepository:
             "aggregate_score": aggregate_score,
             "passed": passed,
             "pdf_object_key": pdf_object_key,
+            "status": status,
+            "finished_at": finished_at.isoformat(),
         }
+        self._client.table(self.TABLE).update(data).eq("job_id", job_id).execute()
+
+    def set_classification(self, job_id: str, role: str | None, domains: list[str]) -> None:
+        """Persist the JD role/domain classification computed early in run_job.
+
+        Written independently of ``save_artifacts`` so the classification is
+        visible even if the run later fails.
+        """
+        data: dict = {"role": role, "domains": domains}
         self._client.table(self.TABLE).update(data).eq("job_id", job_id).execute()
 
     def rename(self, job_id: str, label: str) -> JobRecord | None:
@@ -224,6 +242,8 @@ class InMemoryResumeRepository:
         aggregate_score: float | None,
         passed: bool | None,
         pdf_object_key: str | None,
+        status: str,
+        finished_at: datetime,
     ) -> None:
         rec = self._rows.get(job_id)
         if rec is None:
@@ -236,7 +256,15 @@ class InMemoryResumeRepository:
             aggregate_score=aggregate_score,
             passed=passed,
             pdf_object_key=pdf_object_key,
+            status=status,
+            finished_at=finished_at,
         )
+
+    def set_classification(self, job_id: str, role: str | None, domains: list[str]) -> None:
+        rec = self._rows.get(job_id)
+        if rec is None:
+            return
+        self._rows[job_id] = replace(rec, role=role, domains=domains)
 
     def rename(self, job_id: str, label: str) -> JobRecord | None:
         rec = self._rows.get(job_id)

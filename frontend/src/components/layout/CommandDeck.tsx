@@ -33,6 +33,8 @@ export function CommandDeck() {
             aggregateScore: s.aggregate_score,
             passed: s.passed,
             pct: s.status === 'done' ? 100 : 0,
+            role: s.role,
+            domains: s.domains,
           })),
         );
       })

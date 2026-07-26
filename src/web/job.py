@@ -72,8 +72,9 @@ class Job:
     models: PipelineModels | None = None
     # Per-résumé bullet shape selection. None → default rotation over all four.
     bullet_shapes: list[str] | None = None
-    # JD classification tags (always computed by run_job; not user input).
-    jd_type: list[str] | None = None
+    # JD classification (always computed by run_job; not user input).
+    role: str | None = None
+    domains: list[str] = field(default_factory=list)
     # Obsidian vault "learning" toggle - retrieval + tuning override resolution
     # for this run. The run note is always written regardless of this flag.
     obsidian_learn: bool = True
@@ -123,6 +124,8 @@ def job_from_record(rec: "JobRecord", *, event_buffer_max: int = 500) -> Job:
         jd_name=rec.jd_name,
         enable_scoring=rec.enable_scoring,
         bullet_shapes=rec.bullet_shapes,
+        role=rec.role,
+        domains=rec.domains or [],
         best_latex=rec.best_latex,
         aggregate_score=rec.aggregate_score,
         passed=rec.passed,

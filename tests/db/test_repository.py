@@ -204,6 +204,7 @@ def test_save_artifacts_updates_correct_fields():
     table = _mock_table(client)
     table.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[{}])
 
+    finished = _now()
     repo.save_artifacts(
         "job-1",
         best_latex="\\documentclass{article}",
@@ -212,6 +213,8 @@ def test_save_artifacts_updates_correct_fields():
         aggregate_score=85.0,
         passed=True,
         pdf_object_key="job-1/resume.pdf",
+        status="done",
+        finished_at=finished,
     )
 
     table.update.assert_called_once()
@@ -222,6 +225,26 @@ def test_save_artifacts_updates_correct_fields():
     assert update_data["aggregate_score"] == 85.0
     assert update_data["passed"] is True
     assert update_data["pdf_object_key"] == "job-1/resume.pdf"
+    assert update_data["status"] == "done"
+    assert update_data["finished_at"] == finished.isoformat()
+    table.update.return_value.eq.assert_called_with("job_id", "job-1")
+
+
+# ---------------------------------------------------------------------------
+# Test: set_classification() calls update with role/domains
+# ---------------------------------------------------------------------------
+
+def test_set_classification_calls_update():
+    repo, client = _make_repo()
+    table = _mock_table(client)
+    table.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[{}])
+
+    repo.set_classification("job-1", "backend_engineer", ["fintech", "healthcare"])
+
+    table.update.assert_called_once()
+    update_data = table.update.call_args[0][0]
+    assert update_data["role"] == "backend_engineer"
+    assert update_data["domains"] == ["fintech", "healthcare"]
     table.update.return_value.eq.assert_called_with("job_id", "job-1")
 
 
@@ -344,7 +367,7 @@ def test_inmemory_crud_roundtrip():
     assert renamed is not None
     assert renamed.label == "World"
 
-    repo.set_status("mem-1", "done", finished_at=_now())
+    repo.set_classification("mem-1", "backend_engineer", ["fintech"])
     repo.save_artifacts(
         "mem-1",
         best_latex="\\documentclass{article}",
@@ -353,11 +376,15 @@ def test_inmemory_crud_roundtrip():
         aggregate_score=90.0,
         passed=True,
         pdf_object_key="mem-1/resume.pdf",
+        status="done",
+        finished_at=_now(),
     )
     got = repo.get("mem-1")
     assert got.status == "done"
     assert got.best_latex.startswith("\\documentclass")
     assert got.pdf_object_key == "mem-1/resume.pdf"
+    assert got.role == "backend_engineer"
+    assert got.domains == ["fintech"]
 
     assert repo.delete("mem-1") is True
     assert repo.get("mem-1") is None

@@ -43,15 +43,24 @@ vault/
 |---|-------|-----------|
 | 1 | [Vault foundation (config + notes I/O)](phase-1-vault-foundation.md) | — |
 | 2 | [Run-note writer](phase-2-run-note-writer.md) | 1 |
-| 3 | [JD tagging](phase-3-jd-tagging.md) | — |
-| 4 | [Retrieval (Loop A read side)](phase-4-retrieval.md) | 1 |
+| 3 | [JD tagging](phase-3-jd-tagging.md) *(refined by 9)* | — |
+| 4 | [Retrieval (Loop A read side)](phase-4-retrieval.md) *(refined by 10)* | 1 |
 | 5 | [Writer injection](phase-5-writer-injection.md) | — |
 | 6 | [Tuning resolver (Loop B apply side)](phase-6-tuning-resolver.md) | 1 |
 | 7 | [Worker wiring + toggle](phase-7-worker-wiring-toggle.md) | 2,3,4,5,6 |
 | 8 | [Proposal generator CLI](phase-8-proposal-cli.md) | 1,2 |
+| 9 | [Role/Domain tagger split (emitter)](phase-9-role-domain-tagger.md) — refines 3 | — |
+| 10 | [Role-gated retrieval (retrieval gate)](phase-10-role-gated-retrieval.md) — refines 4,7 | 9 |
 
 Phase 7 is the integration seam that makes the feature live; 1–6 are independently testable and
 inert until 7 wires them. Ship 1→6 in any order, then 7, then 8.
+
+**Follow-up fix (9→10):** phases 9–10 correct a production bad-match bug where an "AI Product Owner"
+JD retrieved Backend Engineer bullets on shared tech flavor. Phase 9 splits the flat `jd_type` into an
+exclusive `role` + secondary `domains` (emitter); Phase 10 hard-filters retrieval on `role`, then
+ranks on `domains` (gate), and rewires the runner + run-note frontmatter. Ship 9 then 10; Loop B's
+`resolve_tuning` (Phase 6) is intentionally left untouched — the runner feeds it a flat
+`[role, *domains]` list.
 
 ## Global acceptance
 - `pytest --cov=src` green (≥80%). Vault is a **no-op** when `RESUME_VAULT_DIR` is unset →

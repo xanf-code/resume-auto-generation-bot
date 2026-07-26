@@ -1,5 +1,9 @@
 # Phase 4 - Retrieval (Loop A read side)
 
+> **Superseded/refined by [Phase 10 — Role-gated retrieval](phase-10-role-gated-retrieval.md).** The
+> "any tag overlap" match below is replaced by a hard `role` equality filter, then domain-Jaccard
+> ranking. Read Phase 10 for the current `retrieve_examples` signature and legacy-note handling.
+
 ## Goal
 Given the current run's tags, return a prompt-ready block of bullets from past runs that **earned an
 interview** for a **similar role**. Returns `None` when nothing qualifies (cold start).

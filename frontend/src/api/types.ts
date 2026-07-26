@@ -10,6 +10,9 @@ export interface JobSummary {
   created_at: string;
   aggregate_score?: number;
   passed?: boolean;
+  // JD classification (role/domain tag). None/empty until classification runs.
+  role?: string | null;
+  domains?: string[];
 }
 
 export interface PersonaScore {
