@@ -1,4 +1,4 @@
-"""JobManager - registry + ThreadPoolExecutor for pipeline runs.
+"""JobManager - repository-backed CRUD + ThreadPoolExecutor for pipeline runs.
 
 All pipeline execution happens in worker threads (never on the async event
 loop) because ``src/agents/recruiters.py`` calls ``asyncio.run()`` inside a
@@ -9,9 +9,9 @@ The sync→async bridge: worker threads call ``_emit``, which uses
 ``loop.call_soon_threadsafe`` to push events into per-subscriber asyncio.Queue
 objects without touching the event loop from outside the loop thread.
 
-Persistence is write-through: if a ``ResumeRepository`` is configured all
-lifecycle state changes are mirrored to Supabase.  Failures are logged but
-never propagated — the in-memory state is always authoritative.
+Durable job state lives exclusively in ``ResumeRepository`` (Supabase or the
+in-memory stand-in).  ``_runtime`` holds only ephemeral live-run concerns:
+SSE buffers, subscribers, and cancel signals.
 """
 from __future__ import annotations
 
@@ -19,39 +19,62 @@ import asyncio
 import logging
 import shutil
 from concurrent.futures import ThreadPoolExecutor
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol
 
+from src.db.models import JobRecord
 from src.web.config import WebSettings
-from src.web.job import Job
+from src.web.job import Job, job_from_record
 from src.web.schemas import JobStatus, JobSubmitRequest, ProgressEvent
 from src.web.runner import run_job
 
 if TYPE_CHECKING:
-    from src.db.repository import ResumeRepository
+    pass
 
 log = logging.getLogger(__name__)
 
 
+class JobRepository(Protocol):
+    """Minimal repository surface used by JobManager."""
+
+    def create(self, record: JobRecord) -> None: ...
+    def get(self, job_id: str) -> JobRecord | None: ...
+    def list(self) -> list[JobRecord]: ...
+    def set_status(
+        self,
+        job_id: str,
+        status: str,
+        *,
+        started_at: Any = None,
+        finished_at: Any = None,
+        error: str | None = None,
+    ) -> None: ...
+    def save_artifacts(self, job_id: str, **kwargs: Any) -> None: ...
+    def rename(self, job_id: str, label: str) -> JobRecord | None: ...
+    def delete(self, job_id: str) -> bool: ...
+    def mark_interrupted_running(self) -> int: ...
+
+
 class JobManager:
-    """Manages job lifecycle: submission, registry, concurrency, and SSE fan-out."""
+    """Manages job lifecycle: repository CRUD, concurrency, and SSE fan-out."""
 
     def __init__(
         self,
         settings: WebSettings,
-        repo: "ResumeRepository | None" = None,
+        repo: JobRepository,
     ) -> None:
         self.settings = settings
-        self._registry: dict[str, Job] = {}
+        self._repo: JobRepository = repo
+        # Ephemeral live-run state only — never the source of truth for CRUD.
+        self._runtime: dict[str, Job] = {}
         self._executor = ThreadPoolExecutor(max_workers=settings.max_concurrent_jobs)
         self._loop: asyncio.AbstractEventLoop | None = None
-        self._repo: "ResumeRepository | None" = repo
 
     def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         """Bind the running async event loop so ``_emit`` can bridge threads."""
         self._loop = loop
 
     def submit(self, req: JobSubmitRequest) -> Job:
-        """Create a Job, register it, enqueue it in the thread pool, return immediately."""
+        """Persist a new job, register ephemeral runtime, enqueue the worker."""
         job = Job(
             label=req.label,
             status=JobStatus.QUEUED,
@@ -67,67 +90,79 @@ class JobManager:
         job.bullet_shapes = req.bullet_shapes
         job.out_dir = f"{self.settings.out_root}/{job.job_id}"
 
-        self._registry[job.job_id] = job
+        record = JobRecord(
+            job_id=job.job_id,
+            label=job.label,
+            status="queued",
+            created_at=job.created_at,
+            resume_tex_raw=job.resume_tex_raw,
+            jd_raw=job.jd_raw,
+            jd_name=job.jd_name,
+            enable_scoring=job.enable_scoring,
+            tuning=req.tuning.model_dump() if req.tuning is not None else None,
+            models=req.models.model_dump() if req.models is not None else None,
+            bullet_shapes=job.bullet_shapes,
+        )
+        # Repository first — fail the request if persistence fails.
+        self._repo.create(record)
 
-        # Write-through: persist the new job record to Supabase.
-        if self._repo is not None:
-            try:
-                from src.db.models import JobRecord
-                record = JobRecord(
-                    job_id=job.job_id,
-                    label=job.label,
-                    status="queued",
-                    created_at=job.created_at,
-                    resume_tex_raw=job.resume_tex_raw,
-                    jd_raw=job.jd_raw,
-                    jd_name=job.jd_name,
-                    enable_scoring=job.enable_scoring,
-                    tuning=req.tuning.model_dump() if req.tuning is not None else None,
-                    models=req.models.model_dump() if req.models is not None else None,
-                    bullet_shapes=job.bullet_shapes,
-                )
-                self._repo.create(record)
-            except Exception:
-                log.exception("Failed to persist job %s to Supabase", job.job_id)
-
+        self._runtime[job.job_id] = job
         self._executor.submit(run_job, job, self)
         return job
 
     def get(self, job_id: str) -> Job | None:
-        return self._registry.get(job_id)
+        """Return a job read view from the repository (source of truth)."""
+        rec = self._repo.get(job_id)
+        if rec is None:
+            return None
+        return job_from_record(rec, event_buffer_max=self.settings.event_buffer_max)
+
+    def get_runtime(self, job_id: str) -> Job | None:
+        """Return the ephemeral live-run handle, if any."""
+        return self._runtime.get(job_id)
 
     def list(self) -> list[Job]:
-        return list(self._registry.values())
+        """Return all jobs from the repository, newest first."""
+        return [
+            job_from_record(rec, event_buffer_max=self.settings.event_buffer_max)
+            for rec in self._repo.list()
+        ]
 
     def rename(self, job_id: str, label: str) -> Job | None:
-        """Update the display label. Returns None if the job is missing."""
-        job = self._registry.get(job_id)
-        if job is None:
+        """Update the display label in the repository. Returns None if missing."""
+        rec = self._repo.rename(job_id, label)
+        if rec is None:
             return None
-        job.label = label
-        if self._repo is not None:
-            try:
-                self._repo.rename(job_id, label)
-            except Exception:
-                log.exception("Failed to rename job %s in Supabase", job_id)
-        return job
+        rt = self._runtime.get(job_id)
+        if rt is not None:
+            rt.label = label
+        return job_from_record(rec, event_buffer_max=self.settings.event_buffer_max)
 
     def cancel(self, job_id: str) -> bool:
         """Request cancellation of a running or queued job.
 
-        Sets the job's cancel event; the worker thread's ``on_step`` callback
-        observes it and aborts at the next node boundary (an in-flight LLM call
-        finishes first - Python threads can't be force-killed). Emits an
-        immediate progress ack so the UI can leave a frozen "Stopping…" state
-        and show that the stop was heard. Returns False if the job is missing
-        or already in a terminal state.
+        Uses repository status as authority.  If a runtime handle exists, sets
+        its cancel event so the worker aborts at the next node boundary.  If
+        there is no runtime (e.g. after a restart before mark_interrupted),
+        marks the row failed directly in the repository.
         """
-        job = self._registry.get(job_id)
+        rec = self._repo.get(job_id)
+        if rec is None:
+            return False
+        if rec.status not in ("queued", "running"):
+            return False
+
+        job = self._runtime.get(job_id)
         if job is None:
-            return False
-        if job.status in (JobStatus.DONE, JobStatus.FAILED):
-            return False
-        # Idempotent for a second click while already winding down.
+            from datetime import datetime, timezone
+            self._repo.set_status(
+                job_id,
+                "failed",
+                finished_at=datetime.now(timezone.utc),
+                error="You stopped this run before it finished.",
+            )
+            return True
+
         if job.cancel_event.is_set():
             return True
         job.cancel_event.set()
@@ -147,27 +182,37 @@ class JobManager:
         return True
 
     def delete(self, job_id: str) -> bool:
-        """Remove a job from the registry, delete on-disk artifacts, and Supabase records.
+        """Remove a job from the repository, runtime, disk, and Storage.
 
-        Returns False if the job was not found. A running pipeline may still
-        finish in the pool afterward; its writes land on a removed directory.
+        Returns False if the job was not found in the repository.
         """
-        job = self._registry.pop(job_id, None)
-        if job is None:
+        if self._repo.get(job_id) is None:
             return False
-        if job.out_dir:
-            shutil.rmtree(job.out_dir, ignore_errors=True)
-        if self._repo is not None:
-            try:
-                from src.db.storage import delete_prefix
-                from src.web.config import _optional_db_settings
-                from src.db.client import get_client
-                db_settings = _optional_db_settings()
-                if db_settings is not None:
-                    delete_prefix(job_id, get_client(db_settings), db_settings.bucket)
-                self._repo.delete(job_id)
-            except Exception:
-                log.exception("Failed to delete job %s from Supabase", job_id)
+
+        job = self._runtime.pop(job_id, None)
+        out_dir = (
+            job.out_dir
+            if job is not None and job.out_dir
+            else f"{self.settings.out_root}/{job_id}"
+        )
+        if out_dir:
+            shutil.rmtree(out_dir, ignore_errors=True)
+
+        try:
+            from src.db.storage import delete_prefix
+            from src.web.config import _optional_db_settings
+            from src.db.client import get_client
+            db_settings = _optional_db_settings()
+            if db_settings is not None:
+                delete_prefix(job_id, get_client(db_settings), db_settings.bucket)
+        except Exception:
+            log.exception("Failed to delete Storage objects for job %s", job_id)
+
+        try:
+            self._repo.delete(job_id)
+        except Exception:
+            log.exception("Failed to delete job %s from repository", job_id)
+            return False
         return True
 
     def _emit(self, job: Job, event: ProgressEvent) -> None:

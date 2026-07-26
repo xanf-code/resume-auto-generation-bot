@@ -324,3 +324,50 @@ def test_mark_interrupted_running_updates_queued_and_running():
     assert "finished_at" in update_data
     # Verify it filters on the correct statuses
     table.update.return_value.in_.assert_called_with("status", ["queued", "running"])
+
+
+# ---------------------------------------------------------------------------
+# InMemoryResumeRepository
+# ---------------------------------------------------------------------------
+
+def test_inmemory_crud_roundtrip():
+    from src.db.repository import InMemoryResumeRepository
+
+    repo = InMemoryResumeRepository()
+    rec = _make_record(job_id="mem-1", label="Hello")
+    repo.create(rec)
+
+    assert repo.get("mem-1").label == "Hello"
+    assert [r.job_id for r in repo.list()] == ["mem-1"]
+
+    renamed = repo.rename("mem-1", "World")
+    assert renamed is not None
+    assert renamed.label == "World"
+
+    repo.set_status("mem-1", "done", finished_at=_now())
+    repo.save_artifacts(
+        "mem-1",
+        best_latex="\\documentclass{article}",
+        output_skills={"language_and_framework": ["Python"]},
+        score_report={"aggregate_score": 90.0, "passed": True},
+        aggregate_score=90.0,
+        passed=True,
+        pdf_object_key="mem-1/resume.pdf",
+    )
+    got = repo.get("mem-1")
+    assert got.status == "done"
+    assert got.best_latex.startswith("\\documentclass")
+    assert got.pdf_object_key == "mem-1/resume.pdf"
+
+    assert repo.delete("mem-1") is True
+    assert repo.get("mem-1") is None
+    assert repo.delete("mem-1") is False
+
+
+def test_inmemory_create_duplicate_raises():
+    from src.db.repository import InMemoryResumeRepository
+
+    repo = InMemoryResumeRepository()
+    repo.create(_make_record(job_id="dup"))
+    with pytest.raises(ValueError):
+        repo.create(_make_record(job_id="dup"))

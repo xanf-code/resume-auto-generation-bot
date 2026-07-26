@@ -112,6 +112,9 @@ class PipelineState(TypedDict, total=False):
     output_skills: str
     # Seeded by the CLI so the emit node knows where to write.
     out_dir: str
+    # When False the emit node skips writing score_report.json and skills.json
+    # to disk (web path: data is already in-memory; no durable local files needed).
+    emit_write_files: bool
     # Stem of the JD file path (e.g. "amazon_sde" from "examples/amazon_sde.txt").
     # Used by emit to name the output PDF after the JD.
     jd_name: str

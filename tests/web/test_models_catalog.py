@@ -65,6 +65,7 @@ OPENROUTER_PAYLOAD = {
 @pytest_asyncio.fixture
 async def client(monkeypatch):
     monkeypatch.setattr("src.web.job_manager.run_job", lambda job, mgr: None)
+    monkeypatch.setattr("src.web.app._build_repo", lambda: None)
     # Fresh cache for every test.
     from src.web.routers import models as models_router
 

@@ -10,7 +10,7 @@ import shutil
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse
 
 from src.compiler.tectonic import compile_tex
@@ -23,7 +23,9 @@ _compile_pool = ThreadPoolExecutor(max_workers=2)
 
 
 @router.post("")
-async def compile_resume(req: CompileRequest) -> FileResponse:
+async def compile_resume(
+    req: CompileRequest, background_tasks: BackgroundTasks
+) -> FileResponse:
     """Compile LaTeX source via tectonic and return the PDF.
 
     On success: 200 application/pdf.
@@ -48,8 +50,7 @@ async def compile_resume(req: CompileRequest) -> FileResponse:
         ) from exc
 
     if ok and pdf_path:
-        # FileResponse streams the file; workdir will persist until GC.
-        # For a production service you'd register a background cleanup task.
+        background_tasks.add_task(shutil.rmtree, workdir, True)
         return FileResponse(pdf_path, media_type="application/pdf")
 
     # Compile failed - clean up and return structured error.

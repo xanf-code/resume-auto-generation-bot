@@ -5,7 +5,7 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 
-from src.web.schemas import JobStatus
+from tests.web.conftest import seed_job_done
 
 
 # ---------------------------------------------------------------------------
@@ -19,6 +19,8 @@ async def client(monkeypatch):
     # Patching src.web.runner.run_job alone doesn't work because job_manager
     # imported run_job directly via "from src.web.runner import run_job".
     monkeypatch.setattr("src.web.job_manager.run_job", lambda job, mgr: None)
+    # Never hit real Supabase from unit tests — always use in-memory SSOT.
+    monkeypatch.setattr("src.web.app._build_repo", lambda: None)
     from src.web.app import create_app
     app = create_app()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
@@ -116,11 +118,11 @@ async def test_get_latex_done_job_returns_200(client):
     job_id = submit.json()["job_id"]
 
     app = _get_app_from_client(client)
-    job = app.state.manager.get(job_id)
-    assert job is not None
-
-    job.status = JobStatus.DONE
-    job.best_latex = r"\documentclass{article}\begin{document}best\end{document}"
+    seed_job_done(
+        app.state.manager,
+        job_id,
+        best_latex=r"\documentclass{article}\begin{document}best\end{document}",
+    )
 
     resp = await client.get(f"/api/jobs/{job_id}/latex")
     assert resp.status_code == 200
@@ -139,9 +141,11 @@ async def test_get_pdf_done_job_returns_200(client, monkeypatch):
     job_id = submit.json()["job_id"]
 
     app = _get_app_from_client(client)
-    job = app.state.manager.get(job_id)
-    job.status = JobStatus.DONE
-    job.pdf_object_key = f"{job_id}/resume.pdf"
+    seed_job_done(
+        app.state.manager,
+        job_id,
+        pdf_object_key=f"{job_id}/resume.pdf",
+    )
 
     monkeypatch.setattr(
         "src.web.routers.jobs.download_pdf_bytes",
@@ -154,7 +158,7 @@ async def test_get_pdf_done_job_returns_200(client, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Test 8: GET /api/jobs/{id}/skills on DONE job → 200 from in-memory dict
+# Test 8: GET /api/jobs/{id}/skills on DONE job → 200 from repository
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -169,9 +173,7 @@ async def test_get_skills_done_job_returns_200(client):
         "ai_tools": [],
     }
     app = _get_app_from_client(client)
-    job = app.state.manager.get(job_id)
-    job.status = JobStatus.DONE
-    job.output_skills = skills_data
+    seed_job_done(app.state.manager, job_id, output_skills=skills_data)
 
     resp = await client.get(f"/api/jobs/{job_id}/skills")
     assert resp.status_code == 200
@@ -181,9 +183,7 @@ async def test_get_skills_done_job_returns_200(client):
 
 
 # ---------------------------------------------------------------------------
-# Test 8b: GET /api/jobs/{id} surfaces persona scores from in-memory score_report.
-# Both current runs (cached at completion) and rehydrated restarts (restored
-# from the DB column) go through job.score_report — no disk reads.
+# Test 8b: GET /api/jobs/{id} surfaces persona scores from score_report column.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -192,35 +192,36 @@ async def test_get_detail_includes_persona_scores_from_report(client):
     job_id = submit.json()["job_id"]
 
     app = _get_app_from_client(client)
-    job = app.state.manager.get(job_id)
-    job.status = JobStatus.DONE
-    # Simulate rehydrate: aggregate/passed come from DB row; score_report from DB column.
-    job.aggregate_score = None
-    job.passed = None
-    job.score_report = {
-        "passed": True,
-        "aggregate_score": 87.625,
-        "personas": [
-            {
-                "persona": "ATS Matcher",
-                "keyword_match": 90,
-                "impact_quality": 85,
-                "coherence": 90,
-                "plausibility": 95,
-                "formatting": 80,
-                "notes": "Solid keyword coverage.",
-            },
-            {
-                "persona": "Skeptic",
-                "keyword_match": 85,
-                "impact_quality": 75,
-                "coherence": 80,
-                "plausibility": 65,
-                "formatting": 90,
-                "notes": "Some claims need backing.",
-            },
-        ],
-    }
+    seed_job_done(
+        app.state.manager,
+        job_id,
+        aggregate_score=None,
+        passed=None,
+        score_report={
+            "passed": True,
+            "aggregate_score": 87.625,
+            "personas": [
+                {
+                    "persona": "ATS Matcher",
+                    "keyword_match": 90,
+                    "impact_quality": 85,
+                    "coherence": 90,
+                    "plausibility": 95,
+                    "formatting": 80,
+                    "notes": "Solid keyword coverage.",
+                },
+                {
+                    "persona": "Skeptic",
+                    "keyword_match": 85,
+                    "impact_quality": 75,
+                    "coherence": 80,
+                    "plausibility": 65,
+                    "formatting": 90,
+                    "notes": "Some claims need backing.",
+                },
+            ],
+        },
+    )
 
     resp = await client.get(f"/api/jobs/{job_id}")
     assert resp.status_code == 200
@@ -238,8 +239,7 @@ async def test_get_detail_includes_persona_scores_from_report(client):
 
 
 # ---------------------------------------------------------------------------
-# Test 8c: GET /api/jobs carries the recruiter verdict on each summary from the
-# in-memory score_report (restored from DB on startup).
+# Test 8c: GET /api/jobs carries the recruiter verdict on each summary.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -248,13 +248,13 @@ async def test_list_jobs_includes_verdict_from_report(client):
     job_id = submit.json()["job_id"]
 
     app = _get_app_from_client(client)
-    job = app.state.manager.get(job_id)
-    job.status = JobStatus.DONE
-    # Simulate rehydrated state: aggregate/passed not in individual columns,
-    # but score_report dict is restored from the DB column.
-    job.aggregate_score = None
-    job.passed = None
-    job.score_report = {"passed": True, "aggregate_score": 87.625}
+    seed_job_done(
+        app.state.manager,
+        job_id,
+        aggregate_score=None,
+        passed=None,
+        score_report={"passed": True, "aggregate_score": 87.625},
+    )
 
     resp = await client.get("/api/jobs")
     assert resp.status_code == 200
@@ -265,8 +265,7 @@ async def test_list_jobs_includes_verdict_from_report(client):
 
 
 # ---------------------------------------------------------------------------
-# Test 8d: score_report and verdict are served consistently from the in-memory
-# dict across the detail endpoint, list endpoint, and raw report endpoint.
+# Test 8d: score_report and verdict are served consistently across endpoints.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -275,25 +274,27 @@ async def test_report_served_consistently_across_endpoints(client):
     job_id = submit.json()["job_id"]
 
     app = _get_app_from_client(client)
-    job = app.state.manager.get(job_id)
-    job.status = JobStatus.DONE
-    job.aggregate_score = None
-    job.passed = None
-    job.score_report = {
-        "passed": True,
-        "aggregate_score": 91.0,
-        "personas": [
-            {
-                "persona": "ATS Matcher",
-                "keyword_match": 90,
-                "impact_quality": 88,
-                "coherence": 92,
-                "plausibility": 95,
-                "formatting": 90,
-                "notes": "Strong coverage.",
-            }
-        ],
-    }
+    seed_job_done(
+        app.state.manager,
+        job_id,
+        aggregate_score=None,
+        passed=None,
+        score_report={
+            "passed": True,
+            "aggregate_score": 91.0,
+            "personas": [
+                {
+                    "persona": "ATS Matcher",
+                    "keyword_match": 90,
+                    "impact_quality": 88,
+                    "coherence": 92,
+                    "plausibility": 95,
+                    "formatting": 90,
+                    "notes": "Strong coverage.",
+                }
+            ],
+        },
+    )
 
     # Detail panel: persona scores + verdict.
     detail = (await client.get(f"/api/jobs/{job_id}")).json()
@@ -322,9 +323,7 @@ async def test_get_detail_without_report_has_no_scores(client):
     job_id = submit.json()["job_id"]
 
     app = _get_app_from_client(client)
-    job = app.state.manager.get(job_id)
-    job.status = JobStatus.DONE
-    # score_report is None by default — no report was produced.
+    seed_job_done(app.state.manager, job_id)
 
     resp = await client.get(f"/api/jobs/{job_id}")
     assert resp.status_code == 200
@@ -376,11 +375,12 @@ async def test_delete_job_returns_204_and_removes(client, tmp_path):
     job_id = submit.json()["job_id"]
 
     app = _get_app_from_client(client)
-    job = app.state.manager.get(job_id)
     out_dir = tmp_path / job_id
     out_dir.mkdir()
     (out_dir / "marker.txt").write_text("x")
-    job.out_dir = str(out_dir)
+    rt = app.state.manager.get_runtime(job_id)
+    assert rt is not None
+    rt.out_dir = str(out_dir)
 
     resp = await client.delete(f"/api/jobs/{job_id}")
     assert resp.status_code == 204
@@ -412,7 +412,8 @@ async def test_cancel_queued_job_returns_202_and_sets_event(client):
     assert resp.status_code == 202
 
     app = _get_app_from_client(client)
-    job = app.state.manager.get(job_id)
+    job = app.state.manager.get_runtime(job_id)
+    assert job is not None
     assert job.cancel_event.is_set()
     # Immediate ack so the UI isn't stuck on a mute "Stopping…" button.
     ack_events = [e for e in job.events.since(0) if e.human_label == "Stopping…"]
@@ -431,7 +432,8 @@ async def test_cancel_is_idempotent_while_winding_down(client):
     assert second.status_code == 202
 
     app = _get_app_from_client(client)
-    job = app.state.manager.get(job_id)
+    job = app.state.manager.get_runtime(job_id)
+    assert job is not None
     # Only one ack - a second click must not spam the activity feed.
     ack_events = [e for e in job.events.since(0) if e.human_label == "Stopping…"]
     assert len(ack_events) == 1
@@ -449,7 +451,7 @@ async def test_cancel_finished_job_returns_409(client):
     job_id = submit.json()["job_id"]
 
     app = _get_app_from_client(client)
-    app.state.manager.get(job_id).status = JobStatus.DONE
+    seed_job_done(app.state.manager, job_id)
 
     resp = await client.post(f"/api/jobs/{job_id}/cancel")
     assert resp.status_code == 409

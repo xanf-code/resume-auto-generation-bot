@@ -14,6 +14,7 @@ from httpx import AsyncClient, ASGITransport
 async def client(monkeypatch):
     """Async HTTP test client with pipeline execution stubbed out."""
     monkeypatch.setattr("src.web.job_manager.run_job", lambda job, mgr: None)
+    monkeypatch.setattr("src.web.app._build_repo", lambda: None)
     from src.web.app import create_app
     app = create_app()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:

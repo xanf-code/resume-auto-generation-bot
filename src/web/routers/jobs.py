@@ -26,19 +26,14 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
 # ---------------------------------------------------------------------------
-# Helpers — DB / in-memory only, no disk reads
+# Helpers — repository-backed job views only (no disk reads)
 # ---------------------------------------------------------------------------
 
 def _resolve_verdict(job) -> tuple[float | None, bool | None]:
-    """Resolve (aggregate_score, passed) from the in-memory job fields.
-
-    Both are populated at run completion and restored from the DB on startup,
-    so they are always authoritative without reading disk files.
-    """
+    """Resolve (aggregate_score, passed) from repository-backed job fields."""
     aggregate_score = job.aggregate_score
     passed = job.passed
-    # Fall back to the cached score_report dict for jobs that finished before
-    # the aggregate_score / passed fields existed on the row.
+    # Fall back to score_report for rows that predate dedicated columns.
     report = job.score_report
     if report is not None:
         if aggregate_score is None and isinstance(report.get("aggregate_score"), (int, float)):
@@ -80,9 +75,7 @@ def _persona_scores_from_report(report: dict) -> list[PersonaScoreDTO] | None:
 
 
 def _job_detail(job) -> JobDetail:
-    # Recruiter verdict and persona scores come from the in-memory score_report
-    # dict, which is populated at run completion and restored from the DB on
-    # startup — no disk reads needed.
+    # Verdict and persona scores come from the repository-backed score_report.
     report = job.score_report
     aggregate_score, passed = _resolve_verdict(job)
     persona_scores: list[PersonaScoreDTO] | None = None
@@ -166,11 +159,13 @@ async def rename_job(
 @router.post("/{job_id}/cancel", status_code=202, response_model=JobSummary)
 async def cancel_job(job_id: str, request: Request) -> JobSummary:
     manager = request.app.state.manager
-    job = manager.get(job_id)
-    if job is None:
+    if manager.get(job_id) is None:
         raise HTTPException(status_code=404, detail="Job not found")
     if not manager.cancel(job_id):
         raise HTTPException(status_code=409, detail="Job already finished")
+    job = manager.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
     return _job_summary(job)
 
 
@@ -193,9 +188,11 @@ async def delete_job(job_id: str, request: Request) -> Response:
 
 @router.get("/{job_id}/events")
 async def job_events(job_id: str, request: Request) -> EventSourceResponse:
+    from src.web.schemas import ProgressEvent
+
     manager = request.app.state.manager
-    job = manager.get(job_id)
-    if job is None:
+    stored = manager.get(job_id)
+    if stored is None:
         raise HTTPException(status_code=404, detail="Job not found")
 
     last_event_id_header = request.headers.get("last-event-id", "0")
@@ -204,16 +201,46 @@ async def job_events(job_id: str, request: Request) -> EventSourceResponse:
     except ValueError:
         last_event_id = 0
 
+    runtime = manager.get_runtime(job_id)
+
     async def _generate():
-        async for event in sse_module.event_stream(job, last_event_id):
-            event_type = "progress"
-            if event.stage in ("done", "failed"):
-                event_type = event.stage
-            yield {
-                "id": str(event.seq),
-                "event": event_type,
-                "data": event.model_dump_json(),
-            }
+        if runtime is not None:
+            async for event in sse_module.event_stream(runtime, last_event_id):
+                event_type = "progress"
+                if event.stage in ("done", "failed"):
+                    event_type = event.stage
+                yield {
+                    "id": str(event.seq),
+                    "event": event_type,
+                    "data": event.model_dump_json(),
+                }
+            return
+
+        # No live runtime (finished run / post-restart): one synthetic terminal.
+        if stored.status == JobStatus.DONE:
+            stage = "done"
+        else:
+            stage = "failed"
+        terminal = ProgressEvent(
+            job_id=job_id,
+            stage=stage,
+            human_label="Done" if stage == "done" else "Failed",
+            pct=100 if stage == "done" else 0,
+            seq=max(last_event_id + 1, 1),
+            aggregate_score=stored.aggregate_score,
+            passed=stored.passed,
+            detail=(
+                "Run complete - artifacts ready"
+                if stage == "done"
+                else (stored.error or "Unknown error.")
+            ),
+            error=None if stage == "done" else stored.error,
+        )
+        yield {
+            "id": str(terminal.seq),
+            "event": stage,
+            "data": terminal.model_dump_json(),
+        }
 
     response = EventSourceResponse(_generate())
     response.headers["X-Accel-Buffering"] = "no"

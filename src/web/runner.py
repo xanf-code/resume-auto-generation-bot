@@ -3,9 +3,10 @@
 Never called on the FastAPI async event loop directly; the event loop is only
 touched via ``loop.call_soon_threadsafe`` inside ``JobManager._emit``.
 
-On completion the runner writes artifacts to Supabase (when a repo is
-configured) and uploads the PDF to Storage.  All persistence failures are
-logged but never propagated — the in-memory job state is always authoritative.
+The worker mutates the ephemeral runtime ``Job`` for SSE progress. Durable
+status and artifacts are written through ``manager._repo`` (the source of
+truth for subsequent HTTP reads). Persistence failures are logged; API
+responses always re-read from the repository.
 """
 from __future__ import annotations
 
@@ -46,8 +47,11 @@ def run_job(job: Job, manager: "JobManager") -> None:
     job.started_at = _now()
     _db_set_status(job, manager, status="running", started_at=job.started_at)
 
-    out_dir = f"{manager.settings.out_root}/{job.job_id}"
-    os.makedirs(out_dir, exist_ok=True)
+    # Web path writes nothing to the local out/ tree — Supabase is the only
+    # sink. emit() ignores out_dir when write_files=False, so we neither compute
+    # nor create a local directory here; the compiled PDF is uploaded straight
+    # from the compiler's temp path.
+    out_dir = ""
 
     def on_step(flat_delta: dict, state: dict) -> None:
         if job.cancel_event.is_set():
@@ -72,6 +76,7 @@ def run_job(job: Job, manager: "JobManager") -> None:
             jd_name=job.jd_name,
             enable_scoring=job.enable_scoring,
             on_step=on_step,
+            write_files=False,  # web path: score_report.json/skills.json are dead writes
             **extra,
         )
 
@@ -116,9 +121,7 @@ def run_job(job: Job, manager: "JobManager") -> None:
     job.aggregate_score = final_state.get("aggregate_score")
     job.passed = final_state.get("passed")
 
-    # Cache JSON artifacts in-memory — DB is the authoritative read source.
-    # These are set here unconditionally so endpoints can serve them for
-    # the current run even when Supabase is not configured.
+    # Stage JSON artifacts on the runtime job, then persist via the repository.
     job.score_report = build_score_report(final_state)
     skill_dump = final_state.get("skill_dump")
     job.output_skills = skill_dump.model_dump() if skill_dump is not None else None
@@ -126,14 +129,13 @@ def run_job(job: Job, manager: "JobManager") -> None:
     job.status = JobStatus.DONE
     job.finished_at = _now()
 
-    # Persist to Supabase if configured.
     _db_save_artifacts(job, manager)
 
     _emit_terminal(job, manager, stage="done")
 
 
 # ---------------------------------------------------------------------------
-# DB helpers (no-ops when _repo is None)
+# Repository helpers (repo is always present — real or in-memory)
 # ---------------------------------------------------------------------------
 
 def _db_set_status(
@@ -144,9 +146,7 @@ def _db_set_status(
     finished_at: datetime | None = None,
     error: str | None = None,
 ) -> None:
-    """Mirror a status transition to Supabase — no-op when repo is absent."""
-    if manager._repo is None:
-        return
+    """Persist a status transition to the repository."""
     try:
         manager._repo.set_status(
             job.job_id,
@@ -163,28 +163,38 @@ def _db_save_artifacts(
     job: "Job",
     manager: "JobManager",
 ) -> None:
-    """Upload PDF to Storage and persist artifacts to Supabase — no-op when repo is absent.
+    """Upload PDF to Storage (when configured) and persist artifacts to the repo.
 
-    Reads ``job.score_report`` and ``job.output_skills`` which are already cached
-    in-memory by ``run_job`` before this function is called.
+    Each step is isolated: a storage upload failure never blocks the artifact
+    save, and neither blocks the final status update to "done".  Storage is the
+    durable home for the PDF; ``job.output_pdf`` points at the compiler's temp
+    PDF (no local out/ copy is made), which is deleted after this function
+    returns regardless of upload outcome.
     """
-    if manager._repo is None:
-        return
-    try:
-        from src.web.config import _optional_db_settings
-        from src.db.client import get_client
-        from src.db.storage import upload_pdf
+    from src.web.config import _optional_db_settings
+    from src.db.client import get_client
+    from src.db.storage import upload_pdf
 
-        # Upload PDF to Storage if it was compiled successfully.
-        pdf_object_key: str | None = None
-        if job.output_pdf and os.path.isfile(job.output_pdf):
-            db_settings = _optional_db_settings()
-            if db_settings is not None:
+    # Step 1 — upload PDF to Storage (best-effort; skipped without Supabase).
+    pdf_object_key: str | None = None
+    local_pdf = job.output_pdf if (job.output_pdf and os.path.isfile(job.output_pdf)) else None
+    if local_pdf:
+        db_settings = _optional_db_settings()
+        if db_settings is not None:
+            try:
                 pdf_object_key = upload_pdf(
-                    job.job_id, job.output_pdf, get_client(db_settings), db_settings.bucket
+                    job.job_id, local_pdf, get_client(db_settings), db_settings.bucket
                 )
                 job.pdf_object_key = pdf_object_key
+            except Exception:
+                log.exception("Failed to upload PDF to Storage for job %s", job.job_id)
+        try:
+            os.remove(local_pdf)
+        except OSError:
+            log.warning("Failed to delete staged PDF for job %s", job.job_id)
 
+    # Step 2 — save artifacts (best-effort).
+    try:
         manager._repo.save_artifacts(
             job.job_id,
             best_latex=job.best_latex,
@@ -192,11 +202,16 @@ def _db_save_artifacts(
             score_report=job.score_report,
             aggregate_score=job.aggregate_score,
             passed=job.passed,
-            pdf_object_key=pdf_object_key,
+            pdf_object_key=pdf_object_key or job.pdf_object_key,
         )
+    except Exception:
+        log.exception("Failed to save artifacts for job %s", job.job_id)
+
+    # Step 3 — mark done; always runs even if steps above failed.
+    try:
         manager._repo.set_status(job.job_id, "done", finished_at=job.finished_at)
     except Exception:
-        log.exception("Failed to persist artifacts for job %s", job.job_id)
+        log.exception("Failed to set done status for job %s", job.job_id)
 
 
 def _emit_terminal(

@@ -4,6 +4,8 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from src.db.repository import InMemoryResumeRepository
+
 
 def _role(model: str, effort: str | None = None) -> dict:
     return {"model": model, "effort": effort}
@@ -73,7 +75,7 @@ def test_job_manager_persists_models():
     settings = WebSettings(
         max_concurrent_jobs=1, out_root="/tmp/resumebot_models_test", event_buffer_max=50
     )
-    manager = JobManager(settings)
+    manager = JobManager(settings, repo=InMemoryResumeRepository())
 
     with patch("src.web.job_manager.run_job", lambda job, mgr: None):
         job = manager.submit(
@@ -108,7 +110,7 @@ def test_runner_wraps_pipeline_in_model_context():
     settings = WebSettings(
         max_concurrent_jobs=1, out_root="/tmp/resumebot_models_ctx", event_buffer_max=50
     )
-    manager = JobManager(settings)
+    manager = JobManager(settings, repo=InMemoryResumeRepository())
     loop = asyncio.new_event_loop()
     threading.Thread(target=loop.run_forever, daemon=True).start()
     manager.bind_loop(loop)

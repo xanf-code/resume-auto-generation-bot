@@ -102,17 +102,37 @@ def _copy_pdf(pdf_path: str, out_path: Path) -> str | None:
     return str(out_path)
 
 
-def emit(state: dict, out_dir: str = "out") -> dict:
+def emit(state: dict, out_dir: str = "out", write_files: bool = True) -> dict:
     """Node: write the winning draft's package to ``out_dir/{jd_name}/``.
 
     Args:
         state: The final pipeline state.
-        out_dir: Root output directory (created if absent).
+        out_dir: Root output directory (created if absent). Only touched on the
+            CLI path; ignored entirely when ``write_files`` is False.
+        write_files: When True (CLI) write the full per-JD package to disk — the
+            PDF copy, score_report.json, and skills.json. When False (web runner)
+            write NOTHING locally: Supabase is the only sink. ``output_pdf`` then
+            passes through the compiler's own temp PDF path so the caller can
+            upload it directly; the JSON artifacts persist to the repository.
 
     Returns:
-        A NEW dict with ``output_pdf`` (str | None), ``output_report`` (str), and
-        ``output_skills`` (str, the JSON skill dump) - the paths written.
+        A NEW dict with ``output_pdf`` (str | None), ``output_report`` (str | None),
+        and ``output_skills`` (str | None) — paths written, or None when skipped.
     """
+    # Prefer the best-scoring PDF over the last-compiled PDF.
+    # Fallback chain: best_pdf_path → pdf_path → None (no PDF).
+    effective_pdf_path = state.get("best_pdf_path") or state.get("pdf_path", "")
+
+    # Web path: never create a local out/ tree. Hand back the compiled PDF's own
+    # (temp) path so the caller uploads it straight to Storage — Supabase is the
+    # only sink; the JSON artifacts persist to the repository, not disk.
+    if not write_files:
+        return {
+            "output_pdf": effective_pdf_path or None,
+            "output_report": None,
+            "output_skills": None,
+        }
+
     jd_name = state.get("jd_name", "").strip()
     # Package the run into a per-JD folder so outputs never collide across JDs.
     # Without a jd_name, collapse to out_dir and keep the legacy PDF name.
@@ -124,17 +144,14 @@ def emit(state: dict, out_dir: str = "out") -> dict:
     report_path = pkg_dir / _REPORT_NAME
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
-    # Four skill buckets as JSON - the sole skills deliverable, parsed by the CLI
-    # and by GET /jobs/{id}/skills into a DTO the frontend renders.
+    # Four skill buckets as JSON - the sole skills deliverable, parsed by the
+    # CLI and by GET /jobs/{id}/skills into a DTO the frontend renders.
     skills = _skills_from_state(state)
     skills_path = pkg_dir / _SKILLS_NAME
     skills_path.write_text(
         json.dumps(skills.model_dump(), indent=2), encoding="utf-8"
     )
 
-    # Prefer the best-scoring PDF over the last-compiled PDF.
-    # Fallback chain: best_pdf_path → pdf_path → None (no PDF copied).
-    effective_pdf_path = state.get("best_pdf_path") or state.get("pdf_path", "")
     output_pdf = _copy_pdf(effective_pdf_path, pkg_dir / pdf_filename)
 
     return {
@@ -147,9 +164,13 @@ def emit(state: dict, out_dir: str = "out") -> dict:
 def emit_node(state: dict) -> dict:
     """Graph-node wrapper: emit to the ``out_dir`` carried on the state."""
     out_dir = state.get("out_dir", "out")
-    log.info("emit         | writing outputs → %s/", out_dir)
-    result = emit(state, out_dir=out_dir)
+    write_files = state.get("emit_write_files", True)
+    if write_files:
+        log.info("emit         | writing package → %s/", out_dir)
+    else:
+        log.info("emit         | no local writes (Supabase-only); passing PDF through for upload")
+    result = emit(state, out_dir=out_dir, write_files=write_files)
     log.info("emit         | PDF    → %s", result.get("output_pdf") or "(none - compile never succeeded)")
-    log.info("emit         | report → %s", result.get("output_report"))
-    log.info("emit         | skills → %s", result.get("output_skills"))
+    log.info("emit         | report → %s", result.get("output_report") or "(skipped)")
+    log.info("emit         | skills → %s", result.get("output_skills") or "(skipped)")
     return {**result, "emitted": True}

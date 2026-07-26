@@ -10,6 +10,7 @@ import pytest
 
 import src.web.runner as runner_module
 from src.web.config import WebSettings
+from src.db.repository import InMemoryResumeRepository
 from src.web.schemas import JobStatus, JobSubmitRequest
 
 
@@ -48,7 +49,7 @@ def _fake_pipeline_factory(on_step_calls: int = 2, final_state: dict | None = No
             "output_pdf": "out/j/resume.pdf",
         }
 
-    def fake_pipeline(resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring, on_step=None):
+    def fake_pipeline(resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring, on_step=None, **kwargs):
         if raise_exc is not None:
             raise raise_exc
         for i in range(on_step_calls):
@@ -67,7 +68,7 @@ def test_lifecycle():
     from src.web.job_manager import JobManager
 
     settings = _make_settings()
-    manager = JobManager(settings)
+    manager = JobManager(settings, repo=InMemoryResumeRepository())
 
     loop = asyncio.new_event_loop()
     loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
@@ -101,7 +102,7 @@ def test_failure_propagates():
     from src.web.job_manager import JobManager
 
     settings = _make_settings()
-    manager = JobManager(settings)
+    manager = JobManager(settings, repo=InMemoryResumeRepository())
 
     loop = asyncio.new_event_loop()
     loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
@@ -132,7 +133,7 @@ def test_graph_recursion_error_friendly_message():
         pass
 
     settings = _make_settings()
-    manager = JobManager(settings)
+    manager = JobManager(settings, repo=InMemoryResumeRepository())
 
     loop = asyncio.new_event_loop()
     loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
@@ -161,7 +162,7 @@ def test_concurrency_cap():
 
     MAX = 2
     settings = _make_settings(max_concurrent_jobs=MAX)
-    manager = JobManager(settings)
+    manager = JobManager(settings, repo=InMemoryResumeRepository())
 
     loop = asyncio.new_event_loop()
     loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
@@ -171,7 +172,7 @@ def test_concurrency_cap():
     gate = threading.Event()
     running_count = threading.Semaphore(0)
 
-    def blocking_pipeline(resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring, on_step=None):
+    def blocking_pipeline(resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring, on_step=None, **kwargs):
         running_count.release()
         gate.wait(timeout=30)
         return {"best_latex": "x", "aggregate_score": 80.0, "passed": True, "output_pdf": "x.pdf"}
@@ -213,7 +214,7 @@ def test_other_jobs_unaffected_by_failure():
     from src.web.job_manager import JobManager
 
     settings = _make_settings(max_concurrent_jobs=2)
-    manager = JobManager(settings)
+    manager = JobManager(settings, repo=InMemoryResumeRepository())
 
     loop = asyncio.new_event_loop()
     loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
@@ -223,7 +224,7 @@ def test_other_jobs_unaffected_by_failure():
     call_count = [0]
     lock = threading.Lock()
 
-    def alternating_pipeline(resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring, on_step=None):
+    def alternating_pipeline(resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring, on_step=None, **kwargs):
         with lock:
             idx = call_count[0]
             call_count[0] += 1
@@ -254,16 +255,29 @@ def test_other_jobs_unaffected_by_failure():
 # ---------------------------------------------------------------------------
 
 def test_rename_and_delete(tmp_path):
+    from datetime import datetime, timezone
+
+    from src.db.models import JobRecord
+    from src.db.repository import InMemoryResumeRepository
     from src.web.job import Job
     from src.web.job_manager import JobManager
 
-    manager = JobManager(_make_settings(out_root=str(tmp_path)))
+    repo = InMemoryResumeRepository()
+    manager = JobManager(_make_settings(out_root=str(tmp_path)), repo=repo)
     job = Job(label="Old", status=JobStatus.DONE)
     out = tmp_path / job.job_id
     out.mkdir()
     (out / "artifact.txt").write_text("keep")
     job.out_dir = str(out)
-    manager._registry[job.job_id] = job
+    repo.create(
+        JobRecord(
+            job_id=job.job_id,
+            label=job.label,
+            status="done",
+            created_at=job.created_at or datetime.now(timezone.utc),
+        )
+    )
+    manager._runtime[job.job_id] = job
 
     renamed = manager.rename(job.job_id, "New Name")
     assert renamed is not None
@@ -284,7 +298,7 @@ def test_cancel_aborts_running_job():
     from src.web.job_manager import JobManager
 
     settings = _make_settings()
-    manager = JobManager(settings)
+    manager = JobManager(settings, repo=InMemoryResumeRepository())
 
     loop = asyncio.new_event_loop()
     loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
@@ -293,7 +307,7 @@ def test_cancel_aborts_running_job():
 
     started = threading.Event()
 
-    def looping_pipeline(resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring, on_step=None):
+    def looping_pipeline(resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring, on_step=None, **kwargs):
         started.set()
         # Emit steps until on_step raises JobCancelled - the cooperative abort path.
         while True:
@@ -319,7 +333,7 @@ def test_cancel_aborts_running_job():
 def test_cancel_unknown_job_returns_false():
     from src.web.job_manager import JobManager
 
-    manager = JobManager(_make_settings())
+    manager = JobManager(_make_settings(), repo=InMemoryResumeRepository())
     assert manager.cancel("does-not-exist") is False
 
 
@@ -332,7 +346,7 @@ def test_submit_threads_tuning_into_pipeline():
     from src.web.schemas import RubricWeightsDTO, TuningDTO
 
     settings = _make_settings()
-    manager = JobManager(settings)
+    manager = JobManager(settings, repo=InMemoryResumeRepository())
 
     loop = asyncio.new_event_loop()
     loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
@@ -344,6 +358,7 @@ def test_submit_threads_tuning_into_pipeline():
     def capturing_pipeline(
         resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring,
         on_step=None, tuning=None,
+        **kwargs,
     ):
         captured["tuning"] = tuning
         return {"best_latex": "x", "aggregate_score": 80.0, "passed": True, "output_pdf": "x.pdf"}
@@ -375,7 +390,7 @@ def test_submit_without_tuning_passes_none():
     from src.web.job_manager import JobManager
 
     settings = _make_settings()
-    manager = JobManager(settings)
+    manager = JobManager(settings, repo=InMemoryResumeRepository())
 
     loop = asyncio.new_event_loop()
     loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
@@ -387,6 +402,7 @@ def test_submit_without_tuning_passes_none():
     def capturing_pipeline(
         resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring,
         on_step=None, tuning=None, bullet_shapes=None,
+        **kwargs,
     ):
         captured["seen"] = True
         captured["tuning"] = tuning
@@ -412,7 +428,7 @@ def test_submit_threads_bullet_shapes_onto_job_and_into_pipeline():
     from src.web.job_manager import JobManager
 
     settings = _make_settings()
-    manager = JobManager(settings)
+    manager = JobManager(settings, repo=InMemoryResumeRepository())
 
     loop = asyncio.new_event_loop()
     loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
@@ -424,6 +440,7 @@ def test_submit_threads_bullet_shapes_onto_job_and_into_pipeline():
     def capturing_pipeline(
         resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring,
         on_step=None, tuning=None, bullet_shapes=None,
+        **kwargs,
     ):
         captured["bullet_shapes"] = bullet_shapes
         return {"best_latex": "x", "aggregate_score": 80.0, "passed": True, "output_pdf": "x.pdf"}
@@ -444,7 +461,7 @@ def test_submit_without_bullet_shapes_passes_none_to_pipeline():
     from src.web.job_manager import JobManager
 
     settings = _make_settings()
-    manager = JobManager(settings)
+    manager = JobManager(settings, repo=InMemoryResumeRepository())
 
     loop = asyncio.new_event_loop()
     loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
@@ -456,6 +473,7 @@ def test_submit_without_bullet_shapes_passes_none_to_pipeline():
     def capturing_pipeline(
         resume_tex_raw, jd_raw, out_dir, jd_name, enable_scoring,
         on_step=None, tuning=None, bullet_shapes=None,
+        **kwargs,
     ):
         captured["seen"] = True
         captured["bullet_shapes"] = bullet_shapes

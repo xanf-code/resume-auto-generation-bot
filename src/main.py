@@ -135,6 +135,7 @@ def stream_pipeline(
     on_step: Callable[[dict, dict], None] | None = None,
     tuning: PipelineTuning | None = None,
     bullet_shapes: list[str] | None = None,
+    write_files: bool = True,
 ) -> dict:
     """Run the pipeline from raw content, streaming per-node progress.
 
@@ -169,6 +170,7 @@ def stream_pipeline(
         "jd_name": jd_name,
         "enable_scoring": enable_scoring,
         "tuning": effective_tuning,
+        "emit_write_files": write_files,
     }
     if resume_struct is not None:
         initial_state["resume_struct"] = resume_struct
