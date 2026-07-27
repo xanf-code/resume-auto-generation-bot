@@ -43,6 +43,8 @@ const scoreB: MatchScore = {
   upset: false,
 };
 
+const judges: SpotlightHudProps['judges'] = ['ats', 'hiring_manager', 'technical'];
+
 function renderHud(overrides: Partial<SpotlightHudProps> = {}) {
   return render(
     <SpotlightHud
@@ -53,6 +55,7 @@ function renderHud(overrides: Partial<SpotlightHudProps> = {}) {
       scoreB={scoreB}
       animate={false}
       blindJudging={false}
+      judges={judges}
       {...overrides}
     />,
   );
@@ -95,6 +98,7 @@ describe('SpotlightHud', () => {
         scoreB={scoreB}
         animate={false}
         blindJudging
+        judges={judges}
       />,
     );
 
@@ -111,6 +115,7 @@ describe('SpotlightHud', () => {
         scoreB={scoreB}
         animate={false}
         blindJudging
+        judges={judges}
         outcome={{ winnerId: competitorA.id, loserId: competitorB.id }}
       />,
     );
@@ -137,5 +142,15 @@ describe('SpotlightHud', () => {
   it('renders nothing when closed', () => {
     const { container } = renderHud({ open: false });
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('shows a "Deliberating…" placeholder with one row per active judge before a score lands', () => {
+    const { container } = renderHud({ scoreA: undefined, scoreB: undefined });
+
+    expect(screen.getAllByText('Deliberating…')).toHaveLength(2);
+
+    const sides = container.querySelectorAll('[data-outcome]');
+    expect(sides[0].querySelectorAll('li')).toHaveLength(judges.length);
+    expect(sides[1].querySelectorAll('li')).toHaveLength(judges.length);
   });
 });

@@ -6,7 +6,7 @@
 // only interprets already-computed data for rendering.
 
 import { useEffect, useState } from 'react';
-import type { Competitor, StepKind, Timeline, TournamentResult } from '../../lib/ab/types';
+import type { Competitor, JudgeId, StepKind, Timeline, TournamentResult } from '../../lib/ab/types';
 import { useTournamentPlayback } from '../../hooks/useTournamentPlayback';
 import { BracketCanvas } from './BracketCanvas';
 import { SpotlightHud } from './SpotlightHud';
@@ -22,6 +22,7 @@ interface Props {
   result: TournamentResult;
   timeline: Timeline;
   blindJudging: boolean;
+  judges: JudgeId[];
   reducedMotion: boolean;
   onReplay: () => void;
 }
@@ -56,7 +57,14 @@ function requireCompetitorId(id: string | null, context: string): string {
   return id;
 }
 
-export function TournamentArena({ result, timeline, blindJudging, reducedMotion, onReplay }: Props) {
+export function TournamentArena({
+  result,
+  timeline,
+  blindJudging,
+  judges,
+  reducedMotion,
+  onReplay,
+}: Props) {
   const [matchSeconds, setMatchSeconds] = useState<MatchDurationSec>(DEFAULT_MATCH_DURATION_SEC);
   const [hudVisible, setHudVisible] = useState(true);
   const [state, controls] = useTournamentPlayback(timeline, {
@@ -68,6 +76,13 @@ export function TournamentArena({ result, timeline, blindJudging, reducedMotion,
   const [justSkipped, setJustSkipped] = useState(false);
   useEffect(() => {
     setJustSkipped(false);
+  }, [timeline]);
+
+  // Dismissing the champion card only hides it - the bracket underneath (all
+  // rounds, all fixtures) stays exactly as it was. Resets on replay/new timeline.
+  const [championDismissed, setChampionDismissed] = useState(false);
+  useEffect(() => {
+    setChampionDismissed(false);
   }, [timeline]);
 
   const handleSkip = (): void => {
@@ -164,18 +179,30 @@ export function TournamentArena({ result, timeline, blindJudging, reducedMotion,
             }
             animate={animate}
             blindJudging={blindJudging}
+            judges={judges}
             seedA={seedOf(result, activeMatch?.a ?? null)}
             seedB={seedOf(result, activeMatch?.b ?? null)}
           />
         )}
 
-        {showChampion && (
+        {showChampion && !championDismissed && (
           <div
             data-testid="champion-overlay"
             className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none"
           >
             <div className="absolute inset-0 bg-ink/25 backdrop-blur-[2px]" aria-hidden="true" />
-            <div className="relative mx-4 w-full max-w-md rounded-[3px] border border-rule bg-paper">
+            <div className="relative mx-4 w-full max-w-md rounded-[3px] border border-rule bg-paper pointer-events-auto">
+              <button
+                type="button"
+                onClick={() => setChampionDismissed(true)}
+                aria-label="Close champion card"
+                title="Close - browse other fixtures"
+                className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-[2px] text-ink-soft hover:text-ink border border-transparent hover:border-rule transition-colors duration-200"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+                  <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
+              </button>
               <ChampionBanner
                 champion={findCompetitor(result, result.championId)}
                 runnerUp={findCompetitor(result, result.runnerUpId)}
@@ -185,6 +212,20 @@ export function TournamentArena({ result, timeline, blindJudging, reducedMotion,
           </div>
         )}
       </div>
+
+      {/* Absolute to the arena (not viewport) so it clears the TopBar "New résumé" CTA. */}
+      {showChampion && championDismissed && (
+        <button
+          type="button"
+          data-testid="show-champion-button"
+          onClick={() => setChampionDismissed(false)}
+          aria-label="Show champion card"
+          title="Show champion card"
+          className="absolute right-4 top-4 z-40 font-mono text-[11px] uppercase tracking-[0.1em] text-ink-soft hover:text-ink border border-rule hover:border-ink-faint bg-paper px-2.5 py-1 rounded-[2px] transition-colors duration-200"
+        >
+          Show champion
+        </button>
+      )}
 
       {/* z-50 keeps transport above fixed spotlight/champion overlays (z-40). */}
       <div className="relative z-50 shrink-0 bg-paper pt-2 pb-1">

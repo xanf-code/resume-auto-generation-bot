@@ -12,8 +12,9 @@ import { keymap } from '@codemirror/view';
 import { StreamLanguage } from '@codemirror/language';
 import { stex } from '@codemirror/legacy-modes/mode/stex';
 import { EditorToolbar } from './EditorToolbar';
+import { DownloadDialog } from './DownloadDialog';
 import { compileLatex } from '../../../api/compile';
-import { getJobPdf } from '../../../api/jobs';
+import { getJobPdf, saveJobLatex } from '../../../api/jobs';
 import { downloadBlob } from '../../../lib/download';
 import { findInLatex } from '../../../lib/findInLatex';
 import { toast } from 'sonner';
@@ -62,7 +63,16 @@ export const LatexEditor = forwardRef<LatexEditorHandle, Props>(function LatexEd
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [compiling, setCompiling] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [showDownloadDialog, setShowDownloadDialog] = useState(false);
+
+  // The most recent PDF that reflects what's on screen, plus the exact LaTeX
+  // source that produced it. Download uses these so it never serves a stale
+  // PDF: if the editor text still matches `renderedSource`, we hand back the
+  // cached blob; otherwise we compile the current text first.
+  const renderedPdfRef = useRef<Blob | null>(null);
+  const renderedSourceRef = useRef<string | null>(null);
 
   useImperativeHandle(
     ref,
@@ -86,10 +96,17 @@ export const LatexEditor = forwardRef<LatexEditorHandle, Props>(function LatexEd
     [],
   );
 
-  // Fetch the already-compiled PDF on mount so the preview is immediately available.
+  // Fetch the already-compiled PDF on mount so the preview is immediately
+  // available. The server PDF was produced from `initialLatex`, so we record
+  // that as the rendered source: an un-edited download can reuse this blob
+  // instead of recompiling.
   useEffect(() => {
     getJobPdf(jobId)
-      .then((blob) => onPdfReady?.(blob))
+      .then((blob) => {
+        renderedPdfRef.current = blob;
+        renderedSourceRef.current = initialLatex;
+        onPdfReady?.(blob);
+      })
       .catch(() => {/* no PDF yet - pane stays empty until user compiles */});
   }, [jobId]);
 
@@ -127,6 +144,8 @@ export const LatexEditor = forwardRef<LatexEditorHandle, Props>(function LatexEd
     try {
       const result = await compileLatex(latex);
       if (result.ok) {
+        renderedPdfRef.current = result.blob;
+        renderedSourceRef.current = latex;
         onPdfReady?.(result.blob);
         toast.success('Compiled - proof updated');
       } else {
@@ -141,12 +160,59 @@ export const LatexEditor = forwardRef<LatexEditorHandle, Props>(function LatexEd
     }
   };
 
-  const handleDownload = async () => {
+  const handleSave = async () => {
+    setSaving(true);
+    setErrors([]);
+    const latex = getLatex();
     try {
-      const blob = await getJobPdf(jobId);
-      downloadBlob(blob, `${jobId}.pdf`);
+      const result = await saveJobLatex(jobId, latex);
+      if (result.ok) {
+        renderedPdfRef.current = result.blob;
+        renderedSourceRef.current = latex;
+        onPdfReady?.(result.blob);
+        toast.success('Saved - your edits will persist');
+      } else {
+        setErrors(result.errors);
+        toast.error('Save failed - fix the marks below');
+      }
     } catch {
-      toast.error('PDF not available yet');
+      toast.error('Could not reach the press. Check the connection and try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDownloadConfirm = async (fileName: string) => {
+    setShowDownloadDialog(false);
+    const latex = getLatex();
+
+    // If the cached PDF already reflects the current editor text, download it
+    // straight away. This covers the un-edited case and the just-compiled case.
+    if (renderedPdfRef.current && renderedSourceRef.current === latex) {
+      downloadBlob(renderedPdfRef.current, fileName);
+      return;
+    }
+
+    // The editor has diverged from the last render (edited but not compiled).
+    // Compile the current text first so the download matches what the user sees
+    // and typed - never the stale server copy.
+    setCompiling(true);
+    setErrors([]);
+    try {
+      const result = await compileLatex(latex);
+      if (result.ok) {
+        renderedPdfRef.current = result.blob;
+        renderedSourceRef.current = latex;
+        onPdfReady?.(result.blob);
+        downloadBlob(result.blob, fileName);
+      } else {
+        setErrors(result.errors);
+        toast.error('Compile failed - fix the marks below before downloading');
+      }
+    } catch {
+      toast.error('Could not reach the press. Check the connection and try again.');
+    } finally {
+      setCompiling(false);
     }
   };
 
@@ -154,9 +220,17 @@ export const LatexEditor = forwardRef<LatexEditorHandle, Props>(function LatexEd
     <div className="flex flex-col h-full min-h-0 bg-paper-raised">
       <EditorToolbar
         onCompile={handleCompile}
-        onDownload={handleDownload}
+        onSave={handleSave}
+        onDownload={() => setShowDownloadDialog(true)}
         compiling={compiling}
+        saving={saving}
       />
+      {showDownloadDialog && (
+        <DownloadDialog
+          onConfirm={handleDownloadConfirm}
+          onClose={() => setShowDownloadDialog(false)}
+        />
+      )}
       <div ref={editorRef} className="flex-1 min-h-0 overflow-auto" />
       {errors.length > 0 && (
         <div className="border-t-2 border-fail bg-[#fbeeec] p-3 max-h-36 overflow-y-auto shrink-0">

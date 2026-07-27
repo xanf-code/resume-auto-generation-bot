@@ -140,6 +140,18 @@ class JobManager:
             rt.label = label
         return job_from_record(rec, event_buffer_max=self.settings.event_buffer_max)
 
+    def save_edit(
+        self, job_id: str, *, best_latex: str, pdf_object_key: str | None
+    ) -> Job | None:
+        """Persist a manual editor edit (new LaTeX + recompiled PDF key).
+
+        Returns the refreshed job view, or None if the job no longer exists.
+        """
+        self._repo.save_edit(
+            job_id, best_latex=best_latex, pdf_object_key=pdf_object_key
+        )
+        return self.get(job_id)
+
     def cancel(self, job_id: str) -> bool:
         """Request cancellation of a running or queued job.
 

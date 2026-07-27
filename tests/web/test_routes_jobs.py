@@ -333,6 +333,45 @@ async def test_get_detail_without_report_has_no_scores(client):
 
 
 # ---------------------------------------------------------------------------
+# Test 8e: GET /api/jobs/{id}/jd returns the original JD input.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_get_jd_returns_input_text(client):
+    submit = await client.post("/api/jobs", json=_job_payload())
+    job_id = submit.json()["job_id"]
+
+    resp = await client.get(f"/api/jobs/{job_id}/jd")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["jd_text"] == (
+        "Senior engineer role requiring Python and FastAPI skills."
+    )
+    # jd_name is seeded from the submit label.
+    assert body["jd_name"] == "TestJob"
+
+
+@pytest.mark.asyncio
+async def test_get_jd_available_before_run_finishes(client):
+    """The JD is a pipeline INPUT, so it is served even for a queued job."""
+    submit = await client.post("/api/jobs", json=_job_payload())
+    job_id = submit.json()["job_id"]
+
+    detail = await client.get(f"/api/jobs/{job_id}")
+    assert detail.json()["status"] == "queued"
+
+    resp = await client.get(f"/api/jobs/{job_id}/jd")
+    assert resp.status_code == 200
+    assert "FastAPI" in resp.json()["jd_text"]
+
+
+@pytest.mark.asyncio
+async def test_get_jd_unknown_job_returns_404(client):
+    resp = await client.get("/api/jobs/missing-id/jd")
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
 # Test 9: PATCH /api/jobs/{id} renames label
 # ---------------------------------------------------------------------------
 

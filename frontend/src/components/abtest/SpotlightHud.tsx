@@ -1,4 +1,4 @@
-import type { Competitor, MatchScore } from '../../lib/ab/types';
+import type { Competitor, JudgeId, MatchScore } from '../../lib/ab/types';
 import { HeadToHeadScore } from './HeadToHeadScore';
 
 interface SpotlightOutcome {
@@ -15,6 +15,7 @@ interface Props {
   outcome?: SpotlightOutcome; // undefined until the verdict lands
   animate: boolean; // false under reduced motion / skip-to-end
   blindJudging: boolean; // from AbConfig.blindJudging
+  judges: JudgeId[]; // the active panel, for the "judges deliberating" pending state
   seedA?: number; // bracket seed for side A, positional in Bracket.competitors - not part of Competitor itself
   seedB?: number; // bracket seed for side B
 }
@@ -51,6 +52,7 @@ export function SpotlightHud({
   outcome,
   animate,
   blindJudging,
+  judges,
   seedA,
   seedB,
 }: Props) {
@@ -73,6 +75,7 @@ export function SpotlightHud({
           label={a.label}
           seed={seedA}
           score={scoreA}
+          judges={judges}
           outcome={sideOutcome(outcome, a.id)}
           animate={animate}
           masked={blindJudging}
@@ -84,6 +87,7 @@ export function SpotlightHud({
           label={b.label}
           seed={seedB}
           score={scoreB}
+          judges={judges}
           outcome={sideOutcome(outcome, b.id)}
           animate={animate}
           masked={blindJudging}

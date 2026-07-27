@@ -4,15 +4,21 @@ import { MATCH_CYCLE_MS } from '../../lib/ab/timeline';
 import type { PlaybackStatus } from '../../hooks/useTournamentPlayback';
 
 /** Seconds one unscaled match iteration (focus→advance) should take. */
-export type MatchDurationSec = 3 | 5 | 8 | 12;
+export type MatchDurationSec = 120 | 150 | 180 | 240;
 
-export const MATCH_DURATION_OPTIONS: readonly MatchDurationSec[] = [3, 5, 8, 12];
+export const MATCH_DURATION_OPTIONS: readonly MatchDurationSec[] = [120, 150, 180, 240];
 
-export const DEFAULT_MATCH_DURATION_SEC: MatchDurationSec = 5;
+export const DEFAULT_MATCH_DURATION_SEC: MatchDurationSec = 150;
 
 /** Convert a target match length into the playback rate the rAF loop expects. */
 export function speedFromMatchSeconds(seconds: MatchDurationSec): number {
   return MATCH_CYCLE_MS / (seconds * 1000);
+}
+
+/** Renders whole minutes as "2m", fractional minutes as "2.5m". */
+function formatMatchSeconds(seconds: MatchDurationSec): string {
+  const minutes = seconds / 60;
+  return `${Number.isInteger(minutes) ? minutes : minutes.toFixed(1)}m`;
 }
 
 interface Props {
@@ -118,7 +124,7 @@ export function PlaybackBar({
                     : 'text-ink-soft border-transparent hover:text-ink'
                 }`}
               >
-                {sec}s
+                {formatMatchSeconds(sec)}
               </button>
             );
           })}

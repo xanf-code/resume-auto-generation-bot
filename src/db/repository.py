@@ -127,6 +127,22 @@ class ResumeRepository:
         }
         self._client.table(self.TABLE).update(data).eq("job_id", job_id).execute()
 
+    def save_edit(
+        self,
+        job_id: str,
+        *,
+        best_latex: str,
+        pdf_object_key: str | None,
+    ) -> None:
+        """Persist a manual editor edit: the new LaTeX and its recompiled PDF.
+
+        Deliberately narrow — touches only ``best_latex`` and ``pdf_object_key``
+        so a user edit never clobbers the pipeline's scores, skills, report, or
+        terminal status the way ``save_artifacts`` would.
+        """
+        data: dict = {"best_latex": best_latex, "pdf_object_key": pdf_object_key}
+        self._client.table(self.TABLE).update(data).eq("job_id", job_id).execute()
+
     def set_classification(self, job_id: str, role: str | None, domains: list[str]) -> None:
         """Persist the JD role/domain classification computed early in run_job.
 
@@ -258,6 +274,20 @@ class InMemoryResumeRepository:
             pdf_object_key=pdf_object_key,
             status=status,
             finished_at=finished_at,
+        )
+
+    def save_edit(
+        self,
+        job_id: str,
+        *,
+        best_latex: str,
+        pdf_object_key: str | None,
+    ) -> None:
+        rec = self._rows.get(job_id)
+        if rec is None:
+            return
+        self._rows[job_id] = replace(
+            rec, best_latex=best_latex, pdf_object_key=pdf_object_key
         )
 
     def set_classification(self, job_id: str, role: str | None, domains: list[str]) -> None:

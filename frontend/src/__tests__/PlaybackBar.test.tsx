@@ -71,7 +71,7 @@ describe('PlaybackBar', () => {
     const { rerender } = render(
       <PlaybackBar
         status="playing"
-        matchSeconds={5}
+        matchSeconds={150}
         progressRef={makeProgressRef()}
         onTogglePlay={() => {}}
         onSetMatchSeconds={() => {}}
@@ -89,7 +89,7 @@ describe('PlaybackBar', () => {
     rerender(
       <PlaybackBar
         status="paused"
-        matchSeconds={5}
+        matchSeconds={150}
         progressRef={makeProgressRef()}
         onTogglePlay={() => {}}
         onSetMatchSeconds={() => {}}
@@ -116,39 +116,39 @@ describe('PlaybackBar', () => {
     );
   });
 
-  it('calls onSetMatchSeconds(3|5|8|12) when each duration button is clicked', async () => {
+  it('calls onSetMatchSeconds(120|150|180|240) when each duration button is clicked', async () => {
     const user = userEvent.setup();
-    const { onSetMatchSeconds } = renderBar({ matchSeconds: 5 });
+    const { onSetMatchSeconds } = renderBar({ matchSeconds: 150 });
 
-    await user.click(screen.getByRole('button', { name: '3s' }));
-    expect(onSetMatchSeconds).toHaveBeenLastCalledWith(3);
+    await user.click(screen.getByRole('button', { name: '2m' }));
+    expect(onSetMatchSeconds).toHaveBeenLastCalledWith(120);
 
-    await user.click(screen.getByRole('button', { name: '5s' }));
-    expect(onSetMatchSeconds).toHaveBeenLastCalledWith(5);
+    await user.click(screen.getByRole('button', { name: '2.5m' }));
+    expect(onSetMatchSeconds).toHaveBeenLastCalledWith(150);
 
-    await user.click(screen.getByRole('button', { name: '8s' }));
-    expect(onSetMatchSeconds).toHaveBeenLastCalledWith(8);
+    await user.click(screen.getByRole('button', { name: '3m' }));
+    expect(onSetMatchSeconds).toHaveBeenLastCalledWith(180);
 
-    await user.click(screen.getByRole('button', { name: '12s' }));
-    expect(onSetMatchSeconds).toHaveBeenLastCalledWith(12);
+    await user.click(screen.getByRole('button', { name: '4m' }));
+    expect(onSetMatchSeconds).toHaveBeenLastCalledWith(240);
   });
 
-  it('marks the duration button matching the current matchSeconds prop as aria-pressed=true (5s)', () => {
-    renderBar({ matchSeconds: 5 });
+  it('marks the duration button matching the current matchSeconds prop as aria-pressed=true (2.5m)', () => {
+    renderBar({ matchSeconds: 150 });
 
-    expect(screen.getByRole('button', { name: '3s' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: '5s' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: '8s' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: '12s' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: '2m' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: '2.5m' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '3m' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: '4m' })).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('marks the duration button matching the current matchSeconds prop as aria-pressed=true (12s)', () => {
-    renderBar({ matchSeconds: 12 });
+  it('marks the duration button matching the current matchSeconds prop as aria-pressed=true (4m)', () => {
+    renderBar({ matchSeconds: 240 });
 
-    expect(screen.getByRole('button', { name: '3s' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: '5s' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: '8s' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: '12s' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '2m' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: '2.5m' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: '3m' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: '4m' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('calls onSkipToEnd when "Skip to result" is clicked', async () => {
@@ -176,8 +176,8 @@ describe('PlaybackBar', () => {
   });
 
   it('maps match seconds to a playback rate relative to MATCH_CYCLE_MS', () => {
-    expect(speedFromMatchSeconds(5)).toBeCloseTo(MATCH_CYCLE_MS / 5000);
-    expect(speedFromMatchSeconds(3)).toBeGreaterThan(speedFromMatchSeconds(12));
+    expect(speedFromMatchSeconds(150)).toBeCloseTo(MATCH_CYCLE_MS / 150000);
+    expect(speedFromMatchSeconds(120)).toBeGreaterThan(speedFromMatchSeconds(240));
   });
 
   it('mounts and unmounts cleanly with a plain { current: 0 } progressRef object (rAF loop starts and cleans up without throwing)', () => {

@@ -1,17 +1,24 @@
 """Jobs router - all routes prefixed /jobs (mounted under /api)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request, Response
+import shutil
+import tempfile
+
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
 
 try:
-    from src.db.storage import download_pdf_bytes
+    from src.db.storage import download_pdf_bytes, upload_pdf
 except ImportError:
     download_pdf_bytes = None  # type: ignore[assignment]
+    upload_pdf = None  # type: ignore[assignment]
 
+from src.compiler.tectonic import compile_tex
 from src.web.schemas import (
     CompileErrorResponse,
+    CompileRequest,
     JobDetail,
     JobRenameRequest,
     JobStatus,
@@ -264,6 +271,91 @@ async def get_latex(job_id: str, request: Request) -> dict:
     if job.status != JobStatus.DONE:
         raise HTTPException(status_code=409, detail="Job is not done yet")
     return {"latex": job.best_latex}
+
+
+# ---------------------------------------------------------------------------
+# PUT /jobs/{job_id}/latex - persist an edited LaTeX source + recompiled PDF
+# ---------------------------------------------------------------------------
+
+@router.put("/{job_id}/latex")
+async def save_latex(
+    job_id: str,
+    req: CompileRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+) -> FileResponse:
+    """Recompile edited LaTeX, persist it as the job's source of truth, and
+    return the fresh PDF so the preview updates in the same round-trip.
+
+    On success: 200 application/pdf (best_latex + stored PDF are replaced).
+    On compile failure: 422 CompileErrorResponse — nothing is persisted.
+    """
+    manager = request.app.state.manager
+    job = manager.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status != JobStatus.DONE:
+        raise HTTPException(status_code=409, detail="Job is not done yet")
+
+    workdir = tempfile.mkdtemp(prefix="resumebot_save_")
+    try:
+        ok, pdf_path, errors = await run_in_threadpool(
+            compile_tex, req.resume_tex, workdir
+        )
+    except Exception as exc:
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise HTTPException(
+            status_code=422,
+            detail=CompileErrorResponse(ok=False, errors=[str(exc)]).model_dump(),
+        ) from exc
+
+    if not ok or not pdf_path:
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise HTTPException(
+            status_code=422,
+            detail=CompileErrorResponse(ok=False, errors=errors).model_dump(),
+        )
+
+    # Compile succeeded — overwrite the stored PDF (upsert reuses the same key)
+    # then persist the edited LaTeX. Storage is skipped when Supabase is
+    # unconfigured (in-memory mode); the LaTeX edit still persists so the
+    # editor survives a reload.
+    from src.web.config import _optional_db_settings
+    from src.db.client import get_client
+
+    pdf_object_key = job.pdf_object_key
+    db_settings = _optional_db_settings()
+    if db_settings is not None and upload_pdf is not None:
+        client = get_client(db_settings)
+        pdf_object_key = await run_in_threadpool(
+            upload_pdf, job_id, pdf_path, client, db_settings.bucket
+        )
+
+    manager.save_edit(
+        job_id, best_latex=req.resume_tex, pdf_object_key=pdf_object_key
+    )
+
+    background_tasks.add_task(shutil.rmtree, workdir, True)
+    return FileResponse(pdf_path, media_type="application/pdf")
+
+
+# ---------------------------------------------------------------------------
+# GET /jobs/{job_id}/jd - the original job description (pipeline input)
+# ---------------------------------------------------------------------------
+
+@router.get("/{job_id}/jd")
+async def get_jd(job_id: str, request: Request) -> dict:
+    """Return the job description this run was tailored against.
+
+    The JD is a pipeline INPUT (persisted at submit time), so - unlike the
+    LaTeX/skills/report artifacts - it is available for any job regardless of
+    status, including queued, running, and failed runs.
+    """
+    manager = request.app.state.manager
+    job = manager.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"jd_name": job.jd_name, "jd_text": job.jd_raw}
 
 
 # ---------------------------------------------------------------------------

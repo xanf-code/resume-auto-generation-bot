@@ -74,6 +74,7 @@ export function AbTestingPage() {
           result={result}
           timeline={timeline}
           blindJudging={config.blindJudging}
+          judges={config.judges}
           reducedMotion={reducedMotion}
           onReplay={() => setSeed(newSeedToken())}
         />

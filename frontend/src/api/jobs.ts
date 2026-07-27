@@ -1,4 +1,5 @@
 import { apiFetch, apiJson } from './client';
+import type { CompileResult } from './compile';
 import type {
   CreateJobRequest,
   CreateJobResponse,
@@ -30,6 +31,52 @@ export async function getJobLatex(id: string): Promise<string> {
 
 export function getJobSkills(id: string): Promise<SkillsResponse> {
   return apiJson<SkillsResponse>(`/api/jobs/${id}/skills`);
+}
+
+/**
+ * Fetch the original job description this run was tailored against. The JD is a
+ * pipeline INPUT persisted at submit time, so it resolves for any job status
+ * (queued, running, done, failed) - unlike the artifact endpoints.
+ */
+export function getJobJd(
+  id: string,
+): Promise<{ jd_name: string; jd_text: string }> {
+  return apiJson<{ jd_name: string; jd_text: string }>(`/api/jobs/${id}/jd`);
+}
+
+/**
+ * Persist edited LaTeX as the job's source of truth: the server recompiles,
+ * overwrites the stored PDF, and saves the new LaTeX so the edit survives a
+ * reload. Returns the recompiled PDF blob (for the preview) or compile errors.
+ * Mirrors {@link compileLatex}'s result shape.
+ */
+export async function saveJobLatex(
+  id: string,
+  resumeTex: string,
+): Promise<CompileResult> {
+  const res = await apiFetch(`/api/jobs/${id}/latex`, {
+    method: 'PUT',
+    body: JSON.stringify({ resume_tex: resumeTex }),
+  });
+
+  if (res.ok) {
+    const blob = await res.blob();
+    return { ok: true, blob };
+  }
+
+  if (res.status === 422) {
+    // FastAPI wraps HTTPException detail as { detail: { ok, errors } }; tolerate
+    // both the wrapped and bare shapes so error marks always surface.
+    const body = (await res.json()) as {
+      errors?: string[];
+      detail?: { errors?: string[] };
+    };
+    const errors = body.detail?.errors ?? body.errors ?? ['Compile failed'];
+    return { ok: false, errors };
+  }
+
+  const text = await res.text();
+  return { ok: false, errors: [`Server error ${res.status}: ${text}`] };
 }
 
 export async function getJobPdf(id: string): Promise<Blob> {

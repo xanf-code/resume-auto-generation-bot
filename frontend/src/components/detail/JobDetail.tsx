@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../../store';
 import { PipelineLoader } from '../loader/PipelineLoader';
 import { ThreePane } from './ThreePane';
+import { JobDescriptionDialog } from './JobDescriptionDialog';
 import { LatexEditor, type LatexEditorHandle } from './editor/LatexEditor';
 import { PdfPane } from './pdf/PdfPane';
 import { SkillsSidebar } from './skills/SkillsSidebar';
@@ -38,6 +39,7 @@ function WorkspaceHeader({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(job.label);
   const [busy, setBusy] = useState(false);
+  const [showJd, setShowJd] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -97,34 +99,67 @@ function WorkspaceHeader({
           </Link>
           <span className="eyebrow hidden lg:inline">Application</span>
         </div>
-        {editing ? (
-          <input
-            ref={inputRef}
-            value={draft}
-            disabled={busy}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={() => void commitRename()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                void commitRename();
-              } else if (e.key === 'Escape') {
-                setDraft(job.label);
-                setEditing(false);
-              }
-            }}
-            className="mt-1 font-serif text-[17px] sm:text-[18px] leading-tight text-ink bg-paper-raised border border-rule px-2 py-1 rounded-[2px] focus:outline-none focus:border-accent/60 max-w-xl w-full"
-            aria-label="Rename application"
-          />
-        ) : (
+        <div className="flex items-center gap-1.5 mt-1 min-w-0">
+          {editing ? (
+            <input
+              ref={inputRef}
+              value={draft}
+              disabled={busy}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={() => void commitRename()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void commitRename();
+                } else if (e.key === 'Escape') {
+                  setDraft(job.label);
+                  setEditing(false);
+                }
+              }}
+              className="font-serif text-[17px] sm:text-[18px] leading-tight text-ink bg-paper-raised border border-rule px-2 py-1 rounded-[2px] focus:outline-none focus:border-accent/60 max-w-xl w-full"
+              aria-label="Rename application"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="font-serif text-[17px] sm:text-[18px] leading-tight text-ink truncate text-left hover:text-accent-deep transition-colors min-w-0"
+              title="Click to rename"
+            >
+              {job.label}
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => setEditing(true)}
-            className="font-serif text-[17px] sm:text-[18px] leading-tight text-ink truncate mt-1 text-left hover:text-accent-deep transition-colors"
-            title="Click to rename"
+            onClick={() => setShowJd(true)}
+            className="shrink-0 text-ink-faint hover:text-accent-deep inline-flex items-center justify-center min-w-9 min-h-9 -my-1 transition-colors"
+            title="View job description"
+            aria-label="View job description"
           >
-            {job.label}
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+              <path d="M14 3v5h5" />
+              <path d="M9 13h6" />
+              <path d="M9 17h4" />
+            </svg>
           </button>
+        </div>
+        {showJd && (
+          <JobDescriptionDialog
+            jobId={job.job_id}
+            jobLabel={job.label}
+            onClose={() => setShowJd(false)}
+          />
         )}
         {classification && (
           <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-faint mt-1">
