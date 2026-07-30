@@ -31,6 +31,8 @@ def validate_bullet_lengths(
 ) -> list[str]:
     """Validate bullet lengths are within [lo, hi] character range.
 
+    Checks both role bullets and project bullets (same physical column constraint).
+
     Args:
         output: The WriterOutput to validate.
         lo: Minimum acceptable bullet length (default: 195 chars).
@@ -38,13 +40,8 @@ def validate_bullet_lengths(
 
     Returns:
         A list of violation strings (empty if all bullets are valid).
-        Each violation includes role index, bullet index, actual length,
+        Each violation includes role/project index, bullet index, actual length,
         delta from range, target band, and the full bullet text for context.
-
-    Example violation::
-
-        Role 0 bullet 1: 142 chars (UNDERBUILT by 53). Target: 195-210 chars.
-        Text: "Built REST APIs for CRM sync."
     """
     violations = []
     for role in output.roles:
@@ -53,6 +50,14 @@ def validate_bullet_lengths(
             if not (lo <= n <= hi):
                 violations.append(
                     f"Role {role.index} bullet {i}: {n} chars ({_delta(n, lo, hi)}). "
+                    f"Target: {lo}-{hi} chars. Text: {bullet!r}"
+                )
+    for project in output.projects:
+        for i, bullet in enumerate(project.bullets):
+            n = len(bullet)
+            if not (lo <= n <= hi):
+                violations.append(
+                    f"Project {project.rank} bullet {i}: {n} chars ({_delta(n, lo, hi)}). "
                     f"Target: {lo}-{hi} chars. Text: {bullet!r}"
                 )
     return violations
@@ -76,6 +81,16 @@ def check_bullet_lengths(state: PipelineState) -> dict:
     output = state["writer_output"]
     violations = validate_bullet_lengths(output)
 
+    result: dict = {}
+
+    # Lock project bullets only on a clean first pass: if project_bullets not yet
+    # in state, the writer produced project output, and no violations exist.
+    # Locking before the violation check would freeze bad bullets and prevent the
+    # writer from fixing them (subsequent passes skip ## SELECTED PROJECTS when
+    # project_bullets is already in state).
+    if not violations and not state.get("project_bullets") and output.projects:
+        result["project_bullets"] = output.projects
+
     if violations:
         retries = state.get("length_retries", 0) + 1
         log.warning(
@@ -85,10 +100,10 @@ def check_bullet_lengths(state: PipelineState) -> dict:
         )
         for v in violations:
             log.warning("  - %s", v)
-        return {"length_violations": violations, "length_retries": retries}
+        return {**result, "length_violations": violations, "length_retries": retries}
 
     log.info(
         "check_bullet_lengths | all bullets within %d-%d chars ✓",
         BULLET_LO, BULLET_HI,
     )
-    return {"length_violations": None}
+    return {**result, "length_violations": None}

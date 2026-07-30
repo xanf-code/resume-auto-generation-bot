@@ -46,9 +46,17 @@ def sanitize_writer_output(output: WriterOutput) -> WriterOutput:
             cleaned_roles.append(role.model_copy(update={"bullets": cleaned}))
         else:
             cleaned_roles.append(role)
+    cleaned_projects = []
+    for proj in output.projects:
+        cleaned = [strip_char_annotation(b) for b in proj.bullets]
+        if cleaned != proj.bullets:
+            changed = True
+            cleaned_projects.append(proj.model_copy(update={"bullets": cleaned}))
+        else:
+            cleaned_projects.append(proj)
     if not changed:
         return output
-    return output.model_copy(update={"roles": cleaned_roles})
+    return output.model_copy(update={"roles": cleaned_roles, "projects": cleaned_projects})
 
 
 def render_revision_notes(revision_notes: list[str] | None) -> str:
@@ -199,6 +207,27 @@ def build_writer_user_message(state: PipelineState) -> str:
             "## COMPILE ERRORS (compile retry - fix ONLY the LaTeX-affecting content)",
             compile_errors,
         ]
+
+    # Inject SELECTED PROJECTS on the first iteration only (before project_bullets
+    # are locked). On revisions project_bullets is already in state, so the writer
+    # should not regenerate projects.
+    selected_projects = state.get("selected_projects") or []
+    project_bullets_locked = bool(state.get("project_bullets"))
+    if selected_projects and not project_bullets_locked:
+        project_lines = [
+            "## SELECTED PROJECTS",
+            "Generate a JD-aligned title and the exact bullet count shown for each project.",
+            "Reframe the context in JD-aligned language.",
+            "",
+        ]
+        for sp in selected_projects:
+            project_lines += [
+                f"K{sp.rank} (rank={sp.rank}, exactly {sp.bullet_count} bullets):",
+                f"Context: {sp.context}",
+                f"Link: {sp.link}",
+                "",
+            ]
+        sections += [""] + project_lines
 
     return "\n".join(sections) + "\n"
 

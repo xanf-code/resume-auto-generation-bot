@@ -318,6 +318,42 @@ def test_write_resume_strips_char_annotations(monkeypatch):
     assert bullets[1] == "Scaled the service to 8M+ users on the platform"
 
 
+def test_write_resume_strips_char_annotations_from_project_bullets(monkeypatch):
+    """[chars: N] tags must be stripped from project bullets too, not just role bullets."""
+    from src.pipeline.schemas import ProjectBullets
+    annotated = WriterOutput(
+        roles=[RoleBullets(index=0, bullets=["Clean role bullet"])],
+        projects=[
+            ProjectBullets(
+                rank=1,
+                heading="Real-Time Job Aggregation Engine",
+                bullets=[
+                    "Built WebSocket pipeline aggregating 50k listings/day [chars: 203]",
+                    "Reduced latency 60% via proxy rotation and headless scraping [chars: 198]",
+                    "Normalized disparate HTML and PDF sources via LLM pipeline [chars: 197]",
+                ],
+            ),
+            ProjectBullets(
+                rank=2,
+                heading="AI Financial Audit Platform",
+                bullets=[
+                    "Automated PII redaction across uploaded financial docs [chars: 200]",
+                    "Integrated OFAC sanctions feed to block flagged transactions [chars: 201]",
+                ],
+            ),
+        ],
+    )
+    monkeypatch.setattr(writer, "parse_strong", lambda *a, **k: annotated)
+
+    out = writer.write_resume(_first_iteration_state())
+    project_bullets = [
+        b for proj in out["writer_output"].projects for b in proj.bullets
+    ]
+
+    assert all("[chars:" not in b for b in project_bullets)
+    assert project_bullets[0] == "Built WebSocket pipeline aggregating 50k listings/day"
+
+
 def test_write_resume_leaves_clean_bullets_untouched(monkeypatch):
     """Bullets with no annotation pass through unchanged (same object identity)."""
     canned = _writer_output()  # no [chars: N] tags

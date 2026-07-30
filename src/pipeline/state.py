@@ -9,8 +9,10 @@ from src.pipeline.schemas import (
     IdentityLedger,
     JDVector,
     PanelScore,
+    ProjectBullets,
     ReframingTarget,
     ResumeStruct,
+    SelectedProject,
     SkillDump,
     WriterOutput,
 )
@@ -92,10 +94,25 @@ class PipelineState(TypedDict, total=False):
     # from the state schema.
     skill_dump: SkillDump
 
+    # --- projects (selected once, written once, locked thereafter) -----------
+    # ``selected_projects`` is set by project_select_node (fires once in the linear
+    # spine before the writer loop). ``project_bullets`` is extracted from
+    # writer_output.projects by check_bullet_lengths on the first pass and never
+    # overwritten again. MUST be declared here - LangGraph silently drops updates
+    # to channels absent from this schema.
+    selected_projects: list[SelectedProject]
+    project_bullets: list[ProjectBullets]
+
     # --- bookkeeping ----------------------------------------------------------
     iteration: int
     best_score: float
     best_latex: str
+    # Single-source-of-truth routing decision written by ``bookkeep_node``;
+    # ``route_after_aggregator`` reads it verbatim instead of re-deriving
+    # pass/fail/cap-hit from ``passed``/``iteration`` independently. MUST be
+    # declared here - LangGraph silently drops updates to channels absent
+    # from this schema (same trap as skill_dump / length_violations above).
+    route: str
     # PDF path corresponding to the best-scoring draft. Tracked alongside
     # best_latex so emit can copy the correct file even after later iterations
     # overwrite pdf_path.

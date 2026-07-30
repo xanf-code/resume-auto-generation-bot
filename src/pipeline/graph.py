@@ -41,12 +41,13 @@ from src.agents.aggregator import aggregator
 from src.agents.gap_analyzer import gap_analysis
 from src.agents.jd_analyzer import analyze_jd
 from src.agents.parser import parse_resume
+from src.agents.project_selector import project_select
 from src.agents.recruiters import recruiter_panel
 from src.agents.skills import generate_skills
 from src.agents.validators import check_bullet_lengths
 from src.agents.writer import write_resume
 from src.compiler.identity_check import check_identity
-from src.compiler.renderer import render
+from src.compiler.renderer import patch_project_bullets, render
 from src.compiler.tectonic import compile_tex, count_pdf_pages
 from src.pipeline.emit import emit_node
 from src.pipeline.state import PipelineState
@@ -57,9 +58,14 @@ from src.pipeline.tuning import get_tuning
 
 
 def render_node(state: PipelineState) -> dict:
-    """Node: patch the original .tex with the writer's bullets."""
+    """Node: patch the original .tex with the writer's bullets and project section."""
     log.info("render       | patching bullet blocks in original .tex")
     latex = render(state["resume_tex_raw"], state["identity_ledger"], state["writer_output"])
+    project_bullets = state.get("project_bullets")
+    selected_projects = state.get("selected_projects")
+    if project_bullets and selected_projects:
+        log.info("render       | patching projects section (%d projects)", len(project_bullets))
+        latex = patch_project_bullets(latex, selected_projects, project_bullets)
     log.info("render       | LaTeX ready - %d chars", len(latex))
     return {"latex_rendered": latex}
 
@@ -142,8 +148,6 @@ def update_best(state: PipelineState) -> dict:
     snapshot here. Never mutates ``state``.
     """
     current_score = state.get("aggregate_score")
-    current_latex = state.get("latex_rendered", "")
-    current_pdf = state.get("pdf_path", "")
     best_score = state.get("best_score")
 
     if current_score is None:
@@ -151,34 +155,50 @@ def update_best(state: PipelineState) -> dict:
     if best_score is None or current_score > best_score:
         return {
             "best_score": current_score,
-            "best_latex": current_latex,
-            "best_pdf_path": current_pdf,
+            "best_latex": state.get("latex_rendered", ""),
+            "best_pdf_path": state.get("pdf_path", ""),
         }
-    return {
-        "best_score": best_score,
-        "best_latex": state.get("best_latex", ""),
-        "best_pdf_path": state.get("best_pdf_path", ""),
-    }
+    # Not a new best: omit the keys entirely rather than re-stating them.
+    # LangGraph only overwrites keys present in the return value (same
+    # invariant identity_check_node documents), so returning {} preserves
+    # best_* untouched instead of risking a "" clobber via .get(..., "").
+    return {}
 
 
 def bookkeep_node(state: PipelineState) -> dict:
-    """Node: update best-scoring draft, then route on pass/fail/cap."""
+    """Node: update best-scoring draft, then decide the single route.
+
+    Writes an explicit ``route`` field ("emit" | "writer") that
+    ``route_after_aggregator`` reads verbatim. This node is the only place
+    that decides pass/fail/cap-hit; ``route_after_aggregator`` used to
+    re-derive the same decision from ``passed``/``iteration`` independently,
+    which relied on the cap-hit branch never incrementing ``iteration``
+    while the fail branch does - correct today, but a refactor that moved
+    the increment could desync the two silently. Single source of truth
+    removes that risk.
+    """
     best = update_best(state)
     passed = bool(state.get("passed", False))
     iteration = state.get("iteration", 1)
-    agg = state.get("aggregate_score", 0.0)
+    agg = state.get("aggregate_score")
+    if agg is None:
+        log.warning(
+            "bookkeep     | aggregate_score missing from state - aggregator likely "
+            "failed to produce a score; treating as 0.0 (failing score, loops to writer)"
+        )
+        agg = 0.0
     best_so_far = best.get("best_score", agg)
     max_iterations = get_tuning(state).max_iterations
 
     if passed:
         log.info("bookkeep     | PASSED - aggregate=%.2f, emitting", agg)
-        return {**best, "cap_hit": False}
+        return {**best, "cap_hit": False, "route": "emit"}
     if iteration >= max_iterations:
         log.warning(
             "bookkeep     | CAP HIT (iteration=%d/%d) - emitting best=%.2f",
             iteration, max_iterations, best_so_far,
         )
-        return {**best, "cap_hit": True}
+        return {**best, "cap_hit": True, "route": "emit"}
     log.info(
         "bookkeep     | fail - iteration %d→%d, best_score=%.2f → looping to writer",
         iteration, iteration + 1, best_so_far,
@@ -191,6 +211,7 @@ def bookkeep_node(state: PipelineState) -> dict:
         "compile_retries": 0,
         "length_retries": 0,
         "length_violations": None,
+        "route": "writer",
     }
 
 
@@ -206,7 +227,7 @@ def route_after_identity(state: PipelineState) -> str:
     """
     if not state.get("identity_violations"):
         return "compile_node"
-    if state.get("identity_retries", 0) < get_tuning(state).max_identity_retries:
+    if state.get("identity_retries", 0) <= get_tuning(state).max_identity_retries:
         return "writer"
     log.warning(
         "identity_chk | identity_retries budget exhausted (%d) - routing to emit",
@@ -243,6 +264,18 @@ def route_after_compile(state: PipelineState) -> str:
 
     The compile-retry budget is ``MAX_COMPILE_RETRIES`` PER iteration and lives
     on ``compile_retries`` - independent of the main ``iteration`` counter.
+
+    Budget interaction: a writer bounce from here re-enters at ``writer`` and
+    flows back through ``check_bullet_lengths`` and ``identity_check_node``
+    before reaching ``compile_node`` again. Those nodes own ``length_retries``
+    / ``identity_retries`` and neither is reset by a compile bounce - only
+    ``bookkeep_node`` resets all three on a full iteration loop. So a single
+    iteration that ping-pongs compile→writer→length→writer→identity→writer
+    can burn all three budgets before ``bookkeep_node`` ever runs; the
+    effective per-iteration writer-call ceiling is the SUM of the three
+    retry budgets, not any single one of them. This is intentional
+    (fail-fast), not a bug - noted here so ``max_iterations`` isn't mistaken
+    for the only multiplier on LLM spend.
     """
     if state.get("compile_ok"):
         return "recruiter_panel"
@@ -252,12 +285,15 @@ def route_after_compile(state: PipelineState) -> str:
 
 
 def route_after_aggregator(state: PipelineState) -> str:
-    """passed → ``emit``; else iter < MAX → ``writer``; else ``emit`` (cap)."""
-    if state.get("passed"):
-        return "emit"
-    if state.get("iteration", 1) < get_tuning(state).max_iterations:
-        return "writer"
-    return "emit"
+    """Read the route ``bookkeep_node`` already decided.
+
+    ``bookkeep_node`` is the sole owner of the pass/fail/cap-hit decision; this
+    function just forwards its ``route`` field rather than re-deriving the
+    same branch from ``passed``/``iteration`` (see Gap 6 in bookkeep_node's
+    docstring). Defaults to ``"emit"`` if ``route`` is ever absent, so a
+    missing field fails safe instead of looping forever.
+    """
+    return state.get("route", "emit")
 
 
 # --- graph assembly -----------------------------------------------------------
@@ -285,6 +321,7 @@ def build_graph(enable_scoring: bool = False):
     builder.add_node("analyze_jd", analyze_jd)
     builder.add_node("gap_analysis", gap_analysis)
     builder.add_node("generate_skills", generate_skills)
+    builder.add_node("project_select", project_select)
     builder.add_node("writer", write_resume)
     builder.add_node("check_bullet_lengths", check_bullet_lengths)
     builder.add_node("render_node", render_node)
@@ -295,12 +332,14 @@ def build_graph(enable_scoring: bool = False):
     builder.add_node("bookkeep", bookkeep_node)
     builder.add_node("emit", emit_node)
 
-    # Linear extraction spine - generate_skills fires once before the writer loop.
+    # Linear extraction spine - generate_skills and project_select fire once each
+    # before the writer loop. Back-edges all re-enter at writer, skipping both.
     builder.add_edge(START, "parse_resume")
     builder.add_edge("parse_resume", "analyze_jd")
     builder.add_edge("analyze_jd", "gap_analysis")
     builder.add_edge("gap_analysis", "generate_skills")
-    builder.add_edge("generate_skills", "writer")
+    builder.add_edge("generate_skills", "project_select")
+    builder.add_edge("project_select", "writer")
 
     # Writer → bullet length check → render → identity check.
     # Length violations route back to writer; clean bullets proceed to render.

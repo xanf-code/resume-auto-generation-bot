@@ -153,11 +153,21 @@ def test_route_after_identity_bounces_within_budget():
     assert graph_mod.route_after_identity(state) == "writer"
 
 
+def test_route_after_identity_at_budget_still_retries():
+    """identity_retries == MAX still allows one more writer bounce (<= boundary,
+    consistent with route_after_bullet_check / route_after_compile)."""
+    state = {
+        "identity_violations": ["role[0].company altered"],
+        "identity_retries": MAX_IDENTITY_RETRIES,
+    }
+    assert graph_mod.route_after_identity(state) == "writer"
+
+
 def test_route_after_identity_exhausted_routes_to_emit():
     """Budget exhausted → emit (fail gracefully) instead of looping forever."""
     state = {
         "identity_violations": ["role[0].company altered"],
-        "identity_retries": MAX_IDENTITY_RETRIES,
+        "identity_retries": MAX_IDENTITY_RETRIES + 1,
     }
     assert graph_mod.route_after_identity(state) == "emit"
 
@@ -267,35 +277,111 @@ def test_compile_node_page_overflow_bounces_with_count_remedy(monkeypatch):
     assert result["pdf_path"] == ""
 
 
-# --- route_after_aggregator ---------------------------------------------------
+# --- Gap 4: compile bounce does not reset length/identity budgets ------------
 
 
-def test_route_after_aggregator_passed_goes_to_emit():
-    state = {"passed": True, "iteration": 1}
+def test_compile_node_failure_does_not_touch_length_or_identity_retries(monkeypatch):
+    """A compile-triggered writer bounce re-runs check_bullet_lengths and
+    identity_check_node on the way back to compile_node. Those nodes own their
+    own budgets (length_retries / identity_retries) and only bookkeep_node
+    resets them on a full iteration loop - compile_node must never touch them,
+    otherwise a ping-ponging compile->writer->length->writer->identity->writer
+    sequence could silently reset a budget it doesn't own and hide runaway
+    LLM spend from the fail-fast retry caps."""
+    monkeypatch.setattr(
+        graph_mod, "compile_tex", lambda latex: (False, "", ["boom"])
+    )
+    result = graph_mod.compile_node(
+        {
+            "latex_rendered": "LATEX",
+            "compile_retries": 0,
+            "length_retries": 2,
+            "identity_retries": 1,
+        }
+    )
+    assert "length_retries" not in result
+    assert "identity_retries" not in result
+
+
+def test_compile_node_page_overflow_does_not_touch_length_or_identity_retries(monkeypatch):
+    """Same invariant on the page-overflow bounce path."""
+    monkeypatch.setattr(graph_mod, "compile_tex", lambda latex: (True, "/tmp/x.pdf", []))
+    monkeypatch.setattr(graph_mod, "count_pdf_pages", lambda p: 2)
+
+    result = graph_mod.compile_node(
+        {
+            "latex_rendered": "LATEX",
+            "compile_retries": 0,
+            "length_retries": 2,
+            "identity_retries": 1,
+        }
+    )
+    assert "length_retries" not in result
+    assert "identity_retries" not in result
+
+
+# --- route_after_aggregator ----------------------------------------------------
+#
+# bookkeep_node is the ONLY place that decides pass/fail/cap-hit (Gap 6 fix):
+# it writes an explicit ``route`` field and route_after_aggregator just reads
+# it back. These tests pin that pass-through - the pass/fail/cap DECISION
+# logic itself is now exercised through bookkeep_node (see the
+# "bookkeep_node sets an explicit route" section below), not by feeding
+# passed/iteration combinations straight into route_after_aggregator.
+
+
+def test_route_after_aggregator_reads_emit_route():
+    state = {"route": "emit"}
     assert graph_mod.route_after_aggregator(state) == "emit"
 
 
-def test_route_after_aggregator_fail_under_cap_goes_to_writer():
-    state = {"passed": False, "iteration": 1}
+def test_route_after_aggregator_reads_writer_route():
+    state = {"route": "writer"}
     assert graph_mod.route_after_aggregator(state) == "writer"
 
 
-def test_route_after_aggregator_fail_just_below_cap_goes_to_writer():
-    state = {"passed": False, "iteration": MAX_ITERATIONS - 1}
-    assert graph_mod.route_after_aggregator(state) == "writer"
+def test_route_after_aggregator_defaults_to_emit_when_route_missing():
+    """Fail-safe: if bookkeep_node ever forgot to set ``route``, don't loop forever."""
+    assert graph_mod.route_after_aggregator({}) == "emit"
 
 
-def test_route_after_aggregator_fail_at_cap_goes_to_emit():
-    state = {"passed": False, "iteration": MAX_ITERATIONS}
-    assert graph_mod.route_after_aggregator(state) == "emit"
+# --- bookkeep_node sets an explicit route (single source of truth) ------------
 
 
-def test_route_after_aggregator_fail_over_cap_goes_to_emit():
-    state = {"passed": False, "iteration": MAX_ITERATIONS + 1}
-    assert graph_mod.route_after_aggregator(state) == "emit"
+def test_bookkeep_sets_route_emit_on_pass():
+    state = {"passed": True, "iteration": 1, "aggregate_score": 95.0}
+    out = graph_mod.bookkeep_node(state)
+    assert out["route"] == "emit"
+    assert out["cap_hit"] is False
 
 
-def test_route_after_aggregator_honours_state_tuning_max_iterations():
+def test_bookkeep_sets_route_writer_on_fail_under_cap():
+    state = {"passed": False, "iteration": 1, "aggregate_score": 60.0}
+    out = graph_mod.bookkeep_node(state)
+    assert out["route"] == "writer"
+
+
+def test_bookkeep_sets_route_writer_just_below_cap():
+    state = {"passed": False, "iteration": MAX_ITERATIONS - 1, "aggregate_score": 60.0}
+    out = graph_mod.bookkeep_node(state)
+    assert out["route"] == "writer"
+
+
+def test_bookkeep_sets_route_emit_at_cap():
+    state = {"passed": False, "iteration": MAX_ITERATIONS, "aggregate_score": 60.0}
+    out = graph_mod.bookkeep_node(state)
+    assert out["route"] == "emit"
+    assert out["cap_hit"] is True
+
+
+def test_bookkeep_sets_route_emit_over_cap():
+    state = {"passed": False, "iteration": MAX_ITERATIONS + 1, "aggregate_score": 60.0}
+    out = graph_mod.bookkeep_node(state)
+    assert out["route"] == "emit"
+    assert out["cap_hit"] is True
+
+
+def test_bookkeep_honours_state_tuning_max_iterations_for_route():
     """A per-run tuning raises the cap: iteration at the default cap still loops."""
     import dataclasses
 
@@ -303,11 +389,21 @@ def test_route_after_aggregator_honours_state_tuning_max_iterations():
 
     roomy = dataclasses.replace(PipelineTuning.defaults(), max_iterations=MAX_ITERATIONS + 3)
     # At the *default* cap but below the tuned cap → keep revising.
-    state = {"passed": False, "iteration": MAX_ITERATIONS, "tuning": roomy}
-    assert graph_mod.route_after_aggregator(state) == "writer"
+    state = {
+        "passed": False,
+        "iteration": MAX_ITERATIONS,
+        "aggregate_score": 60.0,
+        "tuning": roomy,
+    }
+    assert graph_mod.bookkeep_node(state)["route"] == "writer"
     # At the tuned cap → stop.
-    state_at_cap = {"passed": False, "iteration": MAX_ITERATIONS + 3, "tuning": roomy}
-    assert graph_mod.route_after_aggregator(state_at_cap) == "emit"
+    state_at_cap = {
+        "passed": False,
+        "iteration": MAX_ITERATIONS + 3,
+        "aggregate_score": 60.0,
+        "tuning": roomy,
+    }
+    assert graph_mod.bookkeep_node(state_at_cap)["route"] == "emit"
 
 
 def test_route_after_compile_honours_state_tuning_budget():
@@ -351,7 +447,10 @@ def test_update_best_does_not_track_skills():
 
 
 def test_update_best_does_not_capture_pdf_path_when_score_not_higher():
-    """When score doesn't beat best, old best_pdf_path is preserved, not replaced."""
+    """When score doesn't beat best, update_best returns {} - LangGraph's
+    partial-update semantics preserve best_* untouched rather than the helper
+    re-stating them (Gap 5 fix: matches the omit-to-preserve pattern documented
+    on identity_check_node)."""
     state = {
         "aggregate_score": 65.0,
         "latex_rendered": "DRAFT-B",
@@ -361,8 +460,7 @@ def test_update_best_does_not_capture_pdf_path_when_score_not_higher():
         "best_pdf_path": "/tmp/best.pdf",
     }
     out = graph_mod.update_best(state)
-    assert out["best_pdf_path"] == "/tmp/best.pdf"
-    assert "best_skills" not in out
+    assert out == {}
 
 
 def test_update_best_keeps_higher_of_two():
@@ -374,9 +472,9 @@ def test_update_best_keeps_higher_of_two():
         "best_pdf_path": "/tmp/best.pdf",
     }
     out = graph_mod.update_best(state)
-    # Lower current score must NOT displace the recorded best.
-    assert out["best_score"] == 80.0
-    assert out["best_latex"] == "DRAFT-A"
+    # Lower current score must NOT displace the recorded best - and since
+    # nothing changed, the helper returns {} rather than re-stating it.
+    assert out == {}
 
 
 def test_update_best_replaces_when_current_is_higher():
@@ -392,16 +490,20 @@ def test_update_best_replaces_when_current_is_higher():
 
 
 def test_update_best_max_across_three_iterations():
-    """Running the helper iteratively keeps the max, not the last."""
-    s1 = graph_mod.update_best({"aggregate_score": 50.0, "latex_rendered": "L1"})
-    s2 = graph_mod.update_best(
-        {"aggregate_score": 87.0, "latex_rendered": "L2", **s1}
-    )
-    s3 = graph_mod.update_best(
-        {"aggregate_score": 61.0, "latex_rendered": "L3", **s2}
-    )
-    assert s3["best_score"] == 87.0
-    assert s3["best_latex"] == "L2"
+    """Running the helper iteratively keeps the max, not the last.
+
+    Each call's output is merged into the running state the way LangGraph
+    merges node returns (only present keys overwrite) - an empty {} from a
+    non-improving iteration must leave the prior best_* untouched.
+    """
+    state = {"aggregate_score": 50.0, "latex_rendered": "L1"}
+    state = {**state, **graph_mod.update_best(state)}
+    state = {**state, "aggregate_score": 87.0, "latex_rendered": "L2"}
+    state = {**state, **graph_mod.update_best(state)}
+    state = {**state, "aggregate_score": 61.0, "latex_rendered": "L3"}
+    state = {**state, **graph_mod.update_best(state)}
+    assert state["best_score"] == 87.0
+    assert state["best_latex"] == "L2"
 
 
 def test_update_best_does_not_mutate_input():
@@ -429,6 +531,9 @@ def _install_fake_nodes(monkeypatch, *, aggregator_behaviour):
     )
     monkeypatch.setattr(
         graph_mod, "generate_skills", lambda s: {"skill_dump": SkillDump()}
+    )
+    monkeypatch.setattr(
+        graph_mod, "project_select", lambda s: {"selected_projects": []}
     )
     monkeypatch.setattr(
         graph_mod, "write_resume", lambda s: {"writer_output": "WO"}
@@ -626,6 +731,9 @@ def _install_fake_nodes_keep_length_gate(monkeypatch, *, writer_behaviour):
     monkeypatch.setattr(
         graph_mod, "generate_skills", lambda s: {"skill_dump": SkillDump()}
     )
+    monkeypatch.setattr(
+        graph_mod, "project_select", lambda s: {"selected_projects": []}
+    )
     monkeypatch.setattr(graph_mod, "write_resume", writer_behaviour)
     # check_bullet_lengths is intentionally NOT stubbed - it is the unit under test.
     monkeypatch.setattr(graph_mod, "render_node", lambda s: {"latex_rendered": "LATEX"})
@@ -719,6 +827,35 @@ def test_length_gate_clean_first_draft_does_not_loop(monkeypatch):
 # --- bookkeep resets the per-iteration length budget --------------------------
 
 
+def test_bookkeep_warns_when_aggregate_score_missing(caplog):
+    """Gap 7 fix: a missing ``aggregate_score`` (aggregator failure/malformed
+    panel output) must log a warning instead of silently coercing to 0.0 -
+    otherwise a phantom-zero burns an iteration with no visible signal."""
+    state = {"passed": False, "iteration": 1, "latex_rendered": "L"}
+    with caplog.at_level("WARNING"):
+        out = graph_mod.bookkeep_node(state)
+
+    assert out["route"] == "writer"
+    assert any("aggregate_score" in rec.message for rec in caplog.records)
+
+
+def test_bookkeep_does_not_warn_when_aggregate_score_present():
+    state = {"passed": False, "iteration": 1, "aggregate_score": 60.0, "latex_rendered": "L"}
+    import logging
+
+    logger = logging.getLogger("src.pipeline.graph")
+    records = []
+    handler = logging.Handler()
+    handler.emit = lambda record: records.append(record)
+    logger.addHandler(handler)
+    try:
+        graph_mod.bookkeep_node(state)
+    finally:
+        logger.removeHandler(handler)
+
+    assert not any("aggregate_score" in r.getMessage() and "missing" in r.getMessage() for r in records)
+
+
 def test_bookkeep_resets_length_counters_on_loop():
     """A fail-and-loop bookkeep pass clears length_retries + length_violations."""
     state = {
@@ -734,6 +871,7 @@ def test_bookkeep_resets_length_counters_on_loop():
     assert out["iteration"] == 2
     assert out["length_retries"] == 0
     assert out["length_violations"] is None
+    assert out["route"] == "writer"
 
 
 # --- recruiter-panel exact-match cache survives compiled-graph channels -------
@@ -857,6 +995,7 @@ def test_generate_skills_runs_exactly_once_across_multiple_iterations(monkeypatc
     monkeypatch.setattr(graph_mod, "analyze_jd", lambda s: {"jd_vector": "JD"})
     monkeypatch.setattr(graph_mod, "gap_analysis", lambda s: {"gap_targets": []})
     monkeypatch.setattr(graph_mod, "generate_skills", counting_generate_skills)
+    monkeypatch.setattr(graph_mod, "project_select", lambda s: {"selected_projects": []})
     monkeypatch.setattr(graph_mod, "write_resume", lambda s: {"writer_output": "WO"})
     monkeypatch.setattr(graph_mod, "check_bullet_lengths", lambda s: {"length_violations": None})
     monkeypatch.setattr(graph_mod, "render_node", lambda s: {"latex_rendered": "LATEX"})
@@ -915,6 +1054,7 @@ def test_output_skills_persists_through_compiled_graph_channels(monkeypatch):
     monkeypatch.setattr(
         graph_mod, "generate_skills", lambda s: {"skill_dump": SkillDump()}
     )
+    monkeypatch.setattr(graph_mod, "project_select", lambda s: {"selected_projects": []})
     monkeypatch.setattr(graph_mod, "write_resume", lambda s: {"writer_output": "WO"})
     monkeypatch.setattr(
         graph_mod, "check_bullet_lengths", lambda s: {"length_violations": None}
