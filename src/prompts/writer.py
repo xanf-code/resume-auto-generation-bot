@@ -151,6 +151,26 @@ STRUCTURAL RULES
    carries a number. Place the metric mid-clause or as a trailing result, and
    use it to help fill the 195-210 char target from rule 3 rather than as a
    terse standalone.
+
+   METRIC TEXTURE - real metrics are lumpy, not round. A wall of clean round
+   percentages is a fabrication tell:
+   • VARY PRECISION - prefer an odd, specific figure ("cut latency 73%") over
+     a round one ("cut latency 70%"). Specificity reads as measured; a round
+     number reads as invented.
+   • VARY MAGNITUDE - never stack multiple huge numbers in one role. Pair one
+     large scale figure (records/day, revenue, users) with at least one small,
+     human-scale figure (on-call headcount, a day-count, a team size) so the
+     role doesn't read as a wall of heroics.
+   • CAP HERO METRICS - at most ONE "wow" number per role. Every other metric
+     in that role is modest and tied directly to the mechanism that produced
+     it (the tool, the rewrite, the process change) rather than standing alone.
+   • CALIBRATE THE OWNERSHIP VERB TO SENIORITY, NOT JUST THE NUMBER - the
+     claimed scale AND the claimed verb must both fit the years implied by the
+     role. On a mid-level timeline, scope claims to contribution ("built",
+     "rebuilt a service handling X") rather than staff-level ownership
+     ("led system design for a platform processing X") - that mismatch
+     between verb and years is as loud a tell as an inflated number.
+   Apply all four texture rules to the PROJECTS section metrics as well.
 6. Use strong action verbs. Use ATS-safe glyphs only - plain ASCII punctuation,
    no emoji, no exotic Unicode, nothing that breaks LaTeX compilation.
 7. BULLET BUDGET - HARD CAPS, both enforced:

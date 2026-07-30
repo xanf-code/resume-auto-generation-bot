@@ -480,6 +480,52 @@ def test_writer_system_projects_section_mandates_practitioner_detail():
     assert 'not just "used X for scalability"' in WRITER_SYSTEM
 
 
+def test_writer_system_rule5_metric_texture_sub_rules_present():
+    """GAP 3: rule 5 must add metric-texture discipline so numbers read measured,
+    not invented - vary precision, vary magnitude, cap hero metrics per role,
+    and calibrate the ownership verb to seniority. Lives inside rule 5, before
+    rule 6, and covers PROJECTS metrics too."""
+    from src.prompts.writer import WRITER_SYSTEM
+
+    metrics_pos = WRITER_SYSTEM.index("5. Metrics")
+    verbs_pos = WRITER_SYSTEM.index("6. Use strong action verbs")
+    assert metrics_pos < verbs_pos
+    rule_5 = WRITER_SYSTEM[metrics_pos:verbs_pos]
+
+    # Original rule-5 guidance must survive intact.
+    assert "lead with real numbers from source" in rule_5
+    assert "195-210 char target from rule 3" in rule_5
+
+    # New texture sub-rules.
+    assert "VARY PRECISION" in rule_5
+    assert "VARY MAGNITUDE" in rule_5
+    assert "CAP HERO METRICS" in rule_5
+    assert "CALIBRATE THE OWNERSHIP VERB TO SENIORITY" in rule_5
+
+    # Odd/specific vs round-number framing.
+    assert "73%" in rule_5
+    assert "than a round one" in rule_5.lower() or "invented" in rule_5.lower()
+
+    # At most one hero number per role.
+    assert "at most ONE" in rule_5 or "one wow" in rule_5.lower()
+
+    # Seniority-calibrated verb example: contribution verb vs staff-level ownership verb.
+    assert '"built"' in rule_5.lower() or "built" in rule_5
+    assert "led system design" in rule_5.lower()
+
+    # Texture rules extend to the PROJECTS section too.
+    assert "PROJECTS" in rule_5
+
+
+def test_writer_system_rule5_does_not_touch_other_rules():
+    """Rule numbering elsewhere must stay untouched - this is a rule-5-only change."""
+    from src.prompts.writer import WRITER_SYSTEM
+
+    assert "8. VERB DISCIPLINE" in WRITER_SYSTEM
+    assert "9. FABRICATION CONSISTENCY" in WRITER_SYSTEM
+    assert "7. BULLET BUDGET" in WRITER_SYSTEM
+
+
 # --- build_writer_user_message: BULLET SHAPE DIRECTIVE section ----------------
 
 

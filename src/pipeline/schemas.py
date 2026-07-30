@@ -66,7 +66,14 @@ class SkillWeight(BaseModel):
 
 
 class JDVector(BaseModel):
-    """Structured representation of the target job description."""
+    """Structured representation of the target job description.
+
+    ``duty_verbs`` captures the imperative action phrases from the JD's "what
+    you will do" / responsibilities section (e.g. "instrument services with
+    telemetry", "support gradual rollouts with feature flags") - the
+    behavioral brief a reframe should read as evidence of performing, not
+    just vocabulary to sprinkle in.
+    """
 
     model_config = _STRICT
 
@@ -74,6 +81,7 @@ class JDVector(BaseModel):
     ats_keywords: list[str]
     seniority: str
     must_mirror: list[str]
+    duty_verbs: list[str] = Field(default_factory=list)
 
 
 class JDTags(BaseModel):

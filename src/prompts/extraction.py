@@ -43,6 +43,13 @@ Produce:
    "lead"), inferred from titles, years-of-experience, and scope language.
 4. must_mirror: the TOP-5 phrases the resume most needs to mirror to pass ATS
    and recruiter screening - the highest-signal exact phrases from the JD.
+5. duty_verbs: the imperative responsibility phrases from the JD's "What you
+   will do" / responsibilities section (e.g. "instrument services with
+   telemetry", "support gradual rollouts with feature flags", "document
+   APIs", "build data pipelines"). Keep these as the JD's own action
+   phrasing - do not lemmatize, normalize, or rewrite them. Extract 0-12
+   entries; return an empty list if the JD has no explicit duty/
+   responsibility section.
 
 Return only the structured object. No commentary."""
 
@@ -78,6 +85,16 @@ For each underrepresented competency, emit one target with:
   corroborating mechanism is INSUFFICIENT and must be rewritten before
   returning.
 - no_evidence: ALWAYS false. Every gap gets a reframe strategy.
+
+DUTY-VERB ANCHORING: The JD vector also carries duty_verbs - the imperative
+"what you will do" action phrases from the JD's responsibilities section.
+Where possible, map each reframing target to one of these duty_verbs. When a
+target maps to a duty_verb, framing_guidance must produce a bullet that reads
+as evidence of PERFORMING that duty - a concrete action taken in context, not
+merely a keyword mentioned in passing. Given two competencies of equal
+weight, prefer the one that also satisfies a stated duty_verb over a
+keyword-only competency: it answers "what will you DO here," which is far
+more defensible in a screen than a bullet that only matches nouns.
 
 STRATEGY - the Salesforce case extended:
 Resume has ETL work; JD requires Salesforce.
