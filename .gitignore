@@ -5,6 +5,5 @@ out/
 /vault/
 .pytest_cache/
 frontend/node_modules/
-frontend/package-lock.json
 frontend/build/
 frontend/.impeccable/
