@@ -48,6 +48,26 @@ _STRUCTURAL_CMDS = frozenset({
 
 _DOCUMENT_MARKER = "\\begin{document}"
 
+_LATEX_SIZE_STYLE = re.compile(
+    r"\\(?:Huge|huge|LARGE|Large|large|normalsize|small|footnotesize|"
+    r"scriptsize|tiny|bfseries|itshape|scshape|sffamily|rmfamily|ttfamily|"
+    r"mdseries|upshape|slshape|em|centering|bf|it|sc|sl|rm|sf|tt)\b\s*"
+)
+
+
+def _strip_size_style(arg: str) -> str:
+    """Strip leading LaTeX size/style declarations from a captured command arg.
+
+    ``\\Huge Darshan Aswathappa`` -> ``Darshan Aswathappa``. Idempotent and a
+    no-op when the arg carries no size/style command, so a plain
+    ``\\textbf{Jane Doe}`` name is returned unchanged.
+    """
+    prev = None
+    s = arg.strip()
+    while prev != s:
+        prev = s
+        s = _LATEX_SIZE_STYLE.sub("", s, count=1).strip()
+    return s
 
 def _looks_like_name(value: str) -> bool:
     """Heuristic: a name has letters and is not an email/URL/nested command."""
@@ -80,17 +100,20 @@ def extract_name(resume_tex_raw: str) -> str:
     """Best-effort candidate name from the raw .tex.
 
     Convention: the name is the first formatting-command content in the DOCUMENT
-    BODY (e.g. ``\\textbf{Jane Doe}``) - never a preamble/font argument and never
-    a structural command like ``\\begin{center}``. Falls back to the first
-    non-empty content line that reads like a name.
+    BODY (e.g. ``\\centerline{\\Huge Jane Doe}`` or ``\\textbf{Jane Doe}``) -
+    never a preamble/font argument and never a structural command like
+    ``\\begin{center}``. Leading size/style declarations inside the arg are
+    stripped so a size-wrapped name survives. Falls back to the first non-empty
+    content line that reads like a name.
     """
     body = _document_body(resume_tex_raw)
     for match in _TEX_COMMAND_NAMED.finditer(body):
         cmd, arg = match.group(1).lower(), match.group(2).strip()
         if cmd in _STRUCTURAL_CMDS:
             continue
-        if _looks_like_name(arg):
-            return arg
+        candidate = _strip_size_style(arg)   # <-- NEW: unwrap \Huge etc.
+        if _looks_like_name(candidate):
+            return candidate
     for line in body.splitlines():
         stripped = line.strip()
         if stripped and not stripped.startswith("\\") and _looks_like_name(stripped):

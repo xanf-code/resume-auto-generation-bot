@@ -36,13 +36,34 @@ optimize the resume against.
 Produce:
 1. weighted_skills: every required/desired skill with an importance weight from
    0.0 to 1.0 (1.0 = hard requirement stated as must-have; lower = nice-to-have).
-2. ats_keywords: the LITERAL keyword substrings an ATS will substring-match on.
-   Use the exact surface strings from the JD - e.g. "REST APIs", "ETL
-   pipelines", "Salesforce", "CRM". Do not lemmatize or rephrase them.
+   Each ``name`` is an ATOMIC skill or technology token - a noun or short noun
+   phrase of 1-4 words ("Python", "Rust", "distributed systems", "system
+   design", "LLM tooling"). NEVER a full requirement sentence. If the JD says
+   "Proficiency in a modern programming language" extract the concrete skill
+   ("Python", "Rust") - never the clause verbatim. If it names no concrete
+   language, emit "modern programming language" as the token and stop there.
+   SOFT SKILLS AND BEHAVIORAL TRAITS DO NOT BELONG HERE - "collaboration",
+   "ownership", "adaptability", "curiosity", "continuous learning", "leading
+   initiatives" are earned through demonstrated impact in a bullet, NOT mirrored
+   as keywords. Exclude them from weighted_skills entirely; the Writer surfaces
+   them through outcomes, not string-matching. weighted_skills is for
+   technical/functional competencies an ATS and a technical screener key on.
+2. ats_keywords: the LITERAL keyword substrings an ATS will substring-match on -
+   concrete 1-3 word tokens. Use the exact surface strings from the JD - e.g.
+   "REST APIs", "ETL pipelines", "Salesforce", "CRM", "Python", "Rust". Do not
+   lemmatize or rephrase them. REJECT abstract value-phrases and paraphrased
+   concepts: "engineering excellence", "modern programming language",
+   "AI-assisted development tools" are NOT ATS keywords - extract the concrete
+   token inside them ("Python", "LLM", "Copilot") or drop them. A keyword an
+   ATS cannot literally match on a candidate's resume is noise; keep only the
+   crisp, matchable tokens.
 3. seniority: the seniority signal (e.g. "junior", "mid", "senior", "staff",
    "lead"), inferred from titles, years-of-experience, and scope language.
 4. must_mirror: the TOP-5 phrases the resume most needs to mirror to pass ATS
-   and recruiter screening - the highest-signal exact phrases from the JD.
+   and recruiter screening - the highest-signal exact phrases from the JD. These
+   MAY be longer duty-phrases (this is the one field where full phrases belong).
+   Do NOT duplicate a phrase here that you already emitted as a weighted_skills
+   token - the two fields are complementary, not overlapping.
 5. duty_verbs: the imperative responsibility phrases from the JD's "What you
    will do" / responsibilities section (e.g. "instrument services with
    telemetry", "support gradual rollouts with feature flags", "document
