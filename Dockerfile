@@ -2,7 +2,9 @@
 FROM node:22-slim AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm ci
+# npm install, not `npm ci` - frontend/package-lock.json is gitignored in
+# this repo, so a fresh clone has no lockfile for `ci` to consume.
+RUN npm install
 COPY frontend/ ./
 # Uses vite directly (not `npm run build`/`tsc -b`) - the production bundle
 # doesn't need the full-project type-check, which also covers test files.
