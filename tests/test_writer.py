@@ -354,6 +354,31 @@ def test_write_resume_strips_char_annotations_from_project_bullets(monkeypatch):
     assert project_bullets[0] == "Built WebSocket pipeline aggregating 50k listings/day"
 
 
+def test_write_resume_leaves_invented_stack_untouched_by_sanitize(monkeypatch):
+    """sanitize_writer_output strips [chars: N] from bullets only - the
+    invention ledger must pass through unchanged (it is scratch state, not a
+    rendered field, so it carries no annotation tags to strip)."""
+    from src.pipeline.schemas import InventedTool
+
+    annotated = WriterOutput(
+        roles=[
+            RoleBullets(index=0, bullets=["Cut latency 40% via Kafka [chars: 200]"]),
+        ],
+        invented_stack=[
+            InventedTool(
+                tool="Kafka",
+                introduced_in="role 0 bullet 1",
+                supporting_detail="partitioned by customer_id for ordered replay",
+            ),
+        ],
+    )
+    monkeypatch.setattr(writer, "parse_strong", lambda *a, **k: annotated)
+
+    out = writer.write_resume(_first_iteration_state())
+
+    assert out["writer_output"].invented_stack == annotated.invented_stack
+
+
 def test_write_resume_leaves_clean_bullets_untouched(monkeypatch):
     """Bullets with no annotation pass through unchanged (same object identity)."""
     canned = _writer_output()  # no [chars: N] tags
@@ -407,6 +432,52 @@ def test_writer_system_does_not_mention_summary():
     from src.prompts.writer import WRITER_SYSTEM
 
     assert "summary" not in WRITER_SYSTEM.lower()
+
+
+def test_writer_system_instructs_invention_ledger():
+    """Rule 9 must instruct logging, reuse-before-invent, and the never-render note."""
+    from src.prompts.writer import WRITER_SYSTEM
+
+    assert "invented_stack" in WRITER_SYSTEM
+    assert "supporting_detail" in WRITER_SYSTEM
+    assert "reused_in" in WRITER_SYSTEM
+    # Reuse-before-invent directive.
+    assert "REUSE" in WRITER_SYSTEM
+    # Never rendered into the PDF.
+    assert "never" in WRITER_SYSTEM and "reaches the PDF" in WRITER_SYSTEM
+    # Existing rules 1-8 must remain untouched/unrenumbered.
+    assert "VERB DISCIPLINE" in WRITER_SYSTEM
+    assert WRITER_SYSTEM.index("VERB DISCIPLINE") < WRITER_SYSTEM.index("invented_stack")
+
+
+def test_writer_system_bullet_construction_mandates_non_obvious_detail():
+    """GAP 2: any bullet naming a JD tool absent from the source needs a
+    corroborating mechanism, not just the tool's name - stated in the BULLET
+    CONSTRUCTION block itself (before STRUCTURAL RULES), not only in rule 9."""
+    from src.prompts.writer import WRITER_SYSTEM
+
+    assert "FABRICATION DEPTH" in WRITER_SYSTEM
+    construction_pos = WRITER_SYSTEM.index("BULLET CONSTRUCTION")
+    fabrication_depth_pos = WRITER_SYSTEM.index("FABRICATION DEPTH")
+    structural_pos = WRITER_SYSTEM.index("STRUCTURAL RULES")
+    assert construction_pos < fabrication_depth_pos < structural_pos
+
+    assert "bare tool name" in WRITER_SYSTEM
+    assert "fabrication tell" in WRITER_SYSTEM
+
+
+def test_writer_system_projects_section_mandates_practitioner_detail():
+    """GAP 2: injecting a JD tool into a project bullet is not enough on its
+    own - each injected tool needs the specific practitioner detail (why this
+    config / what broke) that proves hands-on use."""
+    from src.prompts.writer import WRITER_SYSTEM
+
+    inject_pos = WRITER_SYSTEM.index("INJECT THE JD STACK")
+    detail_pos = WRITER_SYSTEM.index("practitioner detail")
+    assert inject_pos < detail_pos
+
+    assert "what broke" in WRITER_SYSTEM
+    assert 'not just "used X for scalability"' in WRITER_SYSTEM
 
 
 # --- build_writer_user_message: BULLET SHAPE DIRECTIVE section ----------------

@@ -183,6 +183,22 @@ class SkillDump(BaseModel):
         )
 
 
+class InventedTool(BaseModel):
+    """One fabricated tool/protocol/pattern tracked in the writer's invention ledger.
+
+    Lets the Writer reuse the same fabricated tool across multiple bullets
+    (instead of inventing independently per-bullet) so the resume reads as
+    cross-bullet coherent rather than keyword-stuffed.
+    """
+
+    model_config = _STRICT
+
+    tool: str
+    introduced_in: str
+    supporting_detail: str
+    reused_in: list[str] = Field(default_factory=list)
+
+
 class WriterOutput(BaseModel):
     """The writer's full output - bullets only. Contains NO identity fields by construction.
 
@@ -193,12 +209,18 @@ class WriterOutput(BaseModel):
     context is present in the user message. On revision iterations it defaults to
     an empty list; project bullets are extracted and locked in state by
     ``check_bullet_lengths`` after the first pass.
+
+    ``invented_stack`` is a fabrication ledger tracking every tool/protocol/pattern
+    the writer invented, so fabrications stay consistent (and reusable) across
+    bullets. It is scratch state scored by the Skeptic persona for cross-bullet
+    coherence - it is NEVER rendered into the PDF.
     """
 
     model_config = _STRICT
 
     roles: list[RoleBullets]
     projects: list[ProjectBullets] = Field(default_factory=list)
+    invented_stack: list[InventedTool] = Field(default_factory=list)
 
 
 class PanelScore(BaseModel):

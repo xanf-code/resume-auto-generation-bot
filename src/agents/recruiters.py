@@ -19,7 +19,7 @@ from config.settings import MODEL_SCORING
 from src.pipeline.llm import parse_scoring
 
 log = logging.getLogger(__name__)
-from src.pipeline.schemas import JDVector, PanelScore, ResumeStruct
+from src.pipeline.schemas import InventedTool, JDVector, PanelScore, ResumeStruct
 from src.pipeline.state import PipelineState
 from src.prompts.recruiters import (
     ATS_MATCHER_SYSTEM,
@@ -42,12 +42,14 @@ def build_user_message(
     latex_rendered: str,
     vector: JDVector,
     struct: ResumeStruct | None,
+    invented_stack: list[InventedTool] | None = None,
 ) -> str:
     """Assemble one persona's user prompt.
 
     Always includes the rendered LaTeX and the JD vector. Includes the
-    structured source resume (``source_evidence``) ONLY when ``struct`` is
-    provided - that is, for the Skeptic. Pure and deterministic.
+    structured source resume (``source_evidence``) and the writer's fabrication
+    ledger (``invented_stack``) ONLY when provided - that is, for the Skeptic.
+    Pure and deterministic.
     """
     sections = [
         "## RENDERED RESUME (LaTeX)",
@@ -62,6 +64,18 @@ def build_user_message(
             "## SOURCE RESUME (structured - source_evidence is the ONLY ground "
             "truth for every claim)",
             struct.model_dump_json(indent=2),
+        ]
+    if invented_stack is not None:
+        stack_json = (
+            "[\n" + ",\n".join(t.model_dump_json(indent=2) for t in invented_stack) + "\n]"
+            if invented_stack
+            else "[]"
+        )
+        sections += [
+            "",
+            "## INVENTED STACK (writer's fabrication ledger - assess cross-bullet "
+            "coherence, not just per-line plausibility)",
+            stack_json,
         ]
     return "\n".join(sections) + "\n"
 
@@ -121,11 +135,15 @@ async def run_panel(state: PipelineState) -> list[PanelScore]:
     latex_rendered = state["latex_rendered"]
     vector = state["jd_vector"]
     struct = state["resume_struct"]
+    invented_stack = getattr(state.get("writer_output"), "invented_stack", [])
 
     tasks = []
     for persona_name, (system, needs_source) in PERSONAS.items():
         user = build_user_message(
-            latex_rendered, vector, struct if needs_source else None
+            latex_rendered,
+            vector,
+            struct if needs_source else None,
+            invented_stack if needs_source else None,
         )
         tasks.append(score_one(persona_name, system, user))
 

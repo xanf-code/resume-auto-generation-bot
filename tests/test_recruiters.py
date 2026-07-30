@@ -14,12 +14,16 @@ import pytest
 
 from src.agents import recruiters
 from src.pipeline.schemas import (
+    InventedTool,
     JDVector,
     PanelScore,
     ResumeRole,
     ResumeStruct,
     SkillWeight,
+    WriterOutput,
+    RoleBullets,
 )
+from src.prompts.recruiters import SKEPTIC_SYSTEM
 
 
 def _length_finish_reason_error() -> openai.LengthFinishReasonError:
@@ -189,6 +193,66 @@ async def test_score_one_falls_back_to_neutral_score_after_two_length_errors(mon
     assert result.keyword_match == recruiters._FALLBACK_SCORE_VALUE
     assert result.plausibility == recruiters._FALLBACK_SCORE_VALUE
     assert "length limit" in result.notes
+
+
+# --- invention ledger wiring (GAP 1: Skeptic sees the fabrication ledger) ----
+
+
+def _writer_output_with_ledger() -> WriterOutput:
+    return WriterOutput(
+        roles=[RoleBullets(index=0, bullets=["Did a thing"])],
+        invented_stack=[
+            InventedTool(
+                tool="Kafka",
+                introduced_in="role 0 bullet 2",
+                supporting_detail="partitioned by customer_id for ordered replay",
+                reused_in=["role 1 bullet 1"],
+            ),
+        ],
+    )
+
+
+def test_skeptic_sees_invented_stack_but_ats_does_not(monkeypatch):
+    captured: dict[str, str] = {}
+
+    async def fake_score_one(persona_name, system, user):
+        captured[persona_name] = user
+        return _canned(persona_name)
+
+    monkeypatch.setattr(recruiters, "score_one", fake_score_one)
+
+    state = _state()
+    state["writer_output"] = _writer_output_with_ledger()
+    recruiters.recruiter_panel(state)
+
+    skeptic_name = next(
+        n for n, (_s, needs) in recruiters.PERSONAS.items() if needs
+    )
+    ats_name = next(
+        n for n, (_s, needs) in recruiters.PERSONAS.items() if not needs
+    )
+
+    assert "partitioned by customer_id for ordered replay" in captured[skeptic_name]
+    assert "partitioned by customer_id for ordered replay" not in captured[ats_name]
+
+
+def test_recruiter_panel_handles_missing_writer_output(monkeypatch):
+    """No writer_output in state (e.g. pre-writer scoring) must not crash."""
+    async def fake_score_one(persona_name, system, user):
+        return _canned(persona_name)
+
+    monkeypatch.setattr(recruiters, "score_one", fake_score_one)
+
+    out = recruiters.recruiter_panel(_state())
+    assert len(out["panel_scores"]) == 4
+
+
+def test_skeptic_system_documents_cross_bullet_coherence():
+    assert "invented_stack" in SKEPTIC_SYSTEM
+    assert "CROSS-BULLET COHERENCE" in SKEPTIC_SYSTEM
+    assert "below 30" in SKEPTIC_SYSTEM.lower() or "BELOW 30" in SKEPTIC_SYSTEM
+    # Existing plausibility scoring stance must remain intact.
+    assert "50-70" in SKEPTIC_SYSTEM
 
 
 def test_recruiter_panel_does_not_mutate_input_state(monkeypatch):

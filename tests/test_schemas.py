@@ -5,6 +5,7 @@ import pytest
 
 from src.pipeline.schemas import (
     IdentityLedger,
+    InventedTool,
     JDVector,
     PanelScore,
     ReframingTarget,
@@ -26,6 +27,7 @@ ALL_MODELS = [
     JDVector,
     ReframingTarget,
     RoleBullets,
+    InventedTool,
     WriterOutput,
     PanelScore,
 ]
@@ -73,6 +75,10 @@ def test_every_model_instantiates():
         no_evidence=False,
     )
     RoleBullets(index=0, bullets=["Did a thing"])
+    InventedTool(
+        tool="Kafka", introduced_in="role 0 bullet 1",
+        supporting_detail="partitioned by customer_id for ordered replay",
+    )
     # WriterOutput no longer carries a skills field - bullets only.
     WriterOutput(
         roles=[RoleBullets(index=0, bullets=["Did a thing"])],
@@ -178,3 +184,45 @@ def test_writer_output_rejects_skills_kwarg():
             roles=[RoleBullets(index=0, bullets=["ok"])],
             skills=SkillDump(),  # type: ignore[call-arg]
         )
+
+
+# --- invention ledger (GAP 1: cross-bullet fabrication consistency) ----------
+
+
+def test_writer_output_invented_stack_defaults_to_empty_list():
+    """No validation error and an empty ledger when invented_stack is omitted."""
+    output = WriterOutput(roles=[RoleBullets(index=0, bullets=["Did a thing"])])
+    assert output.invented_stack == []
+
+
+def test_writer_output_round_trips_with_populated_invented_stack():
+    output = WriterOutput(
+        roles=[RoleBullets(index=0, bullets=["Did a thing"])],
+        invented_stack=[
+            InventedTool(
+                tool="Kafka",
+                introduced_in="role 0 bullet 2",
+                supporting_detail="partitioned by customer_id for ordered replay",
+                reused_in=["role 1 bullet 1"],
+            ),
+        ],
+    )
+    restored = WriterOutput.model_validate_json(output.model_dump_json())
+    assert restored == output
+    assert restored.invented_stack[0].tool == "Kafka"
+    assert restored.invented_stack[0].reused_in == ["role 1 bullet 1"]
+
+
+def test_invented_tool_reused_in_defaults_to_empty_list():
+    tool = InventedTool(
+        tool="Redis", introduced_in="role 0 bullet 1", supporting_detail="LRU eviction cache",
+    )
+    assert tool.reused_in == []
+
+
+def test_writer_output_invented_stack_does_not_leak_identity_fields():
+    """The ledger must not smuggle company/title/start/end into the schema."""
+    schema = WriterOutput.model_json_schema()
+    declared = _property_names(schema)
+    leaked = IDENTITY_KEYS & declared
+    assert not leaked, f"WriterOutput schema leaks identity fields: {leaked}"

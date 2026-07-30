@@ -69,16 +69,28 @@ For each underrepresented competency, emit one target with:
   For tools not in the resume: suggest framing the work as "experience with
   [tool]-class platforms" or "built integrations compatible with [tool]
   ecosystems" - this achieves full keyword coverage with technically grounded phrasing.
+  MANDATORY: every framing_guidance must supply ONE non-obvious implementation detail -
+  a partition key, a handled failure mode, an idempotency strategy, a
+  specific config tradeoff, or a scaling bound - that a practitioner would
+  know but a résumé-stuffer wouldn't. This detail is the plausibility signal
+  a downstream Skeptic reviewer scores; a tool name alone is not.
+  ANTI-PATTERN: framing_guidance that names a tool but supplies no
+  corroborating mechanism is INSUFFICIENT and must be rewritten before
+  returning.
 - no_evidence: ALWAYS false. Every gap gets a reframe strategy.
 
 STRATEGY - the Salesforce case extended:
 Resume has ETL work; JD requires Salesforce.
 - STRONG framing_guidance: "Write: 'Designed and maintained data integration
   pipelines syncing customer records into CRM platforms including Salesforce-
-  compatible REST endpoints; implemented field mapping and upsert logic for
-  contact and opportunity objects.' This hits Salesforce, REST APIs, CRM,
-  data mapping - all JD keywords - while grounding in real pipeline work."
-- The goal is maximum keyword surface with plausible technical framing.
+  compatible REST endpoints; implemented upsert logic keyed on an external ID
+  field to prevent duplicate contact and opportunity records on resync.' This
+  hits Salesforce, REST APIs, CRM, data mapping - all JD keywords - while
+  grounding in real pipeline work and supplying the non-obvious implementation
+  detail (external-ID-keyed upsert to avoid duplicates) that makes it
+  defensible in a phone screen."
+- The goal is maximum keyword surface with plausible technical framing plus
+  one concrete mechanism a real practitioner would cite.
 - If the resume has zero CRM evidence, anchor to any data/API work and bridge.
 
 Every competency gets a target. Every target has a non-empty framing_guidance.
