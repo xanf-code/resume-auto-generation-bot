@@ -236,6 +236,58 @@ def test_skeptic_sees_invented_stack_but_ats_does_not(monkeypatch):
     assert "partitioned by customer_id for ordered replay" not in captured[ats_name]
 
 
+def test_skeptic_sees_locked_invented_stack_over_live_writer_output(monkeypatch):
+    """Once ``invented_stack`` is locked in state, the panel must read the locked
+    channel rather than the live (possibly-thinned) writer_output copy."""
+    captured: dict[str, str] = {}
+
+    async def fake_score_one(persona_name, system, user):
+        captured[persona_name] = user
+        return _canned(persona_name)
+
+    monkeypatch.setattr(recruiters, "score_one", fake_score_one)
+
+    locked_ledger = [
+        InventedTool(
+            tool="Kafka",
+            introduced_in="role 0 bullet 2",
+            supporting_detail="partitioned by customer_id for ordered replay",
+            reused_in=["role 1 bullet 1"],
+        ),
+    ]
+    thinned_writer_output = WriterOutput(
+        roles=[RoleBullets(index=0, bullets=["Did a thing"])],
+        invented_stack=[],
+    )
+
+    state = _state()
+    state["invented_stack"] = locked_ledger
+    state["writer_output"] = thinned_writer_output
+    recruiters.recruiter_panel(state)
+
+    skeptic_name = next(n for n, (_s, needs) in recruiters.PERSONAS.items() if needs)
+    assert "partitioned by customer_id for ordered replay" in captured[skeptic_name]
+
+
+def test_skeptic_falls_back_to_live_writer_output_when_not_yet_locked(monkeypatch):
+    """Before the first-pass lock fires, the panel must still see the live
+    writer_output ledger (first-iteration scoring, pre-lock)."""
+    captured: dict[str, str] = {}
+
+    async def fake_score_one(persona_name, system, user):
+        captured[persona_name] = user
+        return _canned(persona_name)
+
+    monkeypatch.setattr(recruiters, "score_one", fake_score_one)
+
+    state = _state()
+    state["writer_output"] = _writer_output_with_ledger()
+    recruiters.recruiter_panel(state)
+
+    skeptic_name = next(n for n, (_s, needs) in recruiters.PERSONAS.items() if needs)
+    assert "partitioned by customer_id for ordered replay" in captured[skeptic_name]
+
+
 def test_recruiter_panel_handles_missing_writer_output(monkeypatch):
     """No writer_output in state (e.g. pre-writer scoring) must not crash."""
     async def fake_score_one(persona_name, system, user):

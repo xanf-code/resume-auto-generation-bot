@@ -33,7 +33,7 @@ interface Props {
 }
 
 /**
- * Transport controls for résumé-tournament replay: pause/resume toggle,
+ * Transport controls for resume-tournament replay: pause/resume toggle,
  * seconds-per-match pace, skip-to-result, replay, hide-HUD, and a progress
  * line. Everything here is normal React state/props except the progress fill,
  * which is written imperatively from its own rAF loop reading `progressRef`

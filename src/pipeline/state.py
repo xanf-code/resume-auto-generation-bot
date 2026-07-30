@@ -7,6 +7,7 @@ from typing import TypedDict
 
 from src.pipeline.schemas import (
     IdentityLedger,
+    InventedTool,
     JDVector,
     PanelScore,
     ProjectBullets,
@@ -30,7 +31,7 @@ class PipelineState(TypedDict, total=False):
     # weights). Absent → nodes fall back to PipelineTuning.defaults() via
     # get_tuning(), which mirrors the config.settings constants.
     tuning: "PipelineTuning"
-    # Per-résumé bullet shape selection. None / absent → default rotation over
+    # Per-resume bullet shape selection. None / absent → default rotation over
     # all four shapes. One name → use only that shape. Subset → rotate within it.
     bullet_shapes: list[str] | None
     # Retrieved-examples prompt block (Phase 4's retrieval output, already
@@ -107,6 +108,11 @@ class PipelineState(TypedDict, total=False):
     # to channels absent from this schema.
     selected_projects: list[SelectedProject]
     project_bullets: list[ProjectBullets]
+    # Writer's fabrication ledger, locked once by check_bullet_lengths on the
+    # clean first pass, invariant thereafter (same lock as project_bullets
+    # above). MUST be declared here - LangGraph silently drops updates to
+    # channels absent from this schema.
+    invented_stack: list[InventedTool]
 
     # --- bookkeeping ----------------------------------------------------------
     iteration: int

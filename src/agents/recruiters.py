@@ -152,7 +152,9 @@ async def run_panel(state: PipelineState) -> list[PanelScore]:
     latex_rendered = state["latex_rendered"]
     vector = state["jd_vector"]
     struct = state["resume_struct"]
-    invented_stack = getattr(state.get("writer_output"), "invented_stack", [])
+    invented_stack = state.get("invented_stack") or getattr(
+        state.get("writer_output"), "invented_stack", []
+    )
     fabrication_envelope = envelope_for(state.get("jd_domains") or [])
 
     tasks = []

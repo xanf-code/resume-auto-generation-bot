@@ -1,4 +1,4 @@
-// Pure timeline builder for the A/B résumé tournament replay. Turns a static
+// Pure timeline builder for the A/B resume tournament replay. Turns a static
 // TournamentResult into an ordered, seekable sequence of animation steps. No
 // React, no DOM - this module is safe to unit test in isolation.
 

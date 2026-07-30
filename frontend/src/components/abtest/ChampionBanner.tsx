@@ -10,7 +10,7 @@ interface Props {
 /** Climactic reveal panel shown once the bracket resolves: the champion's name in
  * oversized display type, its aggregate gauge, and a note on who it beat in the
  * final. Fixture champions carry the same origin tag `RosterPicker` uses so an
- * invented résumé can never be mistaken for one of the user's own. */
+ * invented resume can never be mistaken for one of the user's own. */
 export function ChampionBanner({ champion, runnerUp, finalScore }: Props) {
   return (
     <div className="flex flex-col items-center gap-5 py-12 px-6 text-center">

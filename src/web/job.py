@@ -70,7 +70,7 @@ class Job:
     tuning: PipelineTuning | None = None
     # Per-application model overrides. None → config.settings MODEL_* defaults.
     models: PipelineModels | None = None
-    # Per-résumé bullet shape selection. None → default rotation over all four.
+    # Per-resume bullet shape selection. None → default rotation over all four.
     bullet_shapes: list[str] | None = None
     # JD classification (always computed by run_job; not user input).
     role: str | None = None

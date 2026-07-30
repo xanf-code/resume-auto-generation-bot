@@ -12,7 +12,7 @@ Single power user: the owner of this repository, preparing job applications for 
 
 ## Product Purpose
 
-Résumé Desk optimizes a LaTeX resume against a specific job description through an autonomous multi-agent pipeline. It rewrites the resume, enforces that no credentials are fabricated, compiles a production-quality PDF via Tectonic, and produces a structured score report with recruiter-persona breakdowns. Success means walking away with a tailored PDF confident enough to submit.
+resume Desk optimizes a LaTeX resume against a specific job description through an autonomous multi-agent pipeline. It rewrites the resume, enforces that no credentials are fabricated, compiles a production-quality PDF via Tectonic, and produces a structured score report with recruiter-persona breakdowns. Success means walking away with a tailored PDF confident enough to submit.
 
 ## Positioning
 
@@ -41,7 +41,7 @@ Three mechanisms combined that a single ChatGPT prompt cannot replicate:
 
 ## Brand Commitments
 
-- **Name:** Résumé Desk
+- **Name:** resume Desk
 - **Design system:** "Manuscript" - editorial print aesthetic. Warm paper (`#f7f3ec`), ink black (`#1c1b19`), one disciplined accent (editorial vermilion `#c0362c`). Fraunces serif for display headings, Inter for UI chrome, JetBrains Mono only inside the LaTeX editor. No dark terminal aesthetics. No neon colors. No gradients. Print-flat (no drop shadows). This is locked and the owner has strong feelings about it.
 - **Tone:** precise, tool-forward, no marketing copy. The interface recedes behind the work.
 

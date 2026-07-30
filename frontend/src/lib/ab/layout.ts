@@ -1,4 +1,4 @@
-// Pure bracket-geometry calculator for the A/B résumé tournament bracket
+// Pure bracket-geometry calculator for the A/B resume tournament bracket
 // visual. No React, no DOM - takes only a `size` (the shape of a bracket is
 // fully determined by its size, independent of which competitors fill it).
 //

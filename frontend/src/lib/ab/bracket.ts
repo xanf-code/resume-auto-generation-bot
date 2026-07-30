@@ -1,4 +1,4 @@
-// Pure bracket-structure builder for the A/B résumé tournament. No React, no DOM.
+// Pure bracket-structure builder for the A/B resume tournament. No React, no DOM.
 
 import type { Bracket, BracketSize, Competitor, Match, Round } from './types';
 

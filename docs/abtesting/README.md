@@ -1,6 +1,6 @@
-# A/B Testing - Résumé Tournament Bracket
+# A/B Testing - resume Tournament Bracket
 
-**Goal:** A new frontend page where the user picks N résumés, sets a few judging knobs, and watches a single-elimination bracket play out live - round by round, scores racing up - until one résumé is crowned champion.
+**Goal:** A new frontend page where the user picks N resumes, sets a few judging knobs, and watches a single-elimination bracket play out live - round by round, scores racing up - until one resume is crowned champion.
 
 **Scope constraint: NO BACKEND. Zero new API calls.** Every number is generated client-side by a seeded PRNG. This is not a placeholder for a future backend - the dummy simulation is the deliverable.
 
@@ -61,7 +61,7 @@ npm run dev
 ```
 
 1. `/` -> click **A/B Testing** in the top bar.
-2. **Create A/B test** -> size 8 -> select 8 résumés. Start is disabled at 7, enabled at 8.
+2. **Create A/B test** -> size 8 -> select 8 resumes. Start is disabled at 7, enabled at 8.
 3. Set upset factor to 0, note the seed, Start -> **the 1-seed wins the whole thing** (chalk).
 4. Replay with the *same* seed -> identical scores in every match. New seed -> different.
 5. Mid-run: pause, resume, 1x -> 4x. No jump, no stutter. Skip to result. Replay.

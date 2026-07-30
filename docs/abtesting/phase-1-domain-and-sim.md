@@ -8,7 +8,7 @@
 
 - `frontend/src/lib/ab/types.ts` - domain + timeline types. No runtime code.
 - `frontend/src/lib/ab/prng.ts` - `mulberry32(seed: number)`, `hashSeed(s: string): number` (FNV-1a), `newSeedToken(): string`.
-- `frontend/src/lib/ab/roster.ts` - `FIXTURE_ROSTER` (16 invented résumés), `competitorsFromJobs(jobs)`, `buildRoster(jobs, size)`.
+- `frontend/src/lib/ab/roster.ts` - `FIXTURE_ROSTER` (16 invented resumes), `competitorsFromJobs(jobs)`, `buildRoster(jobs, size)`.
 - `frontend/src/lib/ab/config.ts` - `AbConfig`, `DEFAULT_AB_CONFIG`, `JUDGES` metadata, `ROLE_AFFINITY`, `rebalanceJudgeWeights`.
 - `frontend/src/lib/ab/bracket.ts` - `seedOrder(size)`, `buildBracket(competitors, size)`.
 - `frontend/src/lib/ab/scoring.ts` - `scoreSide(competitor, ctx): MatchScore`. The only place the dummy math lives.
@@ -22,7 +22,7 @@
 export type JudgeId = 'ats' | 'hiring_manager' | 'technical' | 'skeptic' | 'peer';
 export type BracketSize = 4 | 8 | 16;
 
-/** A résumé in the tournament - lifted from a real job, or invented by the fixture roster. */
+/** A resume in the tournament - lifted from a real job, or invented by the fixture roster. */
 export interface Competitor {
   id: string;
   label: string;

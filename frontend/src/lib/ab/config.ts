@@ -1,5 +1,5 @@
 // Default config, judge metadata, and weight-rebalancing helpers for the A/B
-// testing résumé tournament. Pure data + logic - no React, no DOM.
+// testing resume tournament. Pure data + logic - no React, no DOM.
 
 import type { AbConfig, JudgeId, TargetRole } from './types';
 

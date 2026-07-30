@@ -78,7 +78,7 @@ export function NewJobModal() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!label.trim() || !resumeTex.trim() || !jdText.trim()) {
-      setError('A label, a résumé, and a job description are all required.');
+      setError('A label, a resume, and a job description are all required.');
       return;
     }
 
@@ -135,7 +135,7 @@ export function NewJobModal() {
               Feed the press
             </h2>
             <p className="text-[13px] text-ink-soft mt-1.5 max-w-md leading-snug">
-              Paste a master résumé and job description — the desk rewrites,
+              Paste a master resume and job description — the desk rewrites,
               scores, and typesets a submission-ready PDF.
             </p>
           </div>
@@ -205,10 +205,10 @@ export function NewJobModal() {
               </div>
 
               <FileOrPasteField
-                label="Résumé · main.tex"
+                label="resume · main.tex"
                 value={resumeTex}
                 onChange={setResumeTex}
-                placeholder="Paste your LaTeX résumé source here…"
+                placeholder="Paste your LaTeX resume source here…"
                 accept=".tex"
                 rows={9}
               />
@@ -326,7 +326,7 @@ export function NewJobModal() {
                 title={
                   canSubmit
                     ? undefined
-                    : 'Add a label, résumé, and job description to continue'
+                    : 'Add a label, resume, and job description to continue'
                 }
                 className="text-[13px] font-medium text-paper bg-accent hover:bg-accent-deep px-5 min-h-11 h-11 sm:h-9 sm:min-h-9 rounded-[3px] transition-colors disabled:opacity-50"
               >

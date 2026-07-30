@@ -6,18 +6,18 @@ interface Props {
 export function AbEmptyState({ jobCount, onOpenModal }: Props) {
   const provenance =
     jobCount > 0
-      ? `${jobCount} of your résumés on file — padded with invented fixtures if the bracket needs more.`
-      : 'No résumés on file yet — the bracket fills entirely with invented fixtures until you add one.';
+      ? `${jobCount} of your resumes on file — padded with invented fixtures if the bracket needs more.`
+      : 'No resumes on file yet — the bracket fills entirely with invented fixtures until you add one.';
 
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-6 sm:px-8">
       <span className="eyebrow">A/B testing</span>
       <p className="mt-2 font-serif text-[22px] sm:text-[26px] leading-snug text-ink max-w-md">
-        Run your résumés through a single-elimination bracket.
+        Run your resumes through a single-elimination bracket.
       </p>
       <p className="mt-3 text-[14px] text-ink-soft max-w-md leading-relaxed">
         Pick a panel of judges, set the chalk-to-chaos dial, and watch scores race
-        round by round until one résumé is crowned champion.
+        round by round until one resume is crowned champion.
       </p>
       <button
         onClick={onOpenModal}

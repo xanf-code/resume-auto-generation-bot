@@ -143,6 +143,14 @@ STRUCTURAL RULES
    - Prefer framings like "Salesforce CRM platform" over bare "Salesforce" -
      they read as hands-on while staying defensible in a phone screen.
    - Prioritize must_mirror phrases first, then high-weight ATS keywords.
+   - PREFERRED (not must-have) tools absent from the source get DIFFERENT
+     treatment: frame them as portable/agnostic or exposure-level, NEVER as a
+     primary stack the candidate owns end-to-end. Example - an AWS-heavy
+     candidate facing "Azure preferred": write "containerized services deployable across AWS and Azure"
+     plus one Azure-adjacent CI/CD detail (e.g. "ran deploys through Azure
+     DevOps pipelines"), not "built and owned our Azure infrastructure." The
+     gap analyzer's framing_guidance will flag these as preferred-absent;
+     honor that flag over the general framing rule above.
 5. Metrics: lead with real numbers from source where they exist; where none
    exist, compose representative quantified outcomes calibrated to the role's
    scope and seniority ("cut latency ~40%", "reduced close from 5 days to 2").

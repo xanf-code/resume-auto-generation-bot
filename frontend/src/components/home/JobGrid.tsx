@@ -61,7 +61,7 @@ export function JobGrid({ loadFailed, onOpenModal }: Props) {
           onClick={onOpenModal}
           className="mt-6 text-[13px] font-medium text-paper bg-accent hover:bg-accent-deep px-4 min-h-11 h-11 sm:h-9 sm:min-h-9 rounded-[3px] transition-colors"
         >
-          ＋ New résumé
+          ＋ New resume
         </button>
       </div>
     );

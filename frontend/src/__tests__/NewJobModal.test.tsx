@@ -69,7 +69,7 @@ function fillRequiredFields() {
   fireEvent.change(screen.getByLabelText('Label'), {
     target: { value: 'Backend Engineer' },
   });
-  fireEvent.change(screen.getByPlaceholderText(/LaTeX résumé/i), {
+  fireEvent.change(screen.getByPlaceholderText(/LaTeX resume/i), {
     target: { value: '\\documentclass{article}\\begin{document}x\\end{document}' },
   });
   fireEvent.change(screen.getByPlaceholderText(/job description/i), {

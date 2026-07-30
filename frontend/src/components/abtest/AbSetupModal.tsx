@@ -23,8 +23,8 @@ interface Props {
 type MobilePane = 'roster' | 'config';
 
 /**
- * Setup modal for a new résumé A/B tournament: pick a bracket size, select
- * exactly that many résumés from the pool, and tune the judging panel /
+ * Setup modal for a new resume A/B tournament: pick a bracket size, select
+ * exactly that many resumes from the pool, and tune the judging panel /
  * match config before starting. Mirrors NewJobModal's shell conventions
  * (backdrop, focus trap, Escape-to-close, two-pane desktop / segmented
  * mobile layout).
@@ -111,7 +111,7 @@ export function AbSetupModal({ pool, onClose, onStart }: Props) {
               Set the bracket
             </h2>
             <p className="text-[13px] text-ink-soft mt-1.5 max-w-md leading-snug">
-              Pick a bracket size, choose your résumés, and tune the judging panel.
+              Pick a bracket size, choose your resumes, and tune the judging panel.
             </p>
           </div>
           <button
@@ -195,7 +195,7 @@ export function AbSetupModal({ pool, onClose, onStart }: Props) {
             type="button"
             onClick={handleStart}
             disabled={!canSubmit}
-            title={canSubmit ? undefined : `Select exactly ${size} résumés to start`}
+            title={canSubmit ? undefined : `Select exactly ${size} resumes to start`}
             className="text-[13px] font-medium text-paper bg-accent hover:bg-accent-deep px-5 min-h-11 h-11 sm:h-9 sm:min-h-9 rounded-[3px] transition-colors disabled:opacity-50"
           >
             Start

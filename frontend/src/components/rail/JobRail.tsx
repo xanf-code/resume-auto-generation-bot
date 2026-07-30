@@ -108,7 +108,7 @@ export function JobRail({ mode = 'sidebar', onNavigate }: Props) {
               <div className="px-6 py-5 font-serif italic text-[15px] text-ink-faint leading-relaxed">
                 No applications yet.
                 <span className="block mt-1 text-[13px] not-italic font-sans">
-                  Start one from New résumé above.
+                  Start one from New resume above.
                 </span>
               </div>
             ) : (

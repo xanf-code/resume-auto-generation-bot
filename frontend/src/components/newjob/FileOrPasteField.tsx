@@ -6,11 +6,11 @@ interface Props {
   onChange: (val: string) => void;
   placeholder?: string;
   accept?: string;
-  /** Textarea rows; use a taller value for the primary (résumé) field. */
+  /** Textarea rows; use a taller value for the primary (resume) field. */
   rows?: number;
 }
 
-// A .tex résumé or a job description is a few KB; anything past this is almost
+// A .tex resume or a job description is a few KB; anything past this is almost
 // certainly the wrong file (a PDF, an image), and reading it as text is pointless.
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 

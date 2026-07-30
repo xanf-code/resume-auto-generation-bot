@@ -8,7 +8,7 @@ import type { Competitor } from '../lib/ab/types';
 function buildPool(): Competitor[] {
   return Array.from({ length: 16 }, (_, i) => ({
     id: `c${i + 1}`,
-    label: `Résumé variant ${i + 1}`,
+    label: `resume variant ${i + 1}`,
     origin: i % 2 === 0 ? 'job' : 'fixture',
     baseScore: 95 - i * 3,
     traits: {},
@@ -25,7 +25,7 @@ function startButton(): HTMLElement {
 }
 
 describe('AbSetupModal', () => {
-  it('disables Start until exactly `size` résumés are selected, and blocks over-selection', async () => {
+  it('disables Start until exactly `size` resumes are selected, and blocks over-selection', async () => {
     const user = userEvent.setup();
     const pool = buildPool();
     render(<AbSetupModal pool={pool} onClose={vi.fn()} onStart={vi.fn()} />);

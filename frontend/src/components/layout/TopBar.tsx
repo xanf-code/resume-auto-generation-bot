@@ -77,7 +77,7 @@ export function TopBar({ showNavToggle = false }: Props) {
           className="text-[13px] font-medium text-paper bg-accent hover:bg-accent-deep px-3 sm:px-4 min-h-11 sm:min-h-9 h-11 sm:h-9 rounded-[3px] transition-colors"
         >
           <span className="sm:hidden">＋ New</span>
-          <span className="hidden sm:inline">＋ New résumé</span>
+          <span className="hidden sm:inline">＋ New resume</span>
         </button>
       </div>
     </header>

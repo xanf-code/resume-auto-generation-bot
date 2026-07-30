@@ -213,7 +213,7 @@ export function TournamentArena({
         )}
       </div>
 
-      {/* Absolute to the arena (not viewport) so it clears the TopBar "New résumé" CTA. */}
+      {/* Absolute to the arena (not viewport) so it clears the TopBar "New resume" CTA. */}
       {showChampion && championDismissed && (
         <button
           type="button"

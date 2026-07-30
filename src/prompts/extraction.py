@@ -96,6 +96,28 @@ weight, prefer the one that also satisfies a stated duty_verb over a
 keyword-only competency: it answers "what will you DO here," which is far
 more defensible in a screen than a bullet that only matches nouns.
 
+PREFERRED VS REQUIRED: a JD line like "cloud platforms (Azure preferred)" is a
+PREFERRED signal, not a hard requirement - weight, not adjectives, decides this.
+A competency is PREFERRED when its weight sits below the hard-requirement band
+(0.8) even if the surrounding JD prose sounds enthusiastic. When a PREFERRED
+competency is ALSO absent from the candidate's real evidence, framing_guidance
+must NOT claim primary ownership or deep specialization in that tool - a claim
+the candidate cannot survive being asked to walk through in an interview.
+Instead push framing_guidance toward one of:
+- PORTABLE/AGNOSTIC framing: describe the real work in terms true of both
+  platforms - e.g. an AWS-heavy candidate facing "Azure preferred" gets
+  "containerized services deployable across AWS and Azure," not an Azure claim.
+- A LOW-STAKES ADJACENT DETAIL at the CI/CD or container layer - e.g. "ran
+  deployment pipelines through Azure DevOps" or "targeted AKS for container
+  orchestration." This is cheap to defend because it names a shallow, plausible
+  touchpoint instead of a platform the candidate owns end-to-end.
+- An EXPOSURE-level claim ("exposure to," "familiarity with") in place of an
+  expertise claim ("built," "owned," "architected").
+real_evidence and framing_guidance for a preferred-absent competency must state
+the defensive intent explicitly - name the candidate's real depth (e.g. AWS)
+and mark the reframe as portable/exposure-level only, so the Writer does not
+escalate it into a false primary.
+
 STRATEGY - the Salesforce case extended:
 Resume has ETL work; JD requires Salesforce.
 - STRONG framing_guidance: "Write: 'Designed and maintained data integration

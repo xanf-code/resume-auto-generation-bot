@@ -130,7 +130,7 @@ export const FIXTURE_ROSTER: Competitor[] = [
     origin: 'fixture',
     baseScore: 43,
     traits: { ats: 45, hiring_manager: 42, technical: 38, skeptic: 35, peer: 44 },
-    note: 'Untargeted résumé, sent to every role verbatim.',
+    note: 'Untargeted resume, sent to every role verbatim.',
   },
 ];
 

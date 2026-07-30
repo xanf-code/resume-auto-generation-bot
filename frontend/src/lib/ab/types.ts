@@ -1,9 +1,9 @@
-// Domain + timeline types for the A/B testing résumé tournament. No runtime code.
+// Domain + timeline types for the A/B testing resume tournament. No runtime code.
 
 export type JudgeId = 'ats' | 'hiring_manager' | 'technical' | 'skeptic' | 'peer';
 export type BracketSize = 4 | 8 | 16;
 
-/** A résumé in the tournament - lifted from a real job, or invented by the fixture roster. */
+/** A resume in the tournament - lifted from a real job, or invented by the fixture roster. */
 export interface Competitor {
   id: string;
   label: string;

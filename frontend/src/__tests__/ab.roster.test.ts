@@ -43,11 +43,11 @@ describe('FIXTURE_ROSTER', () => {
 describe('competitorsFromJobs', () => {
   it('maps job fields to competitor fields with origin "job"', () => {
     const jobs = [
-      makeJob({ job_id: 'job-1', label: 'Backend Résumé', aggregateScore: 82 }),
+      makeJob({ job_id: 'job-1', label: 'Backend resume', aggregateScore: 82 }),
     ];
     const [c] = competitorsFromJobs(jobs);
     expect(c.id).toBe('job-1');
-    expect(c.label).toBe('Backend Résumé');
+    expect(c.label).toBe('Backend resume');
     expect(c.origin).toBe('job');
     expect(c.baseScore).toBe(82);
   });

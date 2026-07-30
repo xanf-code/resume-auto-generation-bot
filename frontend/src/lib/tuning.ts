@@ -70,7 +70,7 @@ export const SCALAR_FIELDS: readonly ScalarField[] = [
     min: 0,
     max: 100,
     step: 1,
-    help: "The minimum the Skeptic must give for believability. Vetoes an otherwise-passing draft - the fabrication guard. Raise it to demand résumés that read as more truthful.",
+    help: "The minimum the Skeptic must give for believability. Vetoes an otherwise-passing draft - the fabrication guard. Raise it to demand resumes that read as more truthful.",
   },
   {
     key: 'max_iterations',
@@ -116,7 +116,7 @@ export const RUBRIC_FIELDS: readonly RubricField[] = [
   {
     key: 'keyword_match',
     label: 'Keyword match',
-    help: 'Weight on how well the résumé covers the job description’s keywords (ATS coverage).',
+    help: 'Weight on how well the resume covers the job description’s keywords (ATS coverage).',
   },
   {
     key: 'impact_quality',

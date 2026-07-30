@@ -91,6 +91,12 @@ def check_bullet_lengths(state: PipelineState) -> dict:
     if not violations and not state.get("project_bullets") and output.projects:
         result["project_bullets"] = output.projects
 
+    # Lock the invention ledger on the same clean-first-pass guard: freezing it
+    # from a still-violating draft would prevent the writer from revising
+    # bullets whose fabrications are about to change.
+    if not violations and not state.get("invented_stack") and output.invented_stack:
+        result["invented_stack"] = output.invented_stack
+
     if violations:
         retries = state.get("length_retries", 0) + 1
         log.warning(

@@ -40,7 +40,7 @@ describe('JobGrid', () => {
   it('calls onOpenModal from the empty-state button', () => {
     const onOpenModal = vi.fn();
     renderGrid({ onOpenModal });
-    fireEvent.click(screen.getByRole('button', { name: /new résumé/i }));
+    fireEvent.click(screen.getByRole('button', { name: /new resume/i }));
     expect(onOpenModal).toHaveBeenCalledTimes(1);
   });
 
@@ -75,7 +75,7 @@ describe('JobGrid', () => {
     expect(screen.getByText('Backend Lead')).toBeInTheDocument();
   });
 
-  it('shows résumés count header when jobs are present', () => {
+  it('shows resumes count header when jobs are present', () => {
     useStore.setState({
       jobs: {
         'job-a': {

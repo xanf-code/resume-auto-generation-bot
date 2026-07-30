@@ -10,7 +10,7 @@
 - `AbTestingPage.tsx` - route root. Owns phase (`idle` | `setup` | `running`), roster, config, seed, result, timeline.
 - `AbEmptyState.tsx` - eyebrow, serif headline, "Create A/B test" CTA, roster-provenance line.
 - `AbSetupModal.tsx` - modal shell mirroring `NewJobModal` (backdrop, focus trap, Esc, 2-col desktop / segmented mobile).
-- `RosterPicker.tsx` - selectable résumé list with origin tags, "N of M" counter, "Select top N".
+- `RosterPicker.tsx` - selectable resume list with origin tags, "N of M" counter, "Select top N".
 - `BracketSizeSelector.tsx` - 4 / 8 / 16 segmented control.
 - `AbConfigPanel.tsx` - the config knobs.
 
@@ -48,7 +48,7 @@ const showOutlet  = Boolean(hasJobRoute) || Boolean(hasAbRoute);
 // lines 66 / 68 / 79 keep hasJobRoute - the applications rail stays job-only
 ```
 
-**Nest, don't sibling.** `TopBar` (brand, health dot, "+ New résumé"), `NewJobModal`, `Toaster`, and the `h-dvh` / safe-area shell are app chrome that a sibling top-level route would have to duplicate. The one job-centric piece we don't want - `JobRail` - is already gated on `hasJobRoute` alone, so nesting gives exactly the right chrome with a two-line diff. Bonus: the existing `listJobs()` fetch at `CommandDeck.tsx:24` already populates the store the A/B roster reads from, so the roster is warm with no extra request.
+**Nest, don't sibling.** `TopBar` (brand, health dot, "+ New resume"), `NewJobModal`, `Toaster`, and the `h-dvh` / safe-area shell are app chrome that a sibling top-level route would have to duplicate. The one job-centric piece we don't want - `JobRail` - is already gated on `hasJobRoute` alone, so nesting gives exactly the right chrome with a two-line diff. Bonus: the existing `listJobs()` fetch at `CommandDeck.tsx:24` already populates the store the A/B roster reads from, so the roster is warm with no extra request.
 
 ## TopBar - nav entry
 

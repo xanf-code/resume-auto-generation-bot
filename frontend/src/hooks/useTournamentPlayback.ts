@@ -43,7 +43,7 @@ interface Clock {
 const defaultNow = (): number => performance.now();
 
 /**
- * Drives résumé-tournament replay via a single requestAnimationFrame loop
+ * Drives resume-tournament replay via a single requestAnimationFrame loop
  * using an elapsed-time model: virtual time accumulates as `dt * speed` each
  * frame, so changing speed takes effect on the very next frame with no
  * recomputation of the schedule. `stepIndex` only triggers a re-render when
