@@ -1,4 +1,4 @@
-"""Tectonic subprocess compile — no shell, no shell-escape.
+"""Tectonic subprocess compile - no shell, no shell-escape.
 
 Writes the ``.tex`` to a working directory and runs ``tectonic -X compile``
 with an argument list (never a shell string). On failure, error lines are

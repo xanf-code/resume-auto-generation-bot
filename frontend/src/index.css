@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+/*
+ * "Manuscript" - Editorial / print design system.
+ * Warm paper, ink black, Fraunces serif display, one disciplined accent.
+ * Tokens registered with Tailwind v4 @theme so utilities (bg-paper, text-ink,
+ * border-rule, text-accent, font-serif …) are generated automatically.
+ */
+@theme {
+  --color-paper: #f7f3ec;
+  --color-paper-raised: #fdfbf6;
+  --color-paper-sunk: #ede7db;
+  --color-ink: #1c1b19;
+  --color-ink-soft: #565049;
+  --color-ink-faint: #8a8177;
+  --color-rule: #e4ddd0;
+  --color-accent: #c0362c;
+  --color-accent-deep: #a82d24;
+  --color-accent-wash: rgba(192, 54, 44, 0.08);
+  --color-pass: #3f6b4e;
+  --color-fail: #b02e26;
+
+  --font-serif: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+}
+
+/*
+ * Do NOT add a `* { margin: 0; padding: 0 }` reset here. This file is
+ * unlayered, so a universal reset overrides every Tailwind spacing utility
+ * (px-*, mt-*, …) regardless of specificity - unlayered CSS always beats
+ * @layer utilities. Tailwind v4 Preflight already normalizes margins and
+ * box-sizing, so no manual reset is needed.
+ */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-accent-wash);
+}
+
+/* Letterspaced small-caps section label - the editorial "eyebrow". */
+.eyebrow {
+  font-family: var(--font-sans);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-ink-faint);
+}
+
+/* Warm, thin scrollbars that read as paper, not terminal. */
+* {
+  scrollbar-color: #d8cfbd transparent;
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d8cfbd;
+  border-radius: 4px;
+  border: 2px solid var(--color-paper);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #c9bfa9;
+}
+
+/*
+ * Honor the OS "reduce motion" setting for vestibular sensitivity. Motion-only:
+ * the pulsing status dots, stage stepper, and reconnect banner settle instead of
+ * looping; the static paper aesthetic is unchanged.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Coarse pointers: keep primary chrome reachable without hunting hover. */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  a {
+    -webkit-tap-highlight-color: rgba(192, 54, 44, 0.12);
+  }
+}

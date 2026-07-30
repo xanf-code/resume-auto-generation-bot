@@ -1,10 +1,13 @@
-"""Tests for src.agents.writer — the Writer (Opus) node and its user-message builder.
+"""Tests for src.agents.writer - the Writer (Opus) node and its user-message builder.
 
 ``parse_strong`` is mocked to return a canned ``WriterOutput``; NO live API calls
 (ANTHROPIC_API_KEY is intentionally unset). These tests pin the DETERMINISTIC
-message-construction behaviour — the core of the Writer's testable surface — plus
+message-construction behaviour - the core of the Writer's testable surface - plus
 the node's contract: it writes ``writer_output`` and never mutates input state.
 """
+import logging
+
+from config.settings import EFFORT_STRONG
 from src.agents import writer
 from src.pipeline.schemas import (
     JDVector,
@@ -76,8 +79,6 @@ def _writer_output() -> WriterOutput:
                 ],
             ),
         ],
-        skills=["Python", "SQL", "REST APIs"],
-        summary="Senior data engineer specializing in REST-based data integration.",
     )
 
 
@@ -122,7 +123,7 @@ def test_revision_iteration_includes_prior_draft_and_notes():
     state = _first_iteration_state()
     state["iteration"] = 2
     state["writer_output"] = _writer_output()
-    state["revision_notes"] = "1. Strengthen the impact verb on the CRM bullet."
+    state["revision_notes"] = ["Strengthen the impact verb on the CRM bullet."]
 
     msg = writer.build_writer_user_message(state)
 
@@ -137,12 +138,12 @@ def test_revision_notes_trigger_section_without_explicit_iteration():
     """revision_notes present is sufficient to include the revision section."""
     state = _first_iteration_state()
     state["writer_output"] = _writer_output()
-    state["revision_notes"] = "1. Tighten the summary."
+    state["revision_notes"] = ["Tighten the opening bullet."]
 
     msg = writer.build_writer_user_message(state)
 
     assert "REVISION NOTES" in msg
-    assert "Tighten the summary" in msg
+    assert "Tighten the opening bullet" in msg
 
 
 def test_different_revision_notes_produce_different_messages():
@@ -151,15 +152,15 @@ def test_different_revision_notes_produce_different_messages():
     base["iteration"] = 2
     base["writer_output"] = _writer_output()
 
-    state_a = {**base, "revision_notes": "1. Add a quantified metric to bullet 1."}
-    state_b = {**base, "revision_notes": "1. Remove jargon from the summary."}
+    state_a = {**base, "revision_notes": ["Add a quantified metric to bullet 1."]}
+    state_b = {**base, "revision_notes": ["Remove jargon from bullet 2."]}
 
     msg_a = writer.build_writer_user_message(state_a)
     msg_b = writer.build_writer_user_message(state_b)
 
     assert msg_a != msg_b
     assert "Add a quantified metric to bullet 1" in msg_a
-    assert "Remove jargon from the summary" in msg_b
+    assert "Remove jargon from bullet 2" in msg_b
 
 
 # --- build_writer_user_message: compile bounce ---------------------------------
@@ -208,6 +209,41 @@ def test_build_writer_user_message_no_violations_section_when_absent():
     assert "IDENTITY VIOLATIONS" not in msg
 
 
+# --- build_writer_user_message: length violations ------------------------------
+
+
+def test_build_writer_user_message_includes_length_violations():
+    """length_violations present → LENGTH VIOLATIONS section appears."""
+    state = _first_iteration_state()
+    state["writer_output"] = _writer_output()
+    state["length_violations"] = [
+        "Role 0 bullet 0: 142 chars (UNDERBUILT by 53). Target: 195-210 chars.",
+        "Role 0 bullet 1: 230 chars (BLOATED by 20). Target: 195-210 chars.",
+    ]
+    msg = writer.build_writer_user_message(state)
+
+    assert "LENGTH VIOLATIONS" in msg
+    assert "Role 0 bullet 0: 142 chars" in msg
+    assert "Role 0 bullet 1: 230 chars" in msg
+    assert "fix ONLY these bullets to 195-210 chars" in msg
+
+
+def test_build_writer_user_message_no_length_violations_when_empty():
+    """Empty length_violations list → no LENGTH VIOLATIONS section."""
+    state = _first_iteration_state()
+    state["length_violations"] = []
+    msg = writer.build_writer_user_message(state)
+
+    assert "LENGTH VIOLATIONS" not in msg
+
+
+def test_build_writer_user_message_no_length_violations_when_absent():
+    """Absent length_violations key → no LENGTH VIOLATIONS section."""
+    msg = writer.build_writer_user_message(_first_iteration_state())
+
+    assert "LENGTH VIOLATIONS" not in msg
+
+
 # --- write_resume node ---------------------------------------------------------
 
 
@@ -231,11 +267,100 @@ def test_write_resume_writes_output_and_uses_correct_schema(monkeypatch):
     assert set(out.keys()) == {"writer_output"}
     assert out["writer_output"] is canned
 
-    # It parsed against WriterOutput with high effort on the strong model.
+    # It parsed against WriterOutput on the strong model.
     assert captured["schema"] is WriterOutput
-    assert captured["kwargs"].get("effort") == "high"
+    # Effort is NOT passed at the call site - it defers to parse_strong's
+    # own default (config.settings.EFFORT_STRONG), so retuning reasoning
+    # depth only requires a settings change, not a writer.py edit.
+    assert "effort" not in captured["kwargs"]
     # The system prompt is the Writer's hard-rules prompt.
     assert isinstance(captured["system"], str) and captured["system"]
+
+
+def test_write_resume_logs_configured_effort(monkeypatch, caplog):
+    """The log line reports the ACTUAL configured effort from settings, not a
+    hardcoded literal - so log output stays truthful if EFFORT_STRONG changes."""
+    monkeypatch.setattr(writer, "parse_strong", lambda *a, **k: _writer_output())
+
+    with caplog.at_level(logging.INFO, logger="src.agents.writer"):
+        writer.write_resume(_first_iteration_state())
+
+    log_text = " ".join(caplog.messages)
+    assert f"effort={EFFORT_STRONG}" in log_text
+
+
+def test_write_resume_strips_char_annotations(monkeypatch):
+    """The [chars: N] self-verification tags must NEVER reach the output.
+
+    The Writer prompt asks the model to append ``[chars: N]`` to each bullet so
+    it can self-check length. Those tags are for the model only - they must be
+    stripped before the validator counts chars and before the renderer injects
+    the bullet into the PDF.
+    """
+    annotated = WriterOutput(
+        roles=[
+            RoleBullets(
+                index=0,
+                bullets=[
+                    "Built an ETL pipeline in Python that cut reporting time. [chars: 202]",
+                    "Scaled the service to 8M+ users on the platform [chars: 199]",
+                ],
+            ),
+        ],
+    )
+    monkeypatch.setattr(writer, "parse_strong", lambda *a, **k: annotated)
+
+    out = writer.write_resume(_first_iteration_state())
+    bullets = [b for role in out["writer_output"].roles for b in role.bullets]
+
+    assert all("[chars:" not in b for b in bullets)
+    assert bullets[0] == "Built an ETL pipeline in Python that cut reporting time."
+    assert bullets[1] == "Scaled the service to 8M+ users on the platform"
+
+
+def test_write_resume_strips_char_annotations_from_project_bullets(monkeypatch):
+    """[chars: N] tags must be stripped from project bullets too, not just role bullets."""
+    from src.pipeline.schemas import ProjectBullets
+    annotated = WriterOutput(
+        roles=[RoleBullets(index=0, bullets=["Clean role bullet"])],
+        projects=[
+            ProjectBullets(
+                rank=1,
+                heading="Real-Time Job Aggregation Engine",
+                bullets=[
+                    "Built WebSocket pipeline aggregating 50k listings/day [chars: 203]",
+                    "Reduced latency 60% via proxy rotation and headless scraping [chars: 198]",
+                    "Normalized disparate HTML and PDF sources via LLM pipeline [chars: 197]",
+                ],
+            ),
+            ProjectBullets(
+                rank=2,
+                heading="AI Financial Audit Platform",
+                bullets=[
+                    "Automated PII redaction across uploaded financial docs [chars: 200]",
+                    "Integrated OFAC sanctions feed to block flagged transactions [chars: 201]",
+                ],
+            ),
+        ],
+    )
+    monkeypatch.setattr(writer, "parse_strong", lambda *a, **k: annotated)
+
+    out = writer.write_resume(_first_iteration_state())
+    project_bullets = [
+        b for proj in out["writer_output"].projects for b in proj.bullets
+    ]
+
+    assert all("[chars:" not in b for b in project_bullets)
+    assert project_bullets[0] == "Built WebSocket pipeline aggregating 50k listings/day"
+
+
+def test_write_resume_leaves_clean_bullets_untouched(monkeypatch):
+    """Bullets with no annotation pass through unchanged (same object identity)."""
+    canned = _writer_output()  # no [chars: N] tags
+    monkeypatch.setattr(writer, "parse_strong", lambda *a, **k: canned)
+
+    out = writer.write_resume(_first_iteration_state())
+    assert out["writer_output"] is canned
 
 
 def test_write_resume_does_not_mutate_input_state(monkeypatch):
@@ -258,3 +383,70 @@ def test_writer_system_enforces_keyword_coverage_cap():
     # Must still require 100% coverage of must_mirror and high-weight skills
     assert "must_mirror" in WRITER_SYSTEM
     assert "0.8" in WRITER_SYSTEM
+
+
+def test_writer_system_enforces_bullet_band():
+    """Bullet band is the required 195-210 (min 195, max 210)."""
+    from src.prompts.writer import WRITER_SYSTEM
+
+    assert "195-210" in WRITER_SYSTEM, "Missing 195-210 bullet band"
+
+
+def test_writer_system_caps_bullet_count_flexibly():
+    """8 bullets total, hard-max 5 per role, relevance-driven split."""
+    from src.prompts.writer import WRITER_SYSTEM
+
+    assert "8 bullets total" in WRITER_SYSTEM
+    assert "5 per role" in WRITER_SYSTEM
+    # The old rigid 4-per-role cap must be gone.
+    assert "maximum 4 bullets per role" not in WRITER_SYSTEM
+
+
+def test_writer_system_does_not_mention_summary():
+    """Summary is removed from the app - the Writer must not emit one."""
+    from src.prompts.writer import WRITER_SYSTEM
+
+    assert "summary" not in WRITER_SYSTEM.lower()
+
+
+# --- build_writer_user_message: BULLET SHAPE DIRECTIVE section ----------------
+
+
+def test_build_writer_user_message_always_includes_bullet_shape_directive():
+    """Every call to build_writer_user_message must include the shape directive header."""
+    msg = writer.build_writer_user_message(_first_iteration_state())
+    assert "## BULLET SHAPE DIRECTIVE" in msg
+
+
+def test_build_writer_user_message_default_state_has_rotation_text():
+    """No bullet_shapes in state → full rotation directive text."""
+    msg = writer.build_writer_user_message(_first_iteration_state())
+    # Full rotation directive should include all four shape names
+    for name in ("PAR", "RESULT-FIRST", "ACTION+STACK", "CONTEXT-PAR"):
+        assert name in msg, f"Shape {name!r} missing from default-state message"
+
+
+def test_build_writer_user_message_single_shape_has_only():
+    """bullet_shapes=["PAR"] → USE ONLY PAR language in the message."""
+    state = _first_iteration_state()
+    state["bullet_shapes"] = ["PAR"]
+    msg = writer.build_writer_user_message(state)
+    assert "USE ONLY PAR" in msg
+    assert "## BULLET SHAPE DIRECTIVE" in msg
+
+
+def test_build_writer_user_message_bullet_shape_directive_precedes_resume():
+    """The BULLET SHAPE DIRECTIVE section appears before the RESUME section."""
+    msg = writer.build_writer_user_message(_first_iteration_state())
+    directive_pos = msg.index("## BULLET SHAPE DIRECTIVE")
+    resume_pos = msg.index("## RESUME")
+    assert directive_pos < resume_pos
+
+
+def test_build_writer_user_message_subset_shapes_rotates_among():
+    """bullet_shapes subset → 'Rotate ONLY among' language."""
+    state = _first_iteration_state()
+    state["bullet_shapes"] = ["PAR", "RESULT-FIRST"]
+    msg = writer.build_writer_user_message(state)
+    assert "Rotate ONLY among" in msg
+    assert "## BULLET SHAPE DIRECTIVE" in msg

@@ -1,4 +1,4 @@
-"""Mechanical identity tripwire — integrity guarantee #2.
+"""Mechanical identity tripwire - integrity guarantee #2.
 
 ``check_identity`` diffs rendered LaTeX against the ledger:
 
@@ -26,7 +26,7 @@ def check_identity(
         ledger: The immutable identity source of truth.
 
     Returns:
-        ``(ok, violations)`` — ``ok`` is True only when zero violations found.
+        ``(ok, violations)`` - ``ok`` is True only when zero violations found.
     """
     violations: list[str] = []
 

@@ -1,18 +1,21 @@
-"""Deterministic LaTeX renderer — integrity guarantee #1 (structural).
+"""Deterministic LaTeX renderer - integrity guarantee #1 (structural).
 
 Patches the user's original ``.tex`` file in-place: only the
 ``\\begin{itemize}...\\end{itemize}`` block immediately following each role's
 company-name anchor is replaced with the writer's new bullets. Every other
-byte — packages, fonts, section formatting, summary, skills, education — is
+byte - packages, fonts, section formatting, skills, education - is
 preserved verbatim from the original file.
 
 A ``%% ROLE-HEADER %%`` comment is injected before each role's anchor line so
 the identity tripwire can count roles without relying on Jinja template markers.
 Every injected bullet string is LaTeX-escaped (backslash first).
 """
+import logging
 import re
 
-from src.pipeline.schemas import IdentityLedger, WriterOutput
+from src.pipeline.schemas import IdentityLedger, ProjectBullets, SelectedProject, WriterOutput
+
+log = logging.getLogger(__name__)
 
 # LaTeX comment injected before each role header so identity_check can count
 # roles correctly. Must start with % to be a valid LaTeX comment.
@@ -167,7 +170,7 @@ _FONTSPEC_CONVERTIBLE: dict[str, str] = {
     "XCharter": "XCharter",
 }
 
-# Legacy encoding packages that are unnecessary — and actively harmful — under
+# Legacy encoding packages that are unnecessary - and actively harmful - under
 # XeTeX once the main font is loaded via fontspec. fontspec manages Unicode
 # encoding itself; leaving these in forces the legacy path that drops bold.
 _LEGACY_ENCODING_PKGS = frozenset({"fontenc", "inputenc"})
@@ -189,7 +192,7 @@ def _normalize_fonts_for_tectonic(tex: str) -> str:
     2. Drops legacy ``fontenc`` / ``inputenc`` packages, which force the Type1
        path that silently loses the bold face under tectonic.
 
-    Documents without a convertible font package are returned unchanged — their
+    Documents without a convertible font package are returned unchanged - their
     preamble (including a plain, working ``fontenc``) is left verbatim.
     """
     fonts_present = {
@@ -223,6 +226,115 @@ def _normalize_fonts_for_tectonic(tex: str) -> str:
     return "".join(out_lines)
 
 
+def _link_display(link: str) -> str:
+    """Strip protocol and trailing slash for display: 'https://foo.com/' → 'foo.com'."""
+    display = link.removeprefix("https://").removeprefix("http://")
+    return display.rstrip("/")
+
+
+# A project entry header in the Projects section:
+#   \textbf{<heading>} \hfill \href{<url>}{<display>} \\
+# The \href requirement distinguishes project headers from Experience role
+# headers, which use \hfill for dates but carry no \href.
+_PROJECT_HEADER_RE = re.compile(
+    r"\\textbf\{(?P<heading>[^{}]*)\}(?P<mid>\s*\\hfill\s*)"
+    r"\\href\{(?P<url>[^{}]*)\}\{(?P<display>[^{}]*)\}"
+)
+
+
+def _projects_section_span(tex: str) -> tuple[int, int] | None:
+    """Return ``(start, end)`` byte offsets of the Projects section body.
+
+    ``start`` is just past ``\\section*{Projects}``; ``end`` is the next
+    ``\\section*{`` or ``\\end{document}``. Returns ``None`` when absent.
+    """
+    marker = r"\section*{Projects}"
+    section_start = tex.find(marker)
+    if section_start == -1:
+        return None
+
+    after = section_start + len(marker)
+    next_section = tex.find(r"\section*{", after)
+    end_doc = tex.find(r"\end{document}", after)
+
+    candidates = [p for p in (next_section, end_doc) if p != -1]
+    if not candidates:
+        return None
+    return after, min(candidates)
+
+
+def patch_project_bullets(
+    tex: str,
+    selected_projects: list[SelectedProject],
+    project_bullets: list[ProjectBullets],
+) -> str:
+    """Surgically replace project headings, links, and bullets in ``tex``.
+
+    Mirrors ``patch_bullets``' integrity guarantee: within the Projects section,
+    only the heading text, the ``\\href`` target/display, and the ``\\item``
+    contents of each entry's itemize block are replaced. Every other byte -
+    ``\\vspace`` values, comments, blank lines, the section header itself - is
+    preserved verbatim from the original template.
+
+    Entries are matched positionally: the Nth project header in the template
+    receives the bullets for rank N. Surplus template entries beyond the number
+    of generated projects are left untouched rather than deleted, so a template
+    mismatch degrades visibly instead of silently dropping content.
+
+    Returns ``tex`` unchanged when the Projects section is absent or either
+    input list is empty.
+    """
+    if not selected_projects or not project_bullets:
+        return tex
+
+    span = _projects_section_span(tex)
+    if span is None:
+        return tex
+    body_start, body_end = span
+
+    bullets_by_rank: dict[int, ProjectBullets] = {pb.rank: pb for pb in project_bullets}
+    link_by_rank: dict[int, str] = {sp.rank: sp.link for sp in selected_projects}
+    ranks = sorted(bullets_by_rank)
+
+    # Collect patches within the section body, then apply back-to-front so
+    # earlier byte offsets stay valid (same strategy as patch_bullets).
+    patches: list[tuple[int, int, str]] = []
+    search_from = body_start
+
+    for rank in ranks:
+        pb = bullets_by_rank[rank]
+        match = _PROJECT_HEADER_RE.search(tex, search_from, body_end)
+        if match is None:
+            log.warning(
+                "renderer | no template slot for project rank=%d - skipping", rank
+            )
+            continue
+
+        link = link_by_rank.get(rank, match.group("url"))
+        patches.append(
+            (
+                match.start(),
+                match.end(),
+                f"\\textbf{{{latex_escape(pb.heading)}}}{match.group('mid')}"
+                f"\\href{{{link}}}{{{_link_display(link)}}}",
+            )
+        )
+
+        block = _find_next_itemize(tex, match.end())
+        if block is None or block[0] >= body_end:
+            search_from = match.end()
+            continue
+
+        block_start, block_end = block
+        patches.append((block_start, block_end, _build_itemize_block(pb.bullets)))
+        search_from = block_end
+
+    result = tex
+    for start, end, replacement in sorted(patches, key=lambda p: p[0], reverse=True):
+        result = result[:start] + replacement + result[end:]
+    return result
+
+
 def render(
     original_tex: str,
     identity_ledger: IdentityLedger,
@@ -230,7 +342,7 @@ def render(
 ) -> str:
     """Patch ``original_tex`` in-place: replace bullet blocks per role.
 
-    The original document's packages, fonts, formatting, summary, skills, and
+    The original document's packages, fonts, formatting, skills, and
     education sections are left verbatim. Only the ``\\begin{itemize}...
     \\end{itemize}`` block immediately following each role's anchor is replaced
     with the writer's optimised bullets. pdfTeX-only directives that break

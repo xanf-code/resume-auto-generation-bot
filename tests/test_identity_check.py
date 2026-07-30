@@ -1,4 +1,4 @@
-"""Tests for the mechanical identity tripwire — integrity guarantee #2.
+"""Tests for the mechanical identity tripwire - integrity guarantee #2.
 
 check_identity diffs rendered LaTeX against the ledger. Any tamper (changed
 date, renamed company, altered title, injected extra role) must fail loudly.
@@ -40,8 +40,6 @@ def _writer() -> WriterOutput:
             RoleBullets(index=0, bullets=["Invented the compiler concept"]),
             RoleBullets(index=1, bullets=["Developed FLOW-MATIC"]),
         ],
-        skills=["COBOL", "Leadership"],
-        summary="Computing pioneer.",
     )
 
 

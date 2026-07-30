@@ -1,5 +1,7 @@
-"""Tests for src.pipeline.schemas — Pydantic models and integrity guarantees."""
+"""Tests for src.pipeline.schemas - Pydantic models and integrity guarantees."""
 import json
+
+import pytest
 
 from src.pipeline.schemas import (
     IdentityLedger,
@@ -10,6 +12,7 @@ from src.pipeline.schemas import (
     ResumeStruct,
     Role,
     RoleBullets,
+    SkillDump,
     SkillWeight,
     WriterOutput,
 )
@@ -70,9 +73,9 @@ def test_every_model_instantiates():
         no_evidence=False,
     )
     RoleBullets(index=0, bullets=["Did a thing"])
+    # WriterOutput no longer carries a skills field - bullets only.
     WriterOutput(
         roles=[RoleBullets(index=0, bullets=["Did a thing"])],
-        skills=["Python"], summary="A summary.",
     )
     PanelScore(
         persona="skeptic", keyword_match=80, impact_quality=75,
@@ -99,7 +102,7 @@ def _property_names(obj) -> set:
 
     Walks ``properties`` blocks (and ``$defs`` recursively). Deliberately does
     NOT treat JSON-schema metadata keys (``title``, ``description``, ...) as
-    property names — those are annotations Pydantic emits for display, not
+    property names - those are annotations Pydantic emits for display, not
     fields a model can carry.
     """
     names: set = set()
@@ -155,4 +158,23 @@ def test_every_model_forbids_additional_properties():
         assert values, f"{model.__name__} schema exposes no additionalProperties"
         assert all(v is False for v in values), (
             f"{model.__name__} must set additionalProperties: false everywhere"
+        )
+
+
+def test_writer_output_has_no_skills_field():
+    """WriterOutput must NOT carry a skills field - skills moved to skill_dump on state."""
+    schema = WriterOutput.model_json_schema()
+    props = schema.get("properties", {})
+    assert "skills" not in props, (
+        "WriterOutput must not declare a 'skills' field - "
+        "skill dump is generated separately by generate_skills"
+    )
+
+
+def test_writer_output_rejects_skills_kwarg():
+    """Passing skills= to WriterOutput must raise (extra='forbid')."""
+    with pytest.raises(Exception):
+        WriterOutput(
+            roles=[RoleBullets(index=0, bullets=["ok"])],
+            skills=SkillDump(),  # type: ignore[call-arg]
         )

@@ -1,4 +1,4 @@
-"""Tests for src.agents.recruiters — the four-persona concurrent panel.
+"""Tests for src.agents.recruiters - the four-persona concurrent panel.
 
 ``score_one`` is mocked so the panel returns canned ``PanelScore`` instances;
 NO live API calls (ANTHROPIC_API_KEY is intentionally unset). These tests pin:
@@ -9,6 +9,7 @@ NO live API calls (ANTHROPIC_API_KEY is intentionally unset). These tests pin:
   ``resume_struct``) while the ATS Matcher's does not;
 - the node never mutates input state.
 """
+import openai
 import pytest
 
 from src.agents import recruiters
@@ -19,6 +20,18 @@ from src.pipeline.schemas import (
     ResumeStruct,
     SkillWeight,
 )
+
+
+def _length_finish_reason_error() -> openai.LengthFinishReasonError:
+    class _Usage:
+        completion_tokens = 16000
+        prompt_tokens = 100
+        total_tokens = 16100
+
+    class _Completion:
+        usage = _Usage()
+
+    return openai.LengthFinishReasonError(completion=_Completion())
 
 
 def _resume_struct() -> ResumeStruct:
@@ -84,7 +97,7 @@ def test_recruiter_panel_returns_four_distinct_scores(monkeypatch):
 
     out = recruiters.recruiter_panel(_state())
 
-    assert set(out.keys()) == {"panel_scores"}
+    assert set(out.keys()) == {"panel_scores", "panel_cache_latex", "panel_cache_scores"}
     scores = out["panel_scores"]
     assert len(scores) == 4
     assert all(isinstance(s, PanelScore) for s in scores)
@@ -119,20 +132,63 @@ def test_skeptic_sees_source_evidence_but_ats_does_not(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_score_one_wraps_parse_strong_in_thread(monkeypatch):
-    """score_one returns the PanelScore from parse_strong, run off-thread."""
+async def test_score_one_wraps_parse_scoring_in_thread(monkeypatch):
+    """score_one returns the PanelScore from parse_scoring, run off-thread."""
     canned = _canned("ATS Matcher")
 
-    def fake_parse_strong(system, user, schema, **kwargs):
+    def fake_parse_scoring(system, user, schema, **kwargs):
         assert schema is PanelScore
         return canned
 
-    monkeypatch.setattr(recruiters, "parse_strong", fake_parse_strong)
+    monkeypatch.setattr(recruiters, "parse_scoring", fake_parse_scoring)
 
     result = await recruiters.score_one("ATS Matcher", "sys", "user")
     # model_copy returns a new object; check equality and that persona is canonical.
     assert result == canned
     assert result.persona == "ATS Matcher"
+
+
+@pytest.mark.asyncio
+async def test_score_one_retries_once_on_length_error_and_succeeds(monkeypatch):
+    """A single LengthFinishReasonError is retried transparently - the caller
+    never sees it as long as the retry succeeds."""
+    canned = _canned("Hiring Manager")
+    calls = {"n": 0}
+
+    def fake_parse_scoring(system, user, schema, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise _length_finish_reason_error()
+        return canned
+
+    monkeypatch.setattr(recruiters, "parse_scoring", fake_parse_scoring)
+
+    result = await recruiters.score_one("Hiring Manager", "sys", "user")
+
+    assert calls["n"] == 2
+    assert result.persona == "Hiring Manager"
+    assert result.notes == "Hiring Manager note"
+
+
+@pytest.mark.asyncio
+async def test_score_one_falls_back_to_neutral_score_after_two_length_errors(monkeypatch):
+    """Two consecutive LengthFinishReasonErrors must not crash the run - the
+    persona gets a neutral placeholder score instead."""
+    calls = {"n": 0}
+
+    def fake_parse_scoring(system, user, schema, **kwargs):
+        calls["n"] += 1
+        raise _length_finish_reason_error()
+
+    monkeypatch.setattr(recruiters, "parse_scoring", fake_parse_scoring)
+
+    result = await recruiters.score_one("Skeptic", "sys", "user")
+
+    assert calls["n"] == 2, "must retry exactly once before falling back"
+    assert result.persona == "Skeptic"
+    assert result.keyword_match == recruiters._FALLBACK_SCORE_VALUE
+    assert result.plausibility == recruiters._FALLBACK_SCORE_VALUE
+    assert "length limit" in result.notes
 
 
 def test_recruiter_panel_does_not_mutate_input_state(monkeypatch):
@@ -146,3 +202,70 @@ def test_recruiter_panel_does_not_mutate_input_state(monkeypatch):
     recruiters.recruiter_panel(state)
     assert set(state.keys()) == snapshot_keys
     assert "panel_scores" not in state
+
+
+# --- exact-match panel-score cache (Tier 3 cost optimization) -----------------
+
+
+def test_recruiter_panel_reuses_cached_scores_when_latex_unchanged(monkeypatch):
+    """When latex_rendered is byte-identical to panel_cache_latex (the writer
+    produced the same draft as last time it was scored), the panel must NOT
+    re-run any persona call - it reuses panel_cache_scores verbatim."""
+    call_count = {"n": 0}
+
+    async def fake_score_one(persona_name, system, user):
+        call_count["n"] += 1
+        return _canned(persona_name)
+
+    monkeypatch.setattr(recruiters, "score_one", fake_score_one)
+
+    cached_scores = [_canned(name) for name in recruiters.PERSONAS]
+    state = _state()
+    state["panel_cache_latex"] = state["latex_rendered"]
+    state["panel_cache_scores"] = cached_scores
+
+    out = recruiters.recruiter_panel(state)
+
+    assert call_count["n"] == 0, "cache hit must skip every persona call"
+    assert out["panel_scores"] == cached_scores
+    assert out["panel_cache_latex"] == state["latex_rendered"]
+    assert out["panel_cache_scores"] == cached_scores
+
+
+def test_recruiter_panel_runs_and_updates_cache_when_latex_changes(monkeypatch):
+    """A different latex_rendered than what's cached is a cache MISS - the
+    panel runs normally and the cache is refreshed to the new draft/scores."""
+    call_count = {"n": 0}
+
+    async def fake_score_one(persona_name, system, user):
+        call_count["n"] += 1
+        return _canned(persona_name)
+
+    monkeypatch.setattr(recruiters, "score_one", fake_score_one)
+
+    state = _state()
+    state["panel_cache_latex"] = "SOME OLDER DRAFT"
+    state["panel_cache_scores"] = [_canned(name) for name in recruiters.PERSONAS]
+
+    out = recruiters.recruiter_panel(state)
+
+    assert call_count["n"] == 4, "cache miss must run all four persona calls"
+    assert out["panel_cache_latex"] == state["latex_rendered"]
+    assert out["panel_cache_scores"] == out["panel_scores"]
+
+
+def test_recruiter_panel_first_call_has_no_cache_and_runs_normally(monkeypatch):
+    """No panel_cache_latex/panel_cache_scores present (first-ever scoring
+    pass) must behave exactly like a cache miss, not raise or skip."""
+    call_count = {"n": 0}
+
+    async def fake_score_one(persona_name, system, user):
+        call_count["n"] += 1
+        return _canned(persona_name)
+
+    monkeypatch.setattr(recruiters, "score_one", fake_score_one)
+
+    out = recruiters.recruiter_panel(_state())
+
+    assert call_count["n"] == 4
+    assert out["panel_cache_latex"] == _state()["latex_rendered"]

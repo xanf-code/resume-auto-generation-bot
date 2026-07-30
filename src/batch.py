@@ -1,17 +1,17 @@
-"""Batch runner — process multiple JDs against one resume in parallel.
+"""Batch runner - process multiple JDs against one resume in parallel.
 
 Usage::
 
     python -m src.batch \\
         --resume examples/main.tex \\
-        --jds examples/jd1.txt examples/jd2.txt ... \\
+        --jds path/to/jd1.txt path/to/jd2.txt ... \\
         --out out/batch \\
         --workers 4
 
 Each JD gets its own isolated output subdirectory (``out/batch/jd_01/``, etc.).
 A ``batch_summary.json`` is written to the root output dir when all runs finish.
 
-Worker count defaults to min(len(jds), 4) — stay under Anthropic rate limits.
+Worker count defaults to min(len(jds), 4) - stay under OpenRouter rate limits.
 Bump ``--workers`` at your own risk if you have a high-tier API plan.
 """
 import argparse
@@ -23,13 +23,28 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
+from src.agents.parser import parse_resume
+from src.pipeline.schemas import IdentityLedger, ResumeStruct
+
 
 # ---------------------------------------------------------------------------
-# Worker — runs in a subprocess, so it must be a top-level importable fn
+# Worker - runs in a subprocess, so it must be a top-level importable fn
 # ---------------------------------------------------------------------------
 
-def _run_single(resume_path: str, jd_path: str, out_dir: str, job_label: str) -> dict:
-    """Execute one pipeline run. Designed to be called in a subprocess."""
+def _run_single(
+    resume_path: str,
+    jd_path: str,
+    out_dir: str,
+    job_label: str,
+    resume_struct: ResumeStruct | None = None,
+    identity_ledger: IdentityLedger | None = None,
+) -> dict:
+    """Execute one pipeline run. Designed to be called in a subprocess.
+
+    ``resume_struct``/``identity_ledger`` are the batch-wide parse-once result
+    (see ``_parse_resume_once``) - forwarded through so this job's pipeline run
+    skips its own parser LLM call.
+    """
     import logging as _log_mod
     _log_mod.basicConfig(
         level=_log_mod.INFO,
@@ -40,7 +55,10 @@ def _run_single(resume_path: str, jd_path: str, out_dir: str, job_label: str) ->
     )
     from src.main import run
     try:
-        state = run(resume_path, jd_path, out_dir)
+        state = run(
+            resume_path, jd_path, out_dir,
+            resume_struct=resume_struct, identity_ledger=identity_ledger,
+        )
         return {
             "label":       job_label,
             "jd_path":     jd_path,
@@ -70,6 +88,19 @@ def _run_single(resume_path: str, jd_path: str, out_dir: str, job_label: str) ->
 # Orchestrator
 # ---------------------------------------------------------------------------
 
+def _parse_resume_once(resume_path: str) -> tuple[ResumeStruct, IdentityLedger]:
+    """Parse the resume ONE time; every JD job in the batch reuses the result.
+
+    ``run_batch`` fans one resume out to N JD subprocesses, each of which used
+    to re-invoke the parser LLM on the identical resume text - pure duplicate
+    cost for zero benefit. Parsing once here in the parent process and passing
+    the result into every job removes that duplication.
+    """
+    resume_tex_raw = Path(resume_path).read_text(encoding="utf-8")
+    parsed = parse_resume({"resume_tex_raw": resume_tex_raw})
+    return parsed["resume_struct"], parsed["identity_ledger"]
+
+
 def run_batch(
     resume_path: str,
     jd_paths: list[str],
@@ -80,6 +111,8 @@ def run_batch(
     out_root_p = Path(out_root)
     out_root_p.mkdir(parents=True, exist_ok=True)
 
+    resume_struct, identity_ledger = _parse_resume_once(resume_path)
+
     jobs: list[tuple[str, str, str, str]] = []
     for idx, jd_path in enumerate(jd_paths, start=1):
         label = f"jd_{idx:02d}"
@@ -89,11 +122,11 @@ def run_batch(
 
     results: list[dict] = []
     workers = min(max_workers, len(jobs))
-    print(f"\nBatch: {len(jobs)} JDs — {workers} parallel workers\n" + "─" * 52)
+    print(f"\nBatch: {len(jobs)} JDs - {workers} parallel workers\n" + "─" * 52)
 
     with ProcessPoolExecutor(max_workers=workers) as pool:
         future_to_label = {
-            pool.submit(_run_single, r, j, o, lbl): lbl
+            pool.submit(_run_single, r, j, o, lbl, resume_struct, identity_ledger): lbl
             for r, j, o, lbl in jobs
         }
         for fut in as_completed(future_to_label):
@@ -141,7 +174,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", default="out/batch", help="Root output directory.")
     p.add_argument(
         "--workers", type=int, default=4,
-        help="Max parallel workers (default 4 — safe for standard API tier).",
+        help="Max parallel workers (default 4 - safe for standard API tier).",
     )
     return p
 

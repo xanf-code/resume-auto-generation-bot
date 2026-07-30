@@ -1,4 +1,4 @@
-"""Tests for config.settings — constants and require_api_key."""
+"""Tests for config.settings - constants and require_api_key."""
 import importlib
 
 import pytest
@@ -17,11 +17,20 @@ def test_constant_values():
     import config.settings as settings
 
     assert settings.THRESHOLD == 78
-    assert settings.MAX_ITERATIONS == 6
-    assert settings.MAX_COMPILE_RETRIES == 4
+    # Tightened from 6/4/4 - the writer loop (Sonnet) is the dominant pipeline
+    # cost; the pipeline already ships the best-scoring draft on cap-hit, so a
+    # smaller worst-case tail costs near-zero happy-path pass rate.
+    assert settings.MAX_ITERATIONS == 4
+    assert settings.MAX_COMPILE_RETRIES == 2
+    assert settings.MAX_IDENTITY_RETRIES == 2
+    assert settings.MAX_LENGTH_RETRIES == 3
     assert settings.PLAUSIBILITY_FLOOR == 20
-    assert settings.MODEL_STRONG == "anthropic/claude-opus-4-8"
-    assert settings.MODEL_FAST == "google/gemini-2.5-flash"
+    assert settings.MODEL_STRONG == "anthropic/claude-sonnet-5"
+    assert settings.MODEL_FAST == "openai/gpt-4o-mini"
+    assert settings.MODEL_GAP == "anthropic/claude-opus-5"
+    assert settings.MODEL_SCORING == "openai/gpt-4o-mini"
+    assert settings.EFFORT_STRONG == "medium"
+    assert settings.EFFORT_GAP == "medium"
 
 
 def test_rubric_weights_exact():

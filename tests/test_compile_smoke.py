@@ -1,4 +1,4 @@
-"""Real tectonic compile smoke test — no LLM, fully deterministic.
+"""Real tectonic compile smoke test - no LLM, fully deterministic.
 
 Hand-builds an IdentityLedger + WriterOutput, renders, then compiles with the
 real tectonic binary and asserts a non-empty PDF was produced. The first run
@@ -63,8 +63,6 @@ def _writer() -> WriterOutput:
                 ],
             ),
         ],
-        skills=["Cryptanalysis", "Computability Theory", "C++ & Assembly"],
-        summary="Mathematician & founder of theoretical computer science.",
     )
 
 
@@ -147,7 +145,6 @@ def _xcharter_ledger() -> IdentityLedger:
 def _xcharter_writer() -> WriterOutput:
     return WriterOutput(
         roles=[RoleBullets(index=0, bullets=["Designed the Bombe under budget"])],
-        skills=["Cryptanalysis"], summary="Founder of theoretical CS.",
     )
 
 
@@ -169,10 +166,10 @@ def test_xcharter_resume_compiles_with_bold_face(tmp_path):
     assert pdf_path is not None and os.path.isfile(pdf_path)
 
     if shutil.which("pdffonts") is None:
-        pytest.skip("pdffonts (poppler) not available — cannot verify bold face")
+        pytest.skip("pdffonts (poppler) not available - cannot verify bold face")
 
     fonts = _embedded_fonts(pdf_path)
     assert "Bold" in fonts, (
-        "no bold font face embedded — \\textbf silently flattened. "
+        "no bold font face embedded - \\textbf silently flattened. "
         f"Embedded fonts:\n{fonts}"
     )

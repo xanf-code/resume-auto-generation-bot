@@ -1,4 +1,4 @@
-"""Tests for src.pipeline.emit — output writer. NO LLM, NO network.
+"""Tests for src.pipeline.emit - output writer. NO LLM, NO network.
 
 Uses a temp out dir and a fake state (fake pdf file, panel_scores, gap_targets
 including a no_evidence target). Asserts:
@@ -11,7 +11,7 @@ including a no_evidence target). Asserts:
 import json
 
 from src.pipeline import emit as emit_mod
-from src.pipeline.schemas import PanelScore, ReframingTarget
+from src.pipeline.schemas import PanelScore, ReframingTarget, SkillDump
 
 
 def _panel_scores() -> list[PanelScore]:
@@ -211,20 +211,21 @@ def test_emit_falls_back_gracefully_when_both_absent(tmp_path):
 # --- JD-derived output filename -----------------------------------------------
 
 
-def test_emit_uses_jd_name_for_pdf_filename(tmp_path):
-    """When jd_name is in state, the output PDF uses that stem."""
+def test_emit_uses_jd_name_for_package_folder(tmp_path):
+    """When jd_name is in state, outputs land in out/{jd_name}/ as resume.pdf."""
     out_dir = tmp_path / "out"
     state = _make_state(tmp_path)
     state["jd_name"] = "amazon_sde"
 
     result = emit_mod.emit(state, out_dir=str(out_dir))
 
-    assert result["output_pdf"].endswith("amazon_sde.pdf")
-    assert (out_dir / "amazon_sde.pdf").is_file()
+    pdf_out = out_dir / "amazon_sde" / "resume.pdf"
+    assert pdf_out.is_file()
+    assert result["output_pdf"] == str(pdf_out)
 
 
 def test_emit_falls_back_to_resume_optimized_when_no_jd_name(tmp_path):
-    """When jd_name is absent, the output PDF falls back to resume_optimized.pdf."""
+    """No jd_name → no subfolder; PDF keeps the legacy resume_optimized.pdf name."""
     out_dir = tmp_path / "out"
     state = _make_state(tmp_path)
     state.pop("jd_name", None)
@@ -235,8 +236,8 @@ def test_emit_falls_back_to_resume_optimized_when_no_jd_name(tmp_path):
     assert (out_dir / "resume_optimized.pdf").is_file()
 
 
-def test_emit_jd_name_used_for_best_pdf_path_too(tmp_path):
-    """jd_name controls the output filename regardless of which pdf_path source wins."""
+def test_emit_jd_name_folder_used_for_best_pdf_path_too(tmp_path):
+    """jd_name controls the package folder regardless of which pdf source wins."""
     best_pdf = tmp_path / "best.pdf"
     best_pdf.write_bytes(b"%PDF best")
     out_dir = tmp_path / "out"
@@ -248,5 +249,99 @@ def test_emit_jd_name_used_for_best_pdf_path_too(tmp_path):
 
     result = emit_mod.emit(state, out_dir=str(out_dir))
 
-    assert result["output_pdf"].endswith("google_l5.pdf")
-    assert (out_dir / "google_l5.pdf").read_bytes() == b"%PDF best"
+    pdf_out = out_dir / "google_l5" / "resume.pdf"
+    assert result["output_pdf"] == str(pdf_out)
+    assert pdf_out.read_bytes() == b"%PDF best"
+
+
+# --- per-JD package layout + skills.json ---------------------------------------
+
+
+def _skill_dump() -> SkillDump:
+    return SkillDump(
+        language_and_framework=["Python", "TypeScript"],
+        infrastructure=["AWS", "Docker"],
+        database=["PostgreSQL", "Kafka"],
+        ai_tools=["LangChain", "RAG"],
+    )
+
+
+def test_emit_package_folder_contains_all_three_deliverables(tmp_path):
+    """out/{jd_name}/ holds resume.pdf, score_report.json, and skills.json."""
+    out_dir = tmp_path / "out"
+    state = _make_state(tmp_path)
+    state["jd_name"] = "JD1"
+    state["skill_dump"] = _skill_dump()
+
+    result = emit_mod.emit(state, out_dir=str(out_dir))
+
+    pkg = out_dir / "JD1"
+    assert (pkg / "resume.pdf").is_file()
+    assert (pkg / "score_report.json").is_file()
+    assert (pkg / "skills.json").is_file()
+    assert result["output_skills"] == str(pkg / "skills.json")
+
+
+def test_skills_json_has_four_buckets_in_writer_order(tmp_path):
+    """skills.json is valid JSON with all four buckets, preserving writer order."""
+    out_dir = tmp_path / "out"
+    state = _make_state(tmp_path)
+    state["jd_name"] = "JD1"
+    state["skill_dump"] = _skill_dump()
+
+    emit_mod.emit(state, out_dir=str(out_dir))
+
+    raw = json.loads((out_dir / "JD1" / "skills.json").read_text())
+    assert raw == {
+        "language_and_framework": ["Python", "TypeScript"],
+        "infrastructure": ["AWS", "Docker"],
+        "database": ["PostgreSQL", "Kafka"],
+        "ai_tools": ["LangChain", "RAG"],
+    }
+
+
+def test_skills_json_parses_into_skill_dump(tmp_path):
+    """The emitted JSON round-trips cleanly back into a SkillDump."""
+    out_dir = tmp_path / "out"
+    state = _make_state(tmp_path)
+    state["jd_name"] = "JD1"
+    state["skill_dump"] = SkillDump(language_and_framework=["Zebra", "Apple", "Mango"])
+
+    emit_mod.emit(state, out_dir=str(out_dir))
+
+    raw = json.loads((out_dir / "JD1" / "skills.json").read_text())
+    dump = SkillDump(**raw)
+    # Writer order within a bucket is preserved (never re-sorted).
+    assert dump.language_and_framework == ["Zebra", "Apple", "Mango"]
+    assert dump.total() == 3
+
+
+def test_skills_json_uses_skill_dump_from_state(tmp_path):
+    """skill_dump on state is the single source of truth for the JSON."""
+    out_dir = tmp_path / "out"
+    state = _make_state(tmp_path)
+    state["jd_name"] = "JD1"
+    state["skill_dump"] = SkillDump(language_and_framework=["canonical-skill"])
+
+    emit_mod.emit(state, out_dir=str(out_dir))
+
+    raw = json.loads((out_dir / "JD1" / "skills.json").read_text())
+    assert raw["language_and_framework"] == ["canonical-skill"]
+
+
+def test_skills_json_empty_when_skill_dump_absent(tmp_path):
+    """No skill_dump in state → empty SkillDump → all four buckets empty lists."""
+    out_dir = tmp_path / "out"
+    state = _make_state(tmp_path)
+    state["jd_name"] = "JD1"
+    state.pop("skill_dump", None)
+
+    emit_mod.emit(state, out_dir=str(out_dir))
+
+    raw = json.loads((out_dir / "JD1" / "skills.json").read_text())
+    assert raw == {
+        "language_and_framework": [],
+        "infrastructure": [],
+        "database": [],
+        "ai_tools": [],
+    }

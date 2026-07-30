@@ -1,4 +1,4 @@
-"""Tests for the LaTeX renderer — integrity guarantee #1 (structural).
+"""Tests for the LaTeX renderer - integrity guarantee #1 (structural).
 
 The renderer patches the original .tex in-place: only the itemize bullet
 blocks are replaced; everything else (fonts, formatting, sections) is preserved.
@@ -40,8 +40,6 @@ def _writer() -> WriterOutput:
             RoleBullets(index=0, bullets=["Led a team of 5 engineers"]),
             RoleBullets(index=1, bullets=["Published 3 papers"]),
         ],
-        skills=["Python", "LaTeX"],
-        summary="Pioneering engineer with decades of impact.",
     )
 
 
@@ -98,7 +96,7 @@ def test_latex_escape_plain_text_unchanged():
 
 
 def test_render_injects_locked_identity_fields_verbatim():
-    # Identity fields come from original_tex verbatim — patch leaves them untouched.
+    # Identity fields come from original_tex verbatim - patch leaves them untouched.
     out = render(_original_tex(), _ledger(), _writer())
     assert "Ada Lovelace" in out
     assert "ada@example.com | 555-0100" in out
@@ -112,7 +110,7 @@ def test_render_injects_locked_identity_fields_verbatim():
 
 
 def test_render_injects_writer_bullets():
-    # Only bullets are patched; skills/summary stay from the original .tex.
+    # Only bullets are patched; skills stay from the original .tex.
     out = render(_original_tex(), _ledger(), _writer())
     assert "Led a team of 5 engineers" in out
     assert "Published 3 papers" in out
@@ -131,8 +129,6 @@ def test_render_escapes_special_chars_in_bullets():
             RoleBullets(index=0, bullets=["Cut costs by 30% & boosted C_speed"]),
             RoleBullets(index=1, bullets=["Saved $1M on #infra"]),
         ],
-        skills=["C++ & Rust", "50%_uptime"],
-        summary="Delivered value$ across teams.",
     )
     out = render(_original_tex(), ledger, writer)
     # Raw specials in bullets must NOT appear unescaped.
@@ -157,8 +153,6 @@ def test_writer_output_never_reaches_identity_slot():
             RoleBullets(index=0, bullets=["FAKE COMPANY LLC as Chief Fraud Officer"]),
             RoleBullets(index=1, bullets=["Worked at Shadow Corp"]),
         ],
-        skills=["Impersonation"],
-        summary="I worked at Totally Real Bank.",
     )
     out = render(_original_tex(), ledger, malicious)
     # Ledger identity from original .tex is preserved.
@@ -176,8 +170,6 @@ def test_render_matches_bullets_by_role_index():
             RoleBullets(index=1, bullets=["SECOND ROLE BULLET"]),
             RoleBullets(index=0, bullets=["FIRST ROLE BULLET"]),
         ],
-        skills=["S"],
-        summary="sum",
     )
     out = render(_original_tex(), ledger, writer)
     # Role 0 (Analytical Engines) must be paired with FIRST ROLE BULLET.
@@ -236,8 +228,6 @@ def _main_tex_writer() -> WriterOutput:
             RoleBullets(index=0, bullets=["Increased throughput by rewriting pipeline in Go"]),
             RoleBullets(index=1, bullets=["Reduced latency using Redis caching layer"]),
         ],
-        skills=["Go", "Redis"],
-        summary="Senior engineer with distributed systems focus.",
     )
 
 
@@ -325,8 +315,6 @@ def _xcharter_ledger() -> IdentityLedger:
 def _xcharter_writer() -> WriterOutput:
     return WriterOutput(
         roles=[RoleBullets(index=0, bullets=["New optimized bullet"])],
-        skills=["x"],
-        summary="y",
     )
 
 
@@ -346,7 +334,7 @@ def test_legacy_encoding_packages_dropped_on_conversion():
 
 
 def test_fontspec_loaded_before_setmainfont():
-    r"""\setmainfont is undefined until fontspec loads — order matters."""
+    r"""\setmainfont is undefined until fontspec loads - order matters."""
     out = render(_xcharter_tex(), _xcharter_ledger(), _xcharter_writer())
     assert out.index(r"\usepackage{fontspec}") < out.index(r"\setmainfont{XCharter}")
 
@@ -380,7 +368,7 @@ def test_no_font_conversion_when_no_known_font_package():
         name="U", contact="c",
         roles=[Role(company="AcmeCorp", title="Engineer", start="", end="")],
     )
-    writer = WriterOutput(roles=[RoleBullets(index=0, bullets=["New"])], skills=["s"], summary="m")
+    writer = WriterOutput(roles=[RoleBullets(index=0, bullets=["New"])])
     out = render(plain, ledger, writer)
     # No fontspec injected; existing (harmless, working) fontenc left alone.
     assert r"\usepackage{fontspec}" not in out

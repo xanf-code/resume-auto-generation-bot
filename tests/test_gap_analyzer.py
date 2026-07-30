@@ -1,12 +1,13 @@
-"""Tests for src.agents.gap_analyzer — reframing-target extraction node.
+"""Tests for src.agents.gap_analyzer - reframing-target extraction node.
 
-`parse_fast` is mocked to return a ``GapTargets`` wrapper holding a mix of a
+`parse_gap` is mocked to return a ``GapTargets`` wrapper holding a mix of a
 reframable target (real evidence) and a no-evidence target. NO live API calls.
 The node must unwrap the wrapper into a plain list under ``gap_targets`` and
 must PRESERVE the no_evidence target (it is reported later, not dropped).
 """
 import logging
 
+from config.settings import EFFORT_GAP
 from src.agents import gap_analyzer
 from src.pipeline.schemas import (
     GapTargets,
@@ -58,7 +59,7 @@ def _wrapper() -> GapTargets:
         ],
         framing_guidance=(
             "Frame the CRM-sync ETL job as REST-based data integration that "
-            "syncs customer records into a CRM platform — surfacing "
+            "syncs customer records into a CRM platform - surfacing "
             "Salesforce-adjacent competency (API integration, data mapping)."
         ),
         no_evidence=False,
@@ -78,23 +79,28 @@ def test_gap_analysis_writes_unwrapped_list(monkeypatch):
     wrapper = _wrapper()
     captured = {}
 
-    def fake_parse_fast(system, user, schema, **kwargs):
+    def fake_parse_gap(system, user, schema, **kwargs):
         captured["system"] = system
         captured["user"] = user
         captured["schema"] = schema
+        captured["kwargs"] = kwargs
         return wrapper
 
-    monkeypatch.setattr(gap_analyzer, "parse_fast", fake_parse_fast)
+    monkeypatch.setattr(gap_analyzer, "parse_gap", fake_parse_gap)
 
     state = {"resume_struct": _resume_struct(), "jd_vector": _jd_vector()}
     out = gap_analyzer.gap_analysis(state)
 
-    # parse_fast was asked to fill the wrapper model, not a bare list.
+    # parse_gap was asked to fill the wrapper model, not a bare list.
     assert captured["schema"] is GapTargets
     assert isinstance(captured["system"], str) and captured["system"]
     # The user message combines both resume + JD context.
     assert "Salesforce" in captured["user"]
     assert "CRM-sync ETL" in captured["user"]
+    # Effort is NOT passed at the call site - it defers to parse_gap's own
+    # default (config.settings.EFFORT_GAP), so retuning reasoning depth only
+    # requires a settings change, not a gap_analyzer.py edit.
+    assert "effort" not in captured["kwargs"]
 
     # Output is the plain list, unwrapped from the GapTargets wrapper.
     assert set(out.keys()) == {"gap_targets"}
@@ -106,7 +112,7 @@ def test_gap_analysis_writes_unwrapped_list(monkeypatch):
 
 def test_gap_analysis_preserves_no_evidence_target(monkeypatch):
     """The no_evidence target must survive to state (reported later, not dropped)."""
-    monkeypatch.setattr(gap_analyzer, "parse_fast", lambda *a, **k: _wrapper())
+    monkeypatch.setattr(gap_analyzer, "parse_gap", lambda *a, **k: _wrapper())
     out = gap_analyzer.gap_analysis(
         {"resume_struct": _resume_struct(), "jd_vector": _jd_vector()}
     )
@@ -119,7 +125,7 @@ def test_gap_analysis_preserves_no_evidence_target(monkeypatch):
 
 def test_gap_analysis_reframable_target_has_real_evidence(monkeypatch):
     """The reframable target cites non-empty real evidence strings."""
-    monkeypatch.setattr(gap_analyzer, "parse_fast", lambda *a, **k: _wrapper())
+    monkeypatch.setattr(gap_analyzer, "parse_gap", lambda *a, **k: _wrapper())
     out = gap_analyzer.gap_analysis(
         {"resume_struct": _resume_struct(), "jd_vector": _jd_vector()}
     )
@@ -133,16 +139,30 @@ def test_gap_analysis_reframable_target_has_real_evidence(monkeypatch):
 
 
 def test_gap_analysis_does_not_mutate_input_state(monkeypatch):
-    monkeypatch.setattr(gap_analyzer, "parse_fast", lambda *a, **k: _wrapper())
+    monkeypatch.setattr(gap_analyzer, "parse_gap", lambda *a, **k: _wrapper())
     state = {"resume_struct": _resume_struct(), "jd_vector": _jd_vector()}
     snapshot_keys = set(state.keys())
     gap_analyzer.gap_analysis(state)
     assert set(state.keys()) == snapshot_keys
 
 
+def test_gap_analysis_logs_configured_effort(monkeypatch, caplog):
+    """The log line reports the ACTUAL configured effort from settings, not a
+    hardcoded literal - so log output stays truthful if EFFORT_GAP changes."""
+    monkeypatch.setattr(gap_analyzer, "parse_gap", lambda *a, **k: _wrapper())
+
+    with caplog.at_level(logging.INFO, logger="src.agents.gap_analyzer"):
+        gap_analyzer.gap_analysis(
+            {"resume_struct": _resume_struct(), "jd_vector": _jd_vector()}
+        )
+
+    log_text = " ".join(caplog.messages)
+    assert f"effort={EFFORT_GAP}" in log_text
+
+
 def test_gap_analysis_logs_fabrication_targets(monkeypatch, caplog):
     """Active fabrication targets and skipped no-evidence gaps both appear in logs."""
-    monkeypatch.setattr(gap_analyzer, "parse_fast", lambda *a, **k: _wrapper())
+    monkeypatch.setattr(gap_analyzer, "parse_gap", lambda *a, **k: _wrapper())
     with caplog.at_level(logging.INFO, logger="src.agents.gap_analyzer"):
         gap_analyzer.gap_analysis(
             {"resume_struct": _resume_struct(), "jd_vector": _jd_vector()}

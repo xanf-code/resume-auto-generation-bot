@@ -1,4 +1,4 @@
-"""Gap Analyzer agent — resume_struct + jd_vector -> list[ReframingTarget].
+"""Gap Analyzer agent - resume_struct + jd_vector -> list[ReframingTarget].
 
 Finds JD competencies the resume underrepresents and, for each, decides whether
 genuine adjacent evidence exists to honestly reframe it in the JD's vocabulary.
@@ -10,8 +10,8 @@ to the user later, never fabricated over).
 """
 import logging
 
-from config.settings import MODEL_FAST
-from src.pipeline.llm import parse_fast
+from config.settings import EFFORT_GAP, MODEL_GAP
+from src.pipeline.llm import parse_gap
 from src.pipeline.schemas import GapTargets, JDVector, ResumeStruct
 from src.pipeline.state import PipelineState
 from src.prompts.extraction import GAP_SYSTEM
@@ -34,13 +34,14 @@ def gap_analysis(state: PipelineState) -> dict:
     struct = state["resume_struct"]
     vector = state["jd_vector"]
     log.info(
-        "gap_analysis | %d roles vs %d JD skills → sending to %s",
+        "gap_analysis | %d roles vs %d JD skills → sending to %s (effort=%s)",
         len(struct.roles),
         len(vector.weighted_skills),
-        MODEL_FAST,
+        MODEL_GAP,
+        EFFORT_GAP,
     )
     user_msg = build_user_message(struct, vector)
-    wrapper = parse_fast(GAP_SYSTEM, user_msg, GapTargets)
+    wrapper = parse_gap(GAP_SYSTEM, user_msg, GapTargets)
     targets = list(wrapper.targets)
     no_ev = sum(1 for t in targets if t.no_evidence)
     active = [t for t in targets if not t.no_evidence]

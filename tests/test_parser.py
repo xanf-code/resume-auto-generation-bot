@@ -1,4 +1,4 @@
-"""Tests for src.agents.parser — resume parsing + ledger derivation.
+"""Tests for src.agents.parser - resume parsing + ledger derivation.
 
 `parse_fast` is mocked: NO live API calls. The mock returns a fixed
 ``ResumeStruct`` so we can assert the node's derivation logic in isolation.
@@ -101,6 +101,53 @@ def test_parse_resume_does_not_mutate_input_state(monkeypatch):
     assert state == {"resume_tex_raw": SAMPLE_TEX}
 
 
+def test_parse_resume_skips_llm_call_when_cached(monkeypatch):
+    """When resume_struct + identity_ledger are already in state (seeded by a
+    caller that parsed this resume once - e.g. a batch run reusing the parse
+    across multiple JDs), parse_resume must NOT call parse_fast and must
+    return the cached pair unchanged."""
+    called = {"n": 0}
+
+    def fake_parse_fast(*a, **k):
+        called["n"] += 1
+        return _fixed_struct()
+
+    monkeypatch.setattr(parser, "parse_fast", fake_parse_fast)
+
+    struct = _fixed_struct()
+    ledger = _ledger_from_struct(struct)
+    state = {
+        "resume_tex_raw": SAMPLE_TEX,
+        "resume_struct": struct,
+        "identity_ledger": ledger,
+    }
+
+    out = parser.parse_resume(state)
+
+    assert called["n"] == 0, "parse_fast must not be called when a cached struct/ledger is present"
+    assert out == {"resume_struct": struct, "identity_ledger": ledger}
+    assert out["resume_struct"] is struct
+    assert out["identity_ledger"] is ledger
+
+
+def test_parse_resume_cache_requires_both_fields(monkeypatch):
+    """A partially-seeded state (only one of the two cached fields) must still
+    parse via the LLM - the cache short-circuit only fires when BOTH are present."""
+    struct = _fixed_struct()
+    captured = {}
+
+    def fake_parse_fast(system, user, schema, **kwargs):
+        captured["called"] = True
+        return _fixed_struct()
+
+    monkeypatch.setattr(parser, "parse_fast", fake_parse_fast)
+
+    state = {"resume_tex_raw": SAMPLE_TEX, "resume_struct": struct}
+    parser.parse_resume(state)
+
+    assert captured.get("called") is True
+
+
 def _ledger_from_struct(struct: ResumeStruct) -> IdentityLedger:
     return parser.derive_ledger(struct, name="Jane Doe", contact="jane.doe@example.com")
 
@@ -135,3 +182,53 @@ def test_assert_ledger_matches_source_raises_on_date_drift():
     with pytest.raises(ValueError) as exc:
         parser.assert_ledger_matches_source(ledger, SAMPLE_TEX)
     assert "start" in str(exc.value)
+
+
+# --- extract_name: preamble must not poison the identity (Step 1 fix) ----------
+
+# A realistic resume whose preamble binds a font named "XCharter". The OLD
+# extract_name grabbed the FIRST \command{...} anywhere in the raw tex, so it
+# returned "XCharter" (or "article" from \documentclass) instead of the human
+# name. The name lives in the \begin{document} body, wrapped in formatting.
+PREAMBLE_TEX = r"""
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage{XCharter}
+\setmainfont{XCharter}
+\newcommand{\name}[1]{\textbf{#1}}
+\definecolor{accent}{HTML}{1A1A1A}
+\begin{document}
+\begin{center}
+{\Large \textbf{Grace Hopper}} \\
+grace.hopper@example.com $\cdot$ (555) 000-1111
+\end{center}
+
+\section*{Experience}
+\textbf{US Navy} \hfill 1944 -- 1966 \\
+\textit{Rear Admiral}
+\end{document}
+"""
+
+
+def test_extract_name_ignores_preamble_font_package():
+    """The name comes from the document body, NOT a \\usepackage/font argument."""
+    name = parser.extract_name(PREAMBLE_TEX)
+    assert name == "Grace Hopper"
+    assert name != "XCharter"
+
+
+def test_extract_name_ignores_documentclass_argument():
+    """\\documentclass{article} must never be mistaken for the candidate name."""
+    assert parser.extract_name(SAMPLE_TEX) == "Jane Doe"
+
+
+def test_extract_name_skips_structural_begin_center():
+    """A leading \\begin{center} wrapper must be skipped, not read as 'center'."""
+    name = parser.extract_name(PREAMBLE_TEX)
+    assert name != "center"
+
+
+def test_extract_name_strips_preamble_without_document_env():
+    """No \\begin{document}: preamble command lines are stripped before search."""
+    tex = "\\usepackage{XCharter}\n\\textbf{Ada Lovelace}\nada@example.com"
+    assert parser.extract_name(tex) == "Ada Lovelace"
