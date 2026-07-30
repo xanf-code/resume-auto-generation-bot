@@ -285,13 +285,14 @@ INJECT THE JD STACK (this is the point):
     That practitioner detail is the plausibility signal a Skeptic reviewer scores.
 
 PLAUSIBILITY ENVELOPE (the only limit on fabrication):
-  Invent freely WITHIN the architectural domain the context establishes. A
-  job-scraping engine can credibly gain: Kafka, Redis, Playwright/Puppeteer,
-  Celery, Postgres, Elasticsearch, Docker, Kubernetes, S3, gRPC, rate-limiting,
-  CDC, message queues. It CANNOT credibly gain: computer-vision model training,
-  blockchain, embedded firmware - tech from an unrelated domain. Stay inside
-  the blast radius of what the system plausibly touches. Defensible in a phone
-  screen is the bar: could the candidate explain why this system used this tool?
+  The LEGAL fabrication vocabulary is supplied per-run in the user message
+  under ## FABRICATION ENVELOPE - a deduplicated list derived from the JD's
+  tagged domains. You may invent ONLY tools, protocols, or patterns from that
+  list, plus anything already named in the source material. Nothing outside
+  the envelope is legal to invent, no matter how plausible it sounds or how
+  well it matches a JD keyword - the envelope is the hard boundary on
+  fabrication, not a suggestion. Defensible in a phone screen is the bar:
+  could the candidate explain why this system used this tool?
 
 ACTION+STACK IS THE DEFAULT SHAPE: lead with the verb, name concrete tools,
   land a quantified outcome. Never write around the stack with "modern web

@@ -7,7 +7,13 @@ import pytest
 from src.agents import jd_tagger
 from src.agents.jd_tagger import JdClassification
 from src.pipeline.schemas import JDTags
-from src.prompts.jd_tagger import DOMAIN_VOCAB, JD_TAGGER_SYSTEM, ROLE_VOCAB
+from src.prompts.jd_tagger import (
+    DOMAIN_STACK_ENVELOPE,
+    DOMAIN_VOCAB,
+    JD_TAGGER_SYSTEM,
+    ROLE_VOCAB,
+    envelope_for,
+)
 
 SAMPLE_JD = "Senior Backend Engineer. Own REST APIs and distributed systems."
 
@@ -151,3 +157,59 @@ def test_combined_tags_no_role_returns_domains_only():
 def test_combined_tags_dedupes_defensively():
     result = JdClassification(role="backend", domains=["backend", "ai"])
     assert result.combined_tags == ["backend", "ai"]
+
+
+# --- GAP 5: DOMAIN_STACK_ENVELOPE + envelope_for() ------------------------------
+
+
+def test_every_domain_vocab_entry_has_a_stack_envelope():
+    """Every DOMAIN_VOCAB member must have a non-empty allowlist - no domain is
+    left ungoverned, or its fabrications would fall back to un-enforced vibes."""
+    for domain in DOMAIN_VOCAB:
+        assert domain in DOMAIN_STACK_ENVELOPE, f"{domain!r} missing from DOMAIN_STACK_ENVELOPE"
+        assert len(DOMAIN_STACK_ENVELOPE[domain]) > 0, f"{domain!r} has an empty allowlist"
+
+
+def test_domain_stack_envelope_has_no_extra_keys():
+    """No stray keys outside DOMAIN_VOCAB - keeps the two vocabularies in lockstep."""
+    assert set(DOMAIN_STACK_ENVELOPE.keys()) == set(DOMAIN_VOCAB)
+
+
+def test_domain_stack_envelope_seeded_entries():
+    assert set(DOMAIN_STACK_ENVELOPE["realtime"]) >= {
+        "Kafka", "Redis", "WebSockets", "gRPC", "SSE", "message queues",
+    }
+    assert set(DOMAIN_STACK_ENVELOPE["microservices"]) >= {
+        "Docker", "Kubernetes", "service mesh", "circuit breakers", "gRPC",
+    }
+    assert set(DOMAIN_STACK_ENVELOPE["fintech"]) >= {
+        "idempotency keys", "audit logging", "double-entry", "reconciliation",
+        "PCI-scoped services",
+    }
+    assert set(DOMAIN_STACK_ENVELOPE["data-platform"]) >= {
+        "Airflow", "dbt", "CDC", "Parquet", "columnar stores", "partitioning",
+    }
+    assert set(DOMAIN_STACK_ENVELOPE["ai"]) >= {
+        "RAG", "pgvector", "embeddings", "vector search", "LangChain", "model serving",
+    }
+
+
+def test_envelope_for_returns_deduplicated_union():
+    result = envelope_for(["realtime", "microservices"])
+    assert len(result) == len(set(result)), "envelope_for must not repeat any tool"
+    # gRPC appears in both domains' allowlists - must appear exactly once.
+    assert result.count("gRPC") == 1
+    assert "Kafka" in result
+    assert "Docker" in result
+
+
+def test_envelope_for_empty_domains_returns_empty_tuple():
+    assert envelope_for([]) == ()
+
+
+def test_envelope_for_unknown_domain_is_ignored():
+    assert envelope_for(["not-a-real-domain"]) == ()
+
+
+def test_envelope_for_returns_tuple_type():
+    assert isinstance(envelope_for(["ai"]), tuple)

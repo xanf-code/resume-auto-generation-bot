@@ -23,7 +23,7 @@ from src.pipeline.schemas import (
     WriterOutput,
     RoleBullets,
 )
-from src.prompts.recruiters import SKEPTIC_SYSTEM
+from src.prompts.recruiters import DISTILL_NOTES_SYSTEM, SKEPTIC_SYSTEM
 
 
 def _length_finish_reason_error() -> openai.LengthFinishReasonError:
@@ -255,6 +255,48 @@ def test_skeptic_system_documents_cross_bullet_coherence():
     assert "50-70" in SKEPTIC_SYSTEM
 
 
+# --- Skeptic repair-engine upgrade (GAP 6: notes carry reason + repair) ------
+
+
+def test_skeptic_system_requires_reason_and_repair_pair():
+    """Every flagged bullet must carry BOTH why it fails AND the minimal fix."""
+    lowered = SKEPTIC_SYSTEM.lower()
+    assert "repair" in lowered
+    # The three sanctioned repair moves must all be named.
+    assert "corroborating detail" in lowered
+    assert "downgrade" in lowered
+    assert "cut" in lowered
+
+
+def test_skeptic_system_has_worked_repair_example():
+    """A concrete worked example anchors the reason+repair shape for the model."""
+    assert "Kafka" in SKEPTIC_SYSTEM
+    assert "REPAIR:" in SKEPTIC_SYSTEM
+    assert "message-queue-based async processing" in SKEPTIC_SYSTEM
+
+
+def test_skeptic_system_scoring_stance_unchanged_by_repair_upgrade():
+    """The note SHAPE changes, but the score scale must not."""
+    assert "50-70" in SKEPTIC_SYSTEM
+    assert "below 30" in SKEPTIC_SYSTEM.lower()
+
+
+def test_distill_notes_system_preserves_repair_as_imperative():
+    """Distilled directives must keep the Skeptic's concrete fix, not flatten it
+    to a generic 'make it more plausible' instruction."""
+    lowered = DISTILL_NOTES_SYSTEM.lower()
+    assert "repair" in lowered
+    assert "preserve" in lowered
+
+
+def test_distill_notes_system_ranking_rules_unchanged():
+    """Existing ranking rules (plausibility weight, Skeptic traceability
+    outranking cosmetics) must survive the repair-preservation upgrade."""
+    assert "0.30" in DISTILL_NOTES_SYSTEM
+    assert "traceability" in DISTILL_NOTES_SYSTEM.lower()
+    assert "cosmetic" in DISTILL_NOTES_SYSTEM.lower()
+
+
 def test_recruiter_panel_does_not_mutate_input_state(monkeypatch):
     async def fake_score_one(persona_name, system, user):
         return _canned(persona_name)
@@ -316,6 +358,46 @@ def test_recruiter_panel_runs_and_updates_cache_when_latex_changes(monkeypatch):
     assert call_count["n"] == 4, "cache miss must run all four persona calls"
     assert out["panel_cache_latex"] == state["latex_rendered"]
     assert out["panel_cache_scores"] == out["panel_scores"]
+
+
+# --- FABRICATION ENVELOPE wiring (GAP 5: Skeptic scores against the same
+# envelope the Writer was given) ------------------------------------------------
+
+
+def test_skeptic_sees_fabrication_envelope_but_ats_does_not(monkeypatch):
+    captured: dict[str, str] = {}
+
+    async def fake_score_one(persona_name, system, user):
+        captured[persona_name] = user
+        return _canned(persona_name)
+
+    monkeypatch.setattr(recruiters, "score_one", fake_score_one)
+
+    state = _state()
+    state["jd_domains"] = ["realtime", "microservices"]
+    recruiters.recruiter_panel(state)
+
+    skeptic_name = next(n for n, (_s, needs) in recruiters.PERSONAS.items() if needs)
+    ats_name = next(n for n, (_s, needs) in recruiters.PERSONAS.items() if not needs)
+
+    assert "## FABRICATION ENVELOPE" in captured[skeptic_name]
+    assert "Kafka" in captured[skeptic_name]
+    assert "## FABRICATION ENVELOPE" not in captured[ats_name]
+
+
+def test_skeptic_fabrication_envelope_empty_when_no_jd_domains(monkeypatch):
+    captured: dict[str, str] = {}
+
+    async def fake_score_one(persona_name, system, user):
+        captured[persona_name] = user
+        return _canned(persona_name)
+
+    monkeypatch.setattr(recruiters, "score_one", fake_score_one)
+
+    recruiters.recruiter_panel(_state())
+
+    skeptic_name = next(n for n, (_s, needs) in recruiters.PERSONAS.items() if needs)
+    assert "## FABRICATION ENVELOPE" in captured[skeptic_name]
 
 
 def test_recruiter_panel_first_call_has_no_cache_and_runs_normally(monkeypatch):

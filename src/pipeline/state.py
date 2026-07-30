@@ -41,6 +41,11 @@ class PipelineState(TypedDict, total=False):
     resume_struct: ResumeStruct
     identity_ledger: IdentityLedger
     jd_vector: JDVector
+    # JD Tagger's domain tags for this run (0-3, from DOMAIN_VOCAB). Feeds
+    # ``envelope_for()`` so the Writer and Skeptic share one enforceable
+    # fabrication vocabulary instead of un-enforced prose. Set once by
+    # ``analyze_jd``, invariant across revisions.
+    jd_domains: list[str]
     gap_targets: list[ReframingTarget]
 
     # --- writer ---------------------------------------------------------------

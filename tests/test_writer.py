@@ -526,6 +526,33 @@ def test_writer_system_rule5_does_not_touch_other_rules():
     assert "7. BULLET BUDGET" in WRITER_SYSTEM
 
 
+# --- GAP 5: PLAUSIBILITY ENVELOPE is enforced via the per-run FABRICATION ENVELOPE --
+
+
+def test_writer_system_plausibility_envelope_points_at_fabrication_envelope():
+    """The hardcoded prose examples (job-scraping engine / Kafka / blockchain)
+    must be gone - the legal fabrication vocabulary is supplied per-run in the
+    user message, not baked into the system prompt."""
+    from src.prompts.writer import WRITER_SYSTEM
+
+    assert "PLAUSIBILITY ENVELOPE" in WRITER_SYSTEM
+    assert "## FABRICATION ENVELOPE" in WRITER_SYSTEM
+    assert "job-scraping engine" not in WRITER_SYSTEM
+    assert "computer-vision model training" not in WRITER_SYSTEM
+    assert "blockchain" not in WRITER_SYSTEM
+
+
+def test_writer_system_plausibility_envelope_is_the_hard_boundary():
+    from src.prompts.writer import WRITER_SYSTEM
+
+    envelope_pos = WRITER_SYSTEM.index("PLAUSIBILITY ENVELOPE")
+    envelope_block = WRITER_SYSTEM[envelope_pos:envelope_pos + 800]
+    assert "ONLY" in envelope_block
+    assert "source" in envelope_block.lower()
+    # Phone-screen bar line must survive the rewrite.
+    assert "Defensible in a phone screen is the bar" in envelope_block
+
+
 # --- build_writer_user_message: BULLET SHAPE DIRECTIVE section ----------------
 
 
@@ -567,3 +594,48 @@ def test_build_writer_user_message_subset_shapes_rotates_among():
     msg = writer.build_writer_user_message(state)
     assert "Rotate ONLY among" in msg
     assert "## BULLET SHAPE DIRECTIVE" in msg
+
+
+# --- build_writer_user_message: FABRICATION ENVELOPE (GAP 5) ------------------
+
+
+def test_build_writer_user_message_always_includes_fabrication_envelope_header():
+    """Every call includes the header, even with no tagged domains."""
+    msg = writer.build_writer_user_message(_first_iteration_state())
+    assert "## FABRICATION ENVELOPE" in msg
+
+
+def test_build_writer_user_message_fabrication_envelope_reflects_jd_domains():
+    state = _first_iteration_state()
+    state["jd_domains"] = ["realtime", "microservices"]
+    msg = writer.build_writer_user_message(state)
+
+    assert "Kafka" in msg
+    assert "Docker" in msg
+
+
+def test_build_writer_user_message_fabrication_envelope_empty_when_no_domains():
+    """No jd_domains in state → envelope section still present but empty/narrow."""
+    msg = writer.build_writer_user_message(_first_iteration_state())
+    envelope_pos = msg.index("## FABRICATION ENVELOPE")
+    next_section = msg.index("## RESUME")
+    envelope_block = msg[envelope_pos:next_section]
+    assert "Kafka" not in envelope_block
+    assert "Docker" not in envelope_block
+
+
+def test_build_writer_user_message_fabrication_envelope_precedes_resume():
+    state = _first_iteration_state()
+    state["jd_domains"] = ["ai"]
+    msg = writer.build_writer_user_message(state)
+    assert msg.index("## FABRICATION ENVELOPE") < msg.index("## RESUME")
+
+
+def test_build_writer_user_message_fabrication_envelope_deduplicates_across_domains():
+    state = _first_iteration_state()
+    state["jd_domains"] = ["realtime", "microservices"]
+    msg = writer.build_writer_user_message(state)
+    envelope_pos = msg.index("## FABRICATION ENVELOPE")
+    next_section = msg.index("## RESUME")
+    envelope_block = msg[envelope_pos:next_section]
+    assert envelope_block.count("gRPC") == 1

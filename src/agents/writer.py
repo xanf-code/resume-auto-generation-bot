@@ -17,6 +17,7 @@ from src.pipeline.llm import parse_strong
 log = logging.getLogger(__name__)
 from src.pipeline.schemas import WriterOutput
 from src.pipeline.state import PipelineState
+from src.prompts.jd_tagger import envelope_for
 from src.prompts.writer import BULLET_SHAPES, SHAPE_NAMES, WRITER_SYSTEM
 
 # The Writer prompt asks the model to self-verify length by appending a
@@ -129,6 +130,21 @@ def build_shape_directive(shapes: list[str] | None) -> str:
     return "\n".join(lines).rstrip()
 
 
+def render_fabrication_envelope(domains: list[str] | None) -> str:
+    """Render the ``## FABRICATION ENVELOPE`` block from the JD's tagged domains.
+
+    The envelope is the ONLY legal fabrication vocabulary for this run - the
+    Writer's system prompt forbids inventing anything outside it (plus
+    whatever the source material already names). No domains / no matches
+    yields an explicit empty-list line rather than omitting the section, so
+    the constraint is always visible even when it is maximally strict.
+    """
+    tools = envelope_for(domains or [])
+    if not tools:
+        return "(none - no tagged domains this run; invent nothing beyond the source material)"
+    return "\n".join(f"- {tool}" for tool in tools)
+
+
 def build_writer_user_message(state: PipelineState) -> str:
     """Assemble the Writer's user prompt from the current pipeline state.
 
@@ -151,10 +167,15 @@ def build_writer_user_message(state: PipelineState) -> str:
     ) + "\n]" if targets else "[]"
 
     shape_directive = build_shape_directive(state.get("bullet_shapes"))
+    fabrication_envelope = render_fabrication_envelope(state.get("jd_domains"))
 
     sections = [
         "## BULLET SHAPE DIRECTIVE",
         shape_directive,
+        "",
+        "## FABRICATION ENVELOPE (the ONLY legal fabrication vocabulary - "
+        "plus anything already in the source)",
+        fabrication_envelope,
         "",
         "## RESUME (structured - the ONLY ground truth for every claim)",
         struct.model_dump_json(indent=2),

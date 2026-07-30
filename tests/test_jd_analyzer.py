@@ -5,6 +5,7 @@
 import logging
 
 from src.agents import jd_analyzer
+from src.agents.jd_tagger import JdClassification
 from src.pipeline.schemas import JDVector, SkillWeight
 
 SAMPLE_JD = (
@@ -37,6 +38,9 @@ def test_analyze_jd_writes_jd_vector(monkeypatch):
         return vector
 
     monkeypatch.setattr(jd_analyzer, "parse_fast", fake_parse_fast)
+    monkeypatch.setattr(
+        jd_analyzer, "classify_jd_type", lambda jd_raw: JdClassification(role=None, domains=[])
+    )
 
     out = jd_analyzer.analyze_jd({"jd_raw": SAMPLE_JD})
 
@@ -44,12 +48,39 @@ def test_analyze_jd_writes_jd_vector(monkeypatch):
     assert captured["user"] == SAMPLE_JD
     assert isinstance(captured["system"], str) and captured["system"]
 
-    assert set(out.keys()) == {"jd_vector"}
+    assert set(out.keys()) == {"jd_vector", "jd_domains"}
     assert out["jd_vector"] is vector
+
+
+def test_analyze_jd_writes_jd_domains_from_tagger(monkeypatch):
+    monkeypatch.setattr(jd_analyzer, "parse_fast", lambda *a, **k: _fixed_vector())
+    monkeypatch.setattr(
+        jd_analyzer,
+        "classify_jd_type",
+        lambda jd_raw: JdClassification(role="data", domains=["data-platform", "saas"]),
+    )
+
+    out = jd_analyzer.analyze_jd({"jd_raw": SAMPLE_JD})
+
+    assert out["jd_domains"] == ["data-platform", "saas"]
+
+
+def test_analyze_jd_jd_domains_empty_when_tagger_finds_none(monkeypatch):
+    monkeypatch.setattr(jd_analyzer, "parse_fast", lambda *a, **k: _fixed_vector())
+    monkeypatch.setattr(
+        jd_analyzer, "classify_jd_type", lambda jd_raw: JdClassification(role=None, domains=[])
+    )
+
+    out = jd_analyzer.analyze_jd({"jd_raw": SAMPLE_JD})
+
+    assert out["jd_domains"] == []
 
 
 def test_analyze_jd_does_not_mutate_input_state(monkeypatch):
     monkeypatch.setattr(jd_analyzer, "parse_fast", lambda *a, **k: _fixed_vector())
+    monkeypatch.setattr(
+        jd_analyzer, "classify_jd_type", lambda jd_raw: JdClassification(role=None, domains=[])
+    )
     state = {"jd_raw": SAMPLE_JD}
     jd_analyzer.analyze_jd(state)
     assert state == {"jd_raw": SAMPLE_JD}
@@ -58,6 +89,9 @@ def test_analyze_jd_does_not_mutate_input_state(monkeypatch):
 def test_analyze_jd_logs_extracted_keywords(monkeypatch, caplog):
     """Extracted ATS keywords, weighted skills, and must-mirror phrases appear in logs."""
     monkeypatch.setattr(jd_analyzer, "parse_fast", lambda *a, **k: _fixed_vector())
+    monkeypatch.setattr(
+        jd_analyzer, "classify_jd_type", lambda jd_raw: JdClassification(role=None, domains=[])
+    )
     with caplog.at_level(logging.INFO, logger="src.agents.jd_analyzer"):
         jd_analyzer.analyze_jd({"jd_raw": SAMPLE_JD})
     log_text = " ".join(caplog.messages)

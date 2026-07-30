@@ -21,6 +21,7 @@ from src.pipeline.llm import parse_scoring
 log = logging.getLogger(__name__)
 from src.pipeline.schemas import InventedTool, JDVector, PanelScore, ResumeStruct
 from src.pipeline.state import PipelineState
+from src.prompts.jd_tagger import envelope_for
 from src.prompts.recruiters import (
     ATS_MATCHER_SYSTEM,
     HIRING_MANAGER_SYSTEM,
@@ -43,13 +44,16 @@ def build_user_message(
     vector: JDVector,
     struct: ResumeStruct | None,
     invented_stack: list[InventedTool] | None = None,
+    fabrication_envelope: tuple[str, ...] | None = None,
 ) -> str:
     """Assemble one persona's user prompt.
 
     Always includes the rendered LaTeX and the JD vector. Includes the
-    structured source resume (``source_evidence``) and the writer's fabrication
-    ledger (``invented_stack``) ONLY when provided - that is, for the Skeptic.
-    Pure and deterministic.
+    structured source resume (``source_evidence``), the writer's fabrication
+    ledger (``invented_stack``), and the ``## FABRICATION ENVELOPE`` (the same
+    legal fabrication vocabulary the Writer was given) ONLY when provided -
+    that is, for the Skeptic, so it scores plausibility against the identical
+    envelope rather than its own judgment call. Pure and deterministic.
     """
     sections = [
         "## RENDERED RESUME (LaTeX)",
@@ -76,6 +80,19 @@ def build_user_message(
             "## INVENTED STACK (writer's fabrication ledger - assess cross-bullet "
             "coherence, not just per-line plausibility)",
             stack_json,
+        ]
+    if fabrication_envelope is not None:
+        envelope_text = (
+            "\n".join(f"- {tool}" for tool in fabrication_envelope)
+            if fabrication_envelope
+            else "(none - no tagged domains this run; the writer had nothing "
+            "beyond the source material to invent)"
+        )
+        sections += [
+            "",
+            "## FABRICATION ENVELOPE (the ONLY legal fabrication vocabulary the "
+            "writer was given - score claims outside it as unsupported)",
+            envelope_text,
         ]
     return "\n".join(sections) + "\n"
 
@@ -136,6 +153,7 @@ async def run_panel(state: PipelineState) -> list[PanelScore]:
     vector = state["jd_vector"]
     struct = state["resume_struct"]
     invented_stack = getattr(state.get("writer_output"), "invented_stack", [])
+    fabrication_envelope = envelope_for(state.get("jd_domains") or [])
 
     tasks = []
     for persona_name, (system, needs_source) in PERSONAS.items():
@@ -144,6 +162,7 @@ async def run_panel(state: PipelineState) -> list[PanelScore]:
             vector,
             struct if needs_source else None,
             invented_stack if needs_source else None,
+            fabrication_envelope if needs_source else None,
         )
         tasks.append(score_one(persona_name, system, user))
 

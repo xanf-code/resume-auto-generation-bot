@@ -40,6 +40,15 @@ deduplicated revision directives for the writer (aim for at most ~10). Rules:
 - Merge overlapping feedback into one directive; drop vague praise.
 - Each directive is a single actionable imperative sentence referencing the
   specific bullet/section where possible.
+- PRESERVE REPAIRS: when a Skeptic note pairs a plausibility flag with a
+  concrete repair (add a named corroborating detail, downgrade to an
+  adjacent-but-defensible framing, or cut it), the directive MUST carry that
+  exact fix forward as the imperative - do NOT genericize it into "make the
+  claim more plausible". E.g. a Skeptic note flagging an unsourced Kafka claim
+  with "REPAIR: add a downstream consumer/partition detail, or downgrade to
+  'message-queue-based async processing'" becomes the directive "Add a
+  consumer-group/partition detail to the Kafka bullet, or downgrade it to
+  async message-queue processing" - never a vaguer restatement.
 
 Return ONLY the structured object with ``notes`` as the ranked list of strings."""
 
@@ -132,6 +141,21 @@ together across the whole page. Check the ledger:
 Scoring stance: give reasonable benefit of the doubt for adjacent framing -
 plausibility of 50-70 is appropriate for well-framed adjacent experience.
 Reserve low scores (below 30) for genuinely implausible or contradictory claims.
-In ``notes``, flag only bullets that would genuinely fail a phone screen."""
+
+REASON + REPAIR (in ``notes``): flag only bullets that would genuinely fail a
+phone screen, and for EACH flagged bullet state BOTH:
+(a) the specific reason it fails - name the exact gap (no consuming
+    service/scale context, contradicts another ledger entry, generic filler
+    detail, etc.), and
+(b) the minimal REPAIR that would make it defensible - exactly one of:
+    - add a named corroborating detail (a concrete practitioner fact: a
+      partition key, a consumer group, a queue depth, a downstream service),
+    - downgrade the claim to an adjacent-but-defensible framing, or
+    - cut it.
+A flag without a repair is not actionable - do not emit one.
+
+Worked example: "Bullet 3 claims Kafka expertise with no consuming service or
+scale context - REPAIR: add a downstream consumer/partition detail, or
+downgrade to 'message-queue-based async processing'"."""
     + _RUBRIC
 )
