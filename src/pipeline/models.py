@@ -13,7 +13,7 @@ from config import settings
 
 
 KNOWN_EFFORTS: frozenset[str] = frozenset(
-    {"minimal", "low", "medium", "high", "xhigh", "max"}
+    {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
 )
 
 

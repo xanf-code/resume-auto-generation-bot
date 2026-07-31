@@ -54,7 +54,9 @@ MODEL_SKILLS = "openai/gpt-4o-mini"
 # (extra_body={"reasoning": {"effort": ...}}), which Anthropic reasoning models
 # honor as thinking-effort depth. Only MODEL_STRONG / MODEL_GAP are reasoning
 # models - MODEL_FAST / MODEL_SCORING (gpt-4o-mini) don't take an effort knob.
-# Valid values: "low" | "medium" | "high" | "max" | "x-high".
+# Valid values: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max".
+# ``none`` disables reasoning via OpenRouter's reasoning.effort (not the same
+# as omitting the field — omit for non-reasoning models that reject the param).
 EFFORT_STRONG = "low"  # Writer (creative optimization, keyword balancing)
 EFFORT_GAP = "low"     # Gap Analyzer (creative reframing strategy)
 EFFORT_SKILLS = "low"     # Skills node (ignored by gpt-4o-mini; wired for future reasoning-model switch)

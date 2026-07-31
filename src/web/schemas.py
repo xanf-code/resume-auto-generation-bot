@@ -85,7 +85,7 @@ class TuningDTO(BaseModel):
 
 
 _KNOWN_EFFORTS = frozenset(
-    {"minimal", "low", "medium", "high", "xhigh", "max"}
+    {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
 )
 
 

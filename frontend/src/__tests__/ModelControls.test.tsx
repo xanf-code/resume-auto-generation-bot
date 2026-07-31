@@ -16,7 +16,7 @@ const CATALOG = {
       structured_output: true,
       reasoning: {
         mandatory: false,
-        supported_efforts: ['max', 'high', 'medium', 'low'],
+        supported_efforts: ['max', 'high', 'medium', 'low', 'none'],
         default_effort: 'high',
       },
     },
@@ -26,7 +26,7 @@ const CATALOG = {
       structured_output: true,
       reasoning: {
         mandatory: false,
-        supported_efforts: ['max', 'high', 'medium', 'low'],
+        supported_efforts: ['max', 'high', 'medium', 'low', 'none'],
         default_effort: 'high',
       },
     },
@@ -36,7 +36,7 @@ const CATALOG = {
       structured_output: true,
       reasoning: {
         mandatory: false,
-        supported_efforts: ['max', 'high', 'medium', 'low'],
+        supported_efforts: ['max', 'high', 'medium', 'low', 'none'],
         default_effort: 'medium',
       },
     },
@@ -170,6 +170,50 @@ describe('ModelControls', () => {
     const arg = onChange.mock.calls.at(-1)![0] as ModelsConfig;
     expect(arg.parser.model).toBe('anthropic/claude-opus-5');
     expect(arg.parser.effort).toBe('high');
+  });
+
+  it('lets the user pick none reasoning when the model supports it', async () => {
+    const { onChange } = setup();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Writer reasoning')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Writer reasoning'), {
+      target: { value: 'none' },
+    });
+
+    const arg = onChange.mock.calls.at(-1)![0] as ModelsConfig;
+    expect(arg.writer.effort).toBe('none');
+  });
+
+  it('hides none when reasoning is mandatory', async () => {
+    const models: ModelsConfig = {
+      ...DEFAULT_MODELS,
+      writer: { model: 'acme/mandatory-reasoner', effort: 'high' },
+    };
+    (listModels as unknown as Mock).mockResolvedValue({
+      models: [
+        ...CATALOG.models,
+        {
+          id: 'acme/mandatory-reasoner',
+          name: 'Mandatory Reasoner',
+          structured_output: true,
+          reasoning: {
+            mandatory: true,
+            supported_efforts: ['high', 'medium', 'none'],
+            default_effort: 'high',
+          },
+        },
+      ],
+    });
+    setup(models);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Writer reasoning')).toBeInTheDocument();
+    });
+    const select = screen.getByLabelText('Writer reasoning') as HTMLSelectElement;
+    const values = Array.from(select.options).map((o) => o.value);
+    expect(values).toContain('high');
+    expect(values).not.toContain('none');
   });
 
   it('hides effort when the model has reasoning but no supported_efforts key', async () => {

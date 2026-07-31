@@ -24,18 +24,40 @@ describe('effortOptionsFor', () => {
 
   it('returns the listed efforts when supported_efforts is a list', () => {
     const reasoning: ModelReasoning = {
-      supported_efforts: ['high', 'medium', 'low'],
+      supported_efforts: ['high', 'medium', 'low', 'none'],
       default_effort: 'high',
     };
-    expect(effortOptionsFor(reasoning)).toEqual(['high', 'medium', 'low']);
+    expect(effortOptionsFor(reasoning)).toEqual([
+      'high',
+      'medium',
+      'low',
+      'none',
+    ]);
   });
 
-  it('returns the full gateway set when supported_efforts is null', () => {
+  it('returns the full gateway set including none when supported_efforts is null', () => {
     const reasoning: ModelReasoning = {
       supported_efforts: null,
       default_effort: 'medium',
     };
     expect(effortOptionsFor(reasoning)).toEqual([...GATEWAY_EFFORTS]);
+    expect(GATEWAY_EFFORTS).toContain('none');
+  });
+
+  it('strips none when reasoning is mandatory', () => {
+    const fromList: ModelReasoning = {
+      mandatory: true,
+      supported_efforts: ['high', 'medium', 'none'],
+    };
+    expect(effortOptionsFor(fromList)).toEqual(['high', 'medium']);
+
+    const fromGateway: ModelReasoning = {
+      mandatory: true,
+      supported_efforts: null,
+    };
+    expect(effortOptionsFor(fromGateway)).toEqual(
+      GATEWAY_EFFORTS.filter((e) => e !== 'none'),
+    );
   });
 });
 

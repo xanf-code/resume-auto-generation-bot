@@ -423,6 +423,22 @@ def test_parse_forwards_effort_via_openrouter_reasoning_extra_body(monkeypatch):
     assert captured["extra_body"] == {"reasoning": {"effort": "high"}}
 
 
+def test_parse_forwards_effort_none_string_to_disable_reasoning(monkeypatch):
+    """effort='none' is OpenRouter's disable flag — must be sent, not omitted.
+
+    Distinct from Python None, which omits the reasoning block entirely
+    (for non-reasoning models that reject the parameter).
+    """
+    import src.pipeline.llm as llm
+
+    captured = {}
+    monkeypatch.setattr(llm, "client", lambda: _fake_openai_client(captured))
+
+    llm._parse("sys", "user", _DummySchema, "some/model", 1234, effort="none")
+
+    assert captured["extra_body"] == {"reasoning": {"effort": "none"}}
+
+
 def test_parse_omits_extra_body_when_effort_is_none(monkeypatch):
     """Non-reasoning calls (parse_fast / parse_scoring) must not send a reasoning
     field at all - gpt-4o-mini has no effort knob."""
@@ -434,6 +450,14 @@ def test_parse_omits_extra_body_when_effort_is_none(monkeypatch):
     llm._parse("sys", "user", _DummySchema, "some/model", 1234)
 
     assert "extra_body" not in captured
+
+
+def test_runner_forwards_effort_none_through_model_context():
+    """When a role's effort is the string 'none', model_context must surface it."""
+    from src.pipeline.llm import _ctx_effort_strong, model_context
+
+    with model_context(fast="f", strong="s", effort_strong="none"):
+        assert _ctx_effort_strong.get() == "none"
 
 
 # --- per-run effort overrides via model_context ---------------------------------

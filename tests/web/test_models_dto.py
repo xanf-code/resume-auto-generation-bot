@@ -23,6 +23,20 @@ def _models(**over) -> dict:
     return base
 
 
+def test_models_dto_to_pipeline_models_preserves_none_effort():
+    from src.web.schemas import ModelsDTO
+
+    dto = ModelsDTO(
+        **_models(
+            writer=_role("anthropic/claude-opus-5", "none"),
+            gap=_role("anthropic/claude-opus-5", "none"),
+        )
+    )
+    pm = dto.to_pipeline_models()
+    assert pm.writer.effort == "none"
+    assert pm.gap.effort == "none"
+
+
 def test_job_submit_models_defaults_to_none():
     from src.web.schemas import JobSubmitRequest
 
@@ -80,9 +94,17 @@ def test_model_role_rejects_unknown_effort():
 def test_model_role_accepts_known_efforts():
     from src.web.schemas import ModelRoleDTO
 
-    for effort in ("minimal", "low", "medium", "high", "xhigh", "max"):
+    for effort in ("none", "minimal", "low", "medium", "high", "xhigh", "max"):
         dto = ModelRoleDTO(model="anthropic/claude-opus-5", effort=effort)
         assert dto.effort == effort
+
+
+def test_model_role_accepts_none_effort_string():
+    """OpenRouter effort 'none' disables reasoning; must pass DTO validation."""
+    from src.web.schemas import ModelRoleDTO
+
+    dto = ModelRoleDTO(model="anthropic/claude-opus-5", effort="none")
+    assert dto.effort == "none"
 
 
 def test_job_manager_persists_models():

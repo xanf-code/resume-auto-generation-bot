@@ -18,8 +18,13 @@ export interface ModelRoleConfig {
 
 export type ModelsConfig = Record<ModelRoleKey, ModelRoleConfig>;
 
-/** Gateway effort values when OpenRouter returns supported_efforts: null. */
+/**
+ * Gateway effort values when OpenRouter returns supported_efforts: null.
+ * Includes ``none`` (explicitly disables reasoning). Filtered out when
+ * ``reasoning.mandatory`` is true — those models reject ``effort: "none"``.
+ */
 export const GATEWAY_EFFORTS = [
+  'none',
   'minimal',
   'low',
   'medium',
@@ -125,19 +130,28 @@ export function presetLabel(id: ModelPresetId | 'custom'): string {
  * Effort options for a catalog entry, or null when the effort dropdown should hide.
  * - no reasoning → hide
  * - supported_efforts key omitted → hide (reasoning without effort selector)
- * - supported_efforts: null → full gateway set
- * - supported_efforts: list → that list
+ * - supported_efforts: null → full gateway set (incl. ``none``)
+ * - supported_efforts: list → that list (``none`` only if the catalog listed it)
+ * - mandatory → strip ``none`` (model rejects disable)
  */
 export function effortOptionsFor(
   reasoning: ModelReasoning | null | undefined,
 ): string[] | null {
   if (!reasoning) return null;
   if (!('supported_efforts' in reasoning)) return null;
-  if (reasoning.supported_efforts === null) return [...GATEWAY_EFFORTS];
-  if (Array.isArray(reasoning.supported_efforts)) {
-    return reasoning.supported_efforts;
+
+  let options: string[] | null = null;
+  if (reasoning.supported_efforts === null) {
+    options = [...GATEWAY_EFFORTS];
+  } else if (Array.isArray(reasoning.supported_efforts)) {
+    options = [...reasoning.supported_efforts];
   }
-  return null;
+  if (!options) return null;
+
+  if (reasoning.mandatory) {
+    options = options.filter((e) => e !== 'none');
+  }
+  return options.length > 0 ? options : null;
 }
 
 export function findCatalogModel(

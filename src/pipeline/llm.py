@@ -33,7 +33,7 @@ DEFAULT_MAX_TOKENS = 16_000
 # output. DEFAULT_MAX_TOKENS is too tight for them - reasoning alone can eat
 # the ceiling before the schema is emitted, surfacing as
 # openai.LengthFinishReasonError. These two calls get more headroom.
-REASONING_MAX_TOKENS = 16_000
+REASONING_MAX_TOKENS = 32_000
 
 # Sentinel: ContextVar / kwarg default meaning "use role settings default".
 _UNSET: Any = object()
@@ -164,6 +164,8 @@ def _parse(
         # field, so it must go through extra_body. Anthropic reasoning models
         # translate this into a thinking-effort depth; the thinking token
         # budget itself is calculated from max_tokens.
+        # effort="none" is intentional: send it so OpenRouter disables
+        # reasoning. Python None (omit this block) is for non-reasoning models.
         extra_kwargs["extra_body"] = {"reasoning": {"effort": effort}}
     response = client().beta.chat.completions.parse(
         model=model,
