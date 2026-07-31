@@ -22,6 +22,7 @@ from config.settings import (
     MODEL_STRONG,
     require_api_key,
 )
+from src.pipeline.models import ModelRole
 
 SchemaT = TypeVar("SchemaT", bound=BaseModel)
 
@@ -265,6 +266,62 @@ def _optional_kwargs(effort: str | None, temperature: float | None) -> dict[str,
     if temperature is not None:
         kwargs["temperature"] = temperature
     return kwargs
+
+
+# --- effective_* introspection --------------------------------------------------
+#
+# Agent node files log "sending to <model> (effort=..., temp=...)" before calling
+# parse_*. That line must reflect what THIS run will actually send - not the
+# static config.settings constants - or it lies whenever a model_context
+# override is active (see the writer/gap "no override taken" bug this fixed).
+# Each effective_* mirrors its parse_*'s own resolution exactly, with no
+# explicit per-call override (matching how every current call site invokes
+# parse_* - system/user/schema only, no explicit effort/temperature kwarg).
+
+
+def effective_fast() -> ModelRole:
+    """The (model, effort, temperature) parse_fast will use for this run."""
+    return ModelRole(
+        model=_ctx_model_fast.get() or MODEL_FAST,
+        effort=_resolve_effort(_UNSET, _ctx_effort_fast, None),
+        temperature=_resolve_temperature(_UNSET, _ctx_temp_fast, None),
+    )
+
+
+def effective_strong() -> ModelRole:
+    """The (model, effort, temperature) parse_strong will use for this run."""
+    return ModelRole(
+        model=_ctx_model_strong.get() or MODEL_STRONG,
+        effort=_resolve_effort(_UNSET, _ctx_effort_strong, EFFORT_STRONG),
+        temperature=_resolve_temperature(_UNSET, _ctx_temp_strong, None),
+    )
+
+
+def effective_gap() -> ModelRole:
+    """The (model, effort, temperature) parse_gap will use for this run."""
+    return ModelRole(
+        model=_ctx_model_gap.get() or MODEL_GAP,
+        effort=_resolve_effort(_UNSET, _ctx_effort_gap, EFFORT_GAP),
+        temperature=_resolve_temperature(_UNSET, _ctx_temp_gap, None),
+    )
+
+
+def effective_scoring() -> ModelRole:
+    """The (model, effort, temperature) parse_scoring will use for this run."""
+    return ModelRole(
+        model=_ctx_model_scoring.get() or MODEL_SCORING,
+        effort=_resolve_effort(_UNSET, _ctx_effort_scoring, None),
+        temperature=_resolve_temperature(_UNSET, _ctx_temp_scoring, None),
+    )
+
+
+def effective_skills() -> ModelRole:
+    """The (model, effort, temperature) parse_skills will use for this run."""
+    return ModelRole(
+        model=_ctx_model_skills.get() or MODEL_SKILLS,
+        effort=_resolve_effort(_UNSET, _ctx_effort_skills, None),
+        temperature=_resolve_temperature(_UNSET, _ctx_temp_skills, None),
+    )
 
 
 def parse_fast(

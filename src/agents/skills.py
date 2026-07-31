@@ -10,8 +10,7 @@ lets the run finish (PDF + score still ship).
 """
 import logging
 
-from config.settings import MODEL_SKILLS
-from src.pipeline.llm import parse_skills
+from src.pipeline.llm import effective_skills, parse_skills
 from src.pipeline.schemas import JDVector, ReframingTarget, ResumeStruct, SkillDump
 from src.pipeline.state import PipelineState
 from src.prompts.skills import SKILLS_SYSTEM
@@ -58,7 +57,11 @@ def generate_skills(state: PipelineState) -> dict:
     vector = state["jd_vector"]
     targets = state.get("gap_targets", [])
 
-    log.info("skills       | generating skill dump → %s", MODEL_SKILLS)
+    role = effective_skills()
+    log.info(
+        "skills       | generating skill dump → %s (effort=%s, temp=%s)",
+        role.model, role.effort, role.temperature,
+    )
     try:
         msg = build_skills_user_message(struct, vector, targets)
         dump = parse_skills(SKILLS_SYSTEM, msg, SkillDump)

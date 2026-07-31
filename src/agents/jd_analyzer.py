@@ -6,9 +6,8 @@ and the top must-mirror phrases.
 """
 import logging
 
-from config.settings import MODEL_FAST
 from src.agents.jd_tagger import classify_jd_type
-from src.pipeline.llm import parse_fast
+from src.pipeline.llm import effective_fast, parse_fast
 from src.pipeline.schemas import JDVector
 from src.pipeline.state import PipelineState
 from src.prompts.extraction import JD_SYSTEM
@@ -25,7 +24,11 @@ def analyze_jd(state: PipelineState) -> dict:
     so a tagger failure degrades to an empty envelope rather than failing the run.
     """
     jd_raw = state["jd_raw"]
-    log.info("analyze_jd  | sending %d chars to %s", len(jd_raw), MODEL_FAST)
+    role = effective_fast()
+    log.info(
+        "analyze_jd  | sending %d chars to %s (effort=%s, temp=%s)",
+        len(jd_raw), role.model, role.effort, role.temperature,
+    )
     vector = parse_fast(JD_SYSTEM, jd_raw, JDVector)
     log.info(
         "analyze_jd  | done - %d weighted skills, %d ATS keywords, "

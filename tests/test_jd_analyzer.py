@@ -86,6 +86,27 @@ def test_analyze_jd_does_not_mutate_input_state(monkeypatch):
     assert state == {"jd_raw": SAMPLE_JD}
 
 
+def test_analyze_jd_logs_the_actual_model_context_override(monkeypatch, caplog):
+    """Regression test: the log line used to hardcode MODEL_FAST from
+    config.settings, so it lied whenever a per-job model_context override was
+    active. It must report the override, not the static settings constant."""
+    from src.pipeline.llm import model_context
+
+    monkeypatch.setattr(jd_analyzer, "parse_fast", lambda *a, **k: _fixed_vector())
+    monkeypatch.setattr(
+        jd_analyzer, "classify_jd_type", lambda jd_raw: JdClassification(role=None, domains=[])
+    )
+    with caplog.at_level(logging.INFO, logger="src.agents.jd_analyzer"):
+        with model_context(
+            fast="google/gemini-2.5-flash-lite", strong="s", temp_fast=0.0
+        ):
+            jd_analyzer.analyze_jd({"jd_raw": SAMPLE_JD})
+
+    log_text = " ".join(caplog.messages)
+    assert "google/gemini-2.5-flash-lite" in log_text
+    assert "temp=0.0" in log_text
+
+
 def test_analyze_jd_logs_extracted_keywords(monkeypatch, caplog):
     """Extracted ATS keywords, weighted skills, and must-mirror phrases appear in logs."""
     monkeypatch.setattr(jd_analyzer, "parse_fast", lambda *a, **k: _fixed_vector())

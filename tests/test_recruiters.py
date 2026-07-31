@@ -9,6 +9,8 @@ NO live API calls (ANTHROPIC_API_KEY is intentionally unset). These tests pin:
   ``resume_struct``) while the ATS Matcher's does not;
 - the node never mutates input state.
 """
+import logging
+
 import openai
 import pytest
 
@@ -107,6 +109,33 @@ def test_recruiter_panel_returns_four_distinct_scores(monkeypatch):
     assert all(isinstance(s, PanelScore) for s in scores)
     # Four distinct persona names.
     assert len({s.persona for s in scores}) == 4
+
+
+def test_recruiter_panel_logs_the_actual_model_context_override(monkeypatch, caplog):
+    """Regression test: the log line used to hardcode MODEL_SCORING from
+    config.settings, so it lied whenever a per-job model_context override was
+    active. It must report the override, not the static settings constant."""
+    from src.pipeline.llm import model_context
+
+    async def fake_score_one(persona_name, system, user):
+        return _canned(persona_name)
+
+    monkeypatch.setattr(recruiters, "score_one", fake_score_one)
+
+    with caplog.at_level(logging.INFO, logger="src.agents.recruiters"):
+        with model_context(
+            fast="f",
+            strong="s",
+            scoring="deepseek/deepseek-v4-flash",
+            effort_scoring="xhigh",
+            temp_scoring=0.2,
+        ):
+            recruiters.recruiter_panel(_state())
+
+    log_text = " ".join(caplog.messages)
+    assert "deepseek/deepseek-v4-flash" in log_text
+    assert "effort=xhigh" in log_text
+    assert "temp=0.2" in log_text
 
 
 def test_skeptic_sees_source_evidence_but_ats_does_not(monkeypatch):

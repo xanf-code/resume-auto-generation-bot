@@ -6,6 +6,8 @@
 - Idempotency: skill_dump already present → no call, returns {}.
 - Graceful failure: parse_skills raises → empty SkillDump returned, no exception.
 """
+import logging
+
 from src.agents import skills as skills_mod
 from src.pipeline.schemas import (
     JDVector,
@@ -134,6 +136,29 @@ def test_generate_skills_calls_parse_skills_once(monkeypatch):
     assert calls["n"] == 1
     assert "skill_dump" in result
     assert result["skill_dump"] is canned
+
+
+def test_generate_skills_logs_the_actual_model_context_override(monkeypatch, caplog):
+    """Regression test: the log line used to hardcode MODEL_SKILLS from
+    config.settings, so it lied whenever a per-job model_context override was
+    active. It must report the override, not the static settings constant."""
+    from src.pipeline.llm import model_context
+
+    canned = SkillDump(language_and_framework=["Python"], infrastructure=[], database=[], ai_tools=[])
+    monkeypatch.setattr(skills_mod, "parse_skills", lambda *a, **k: canned)
+
+    with caplog.at_level(logging.INFO, logger="src.agents.skills"):
+        with model_context(
+            fast="f",
+            strong="s",
+            skills="qwen/qwen3-30b-a3b-instruct-2507",
+            temp_skills=0.2,
+        ):
+            skills_mod.generate_skills(_first_iteration_state())
+
+    log_text = " ".join(caplog.messages)
+    assert "qwen/qwen3-30b-a3b-instruct-2507" in log_text
+    assert "temp=0.2" in log_text
 
 
 def test_generate_skills_idempotent_when_dump_already_present(monkeypatch):

@@ -9,8 +9,7 @@ guard rejects loudly.
 import logging
 import re
 
-from config.settings import MODEL_FAST
-from src.pipeline.llm import parse_fast
+from src.pipeline.llm import effective_fast, parse_fast
 
 log = logging.getLogger(__name__)
 from src.pipeline.schemas import IdentityLedger, ResumeStruct, Role
@@ -186,7 +185,11 @@ def parse_resume(state: PipelineState) -> dict:
         return {"resume_struct": cached_struct, "identity_ledger": cached_ledger}
 
     resume_tex_raw = state["resume_tex_raw"]
-    log.info("parse_resume | sending %d chars to %s", len(resume_tex_raw), MODEL_FAST)
+    role = effective_fast()
+    log.info(
+        "parse_resume | sending %d chars to %s (effort=%s, temp=%s)",
+        len(resume_tex_raw), role.model, role.effort, role.temperature,
+    )
     struct = parse_fast(PARSER_SYSTEM, resume_tex_raw, ResumeStruct)
     name = extract_name(resume_tex_raw)
     contact = extract_contact(resume_tex_raw)

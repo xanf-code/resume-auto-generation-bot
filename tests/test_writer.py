@@ -289,6 +289,29 @@ def test_write_resume_logs_configured_effort(monkeypatch, caplog):
     assert f"effort={EFFORT_STRONG}" in log_text
 
 
+def test_write_resume_logs_the_actual_model_context_override(monkeypatch, caplog):
+    """Regression test: the log line used to hardcode MODEL_STRONG/EFFORT_STRONG
+    from config.settings, so it lied whenever a per-job model_context override
+    was active. It must report the override, not the static settings constants."""
+    from src.pipeline.llm import model_context
+
+    monkeypatch.setattr(writer, "parse_strong", lambda *a, **k: _writer_output())
+
+    with caplog.at_level(logging.INFO, logger="src.agents.writer"):
+        with model_context(
+            fast="f",
+            strong="anthropic/claude-sonnet-5",
+            effort_strong="medium",
+            temp_strong=0.7,
+        ):
+            writer.write_resume(_first_iteration_state())
+
+    log_text = " ".join(caplog.messages)
+    assert "anthropic/claude-sonnet-5" in log_text
+    assert "effort=medium" in log_text
+    assert "temp=0.7" in log_text
+
+
 def test_write_resume_strips_char_annotations(monkeypatch):
     """The [chars: N] self-verification tags must NEVER reach the output.
 

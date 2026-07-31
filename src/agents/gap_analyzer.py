@@ -10,8 +10,7 @@ to the user later, never fabricated over).
 """
 import logging
 
-from config.settings import EFFORT_GAP, MODEL_GAP
-from src.pipeline.llm import parse_gap
+from src.pipeline.llm import effective_gap, parse_gap
 from src.pipeline.schemas import GapTargets, JDVector, ResumeStruct
 from src.pipeline.state import PipelineState
 from src.prompts.extraction import GAP_SYSTEM
@@ -33,12 +32,14 @@ def gap_analysis(state: PipelineState) -> dict:
     """Node: derive reframing targets from the resume + JD."""
     struct = state["resume_struct"]
     vector = state["jd_vector"]
+    role = effective_gap()
     log.info(
-        "gap_analysis | %d roles vs %d JD skills → sending to %s (effort=%s)",
+        "gap_analysis | %d roles vs %d JD skills → sending to %s (effort=%s, temp=%s)",
         len(struct.roles),
         len(vector.weighted_skills),
-        MODEL_GAP,
-        EFFORT_GAP,
+        role.model,
+        role.effort,
+        role.temperature,
     )
     user_msg = build_user_message(struct, vector)
     wrapper = parse_gap(GAP_SYSTEM, user_msg, GapTargets)

@@ -15,8 +15,7 @@ import logging
 
 import openai
 
-from config.settings import MODEL_SCORING
-from src.pipeline.llm import parse_scoring
+from src.pipeline.llm import effective_scoring, parse_scoring
 
 log = logging.getLogger(__name__)
 from src.pipeline.schemas import InventedTool, JDVector, PanelScore, ResumeStruct
@@ -187,7 +186,11 @@ def recruiter_panel(state: PipelineState) -> dict:
         log.info("recruiter    | latex unchanged since last scoring - reusing cached panel scores")
         return {"panel_scores": cached_scores, "panel_cache_latex": cached_latex, "panel_cache_scores": cached_scores}
 
-    log.info("recruiter    | spawning 4 %s personas concurrently…", MODEL_SCORING)
+    role = effective_scoring()
+    log.info(
+        "recruiter    | spawning 4 %s personas concurrently… (effort=%s, temp=%s)",
+        role.model, role.effort, role.temperature,
+    )
     scores = asyncio.run(run_panel(state))
     for s in scores:
         log.info(

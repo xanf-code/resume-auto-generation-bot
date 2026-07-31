@@ -791,3 +791,133 @@ def test_parse_skills_forwards_explicit_temperature_kwarg(monkeypatch):
     llm.parse_skills("sys", "user", _DummySchema, temperature=0.3)
 
     assert captured["temperature"] == 0.3
+
+
+# --- effective_* introspection (for accurate "sending to X" logging) -----------
+#
+# Agent node files log "sending to <model> (effort=..., temp=...)" BEFORE
+# calling parse_*. That line must reflect what parse_* will ACTUALLY use for
+# THIS run - not the static config.settings constants - or the log lies
+# whenever a per-job model_context override is active. effective_* returns
+# the same (model, effort, temperature) resolution parse_* itself would use.
+
+
+def test_effective_fast_defaults_to_settings_model_and_no_effort_or_temp():
+    import src.pipeline.llm as llm
+
+    role = llm.effective_fast()
+
+    assert role.model == llm.MODEL_FAST
+    assert role.effort is None
+    assert role.temperature is None
+
+
+def test_effective_fast_reflects_context_overrides():
+    import src.pipeline.llm as llm
+
+    with llm.model_context(fast="f", strong="s", effort_fast="low", temp_fast=0.3):
+        role = llm.effective_fast()
+
+    assert role.model == "f"
+    assert role.effort == "low"
+    assert role.temperature == 0.3
+
+
+def test_effective_strong_defaults_to_settings_model_and_effort():
+    import src.pipeline.llm as llm
+
+    role = llm.effective_strong()
+
+    assert role.model == llm.MODEL_STRONG
+    assert role.effort == llm.EFFORT_STRONG
+    assert role.temperature is None
+
+
+def test_effective_strong_reflects_context_overrides():
+    import src.pipeline.llm as llm
+
+    with llm.model_context(
+        fast="f", strong="s", effort_strong="max", temp_strong=0.7
+    ):
+        role = llm.effective_strong()
+
+    assert role.model == "s"
+    assert role.effort == "max"
+    assert role.temperature == 0.7
+
+
+def test_effective_gap_defaults_to_settings_model_and_effort():
+    import src.pipeline.llm as llm
+
+    role = llm.effective_gap()
+
+    assert role.model == llm.MODEL_GAP
+    assert role.effort == llm.EFFORT_GAP
+    assert role.temperature is None
+
+
+def test_effective_gap_reflects_context_overrides():
+    import src.pipeline.llm as llm
+
+    with llm.model_context(
+        fast="f", strong="s", gap="z-ai/glm-5.2", effort_gap="high", temp_gap=0.5
+    ):
+        role = llm.effective_gap()
+
+    assert role.model == "z-ai/glm-5.2"
+    assert role.effort == "high"
+    assert role.temperature == 0.5
+
+
+def test_effective_scoring_defaults_to_settings_model_and_no_effort():
+    import src.pipeline.llm as llm
+
+    role = llm.effective_scoring()
+
+    assert role.model == llm.MODEL_SCORING
+    assert role.effort is None
+    assert role.temperature is None
+
+
+def test_effective_scoring_reflects_context_overrides():
+    import src.pipeline.llm as llm
+
+    with llm.model_context(
+        fast="f",
+        strong="s",
+        scoring="deepseek/deepseek-v4-flash",
+        effort_scoring="xhigh",
+        temp_scoring=0.2,
+    ):
+        role = llm.effective_scoring()
+
+    assert role.model == "deepseek/deepseek-v4-flash"
+    assert role.effort == "xhigh"
+    assert role.temperature == 0.2
+
+
+def test_effective_skills_defaults_to_settings_model_and_no_effort():
+    import src.pipeline.llm as llm
+
+    role = llm.effective_skills()
+
+    assert role.model == llm.MODEL_SKILLS
+    assert role.effort is None
+    assert role.temperature is None
+
+
+def test_effective_skills_reflects_context_overrides():
+    import src.pipeline.llm as llm
+
+    with llm.model_context(
+        fast="f",
+        strong="s",
+        skills="qwen/qwen3-30b-a3b-instruct-2507",
+        effort_skills="medium",
+        temp_skills=0.2,
+    ):
+        role = llm.effective_skills()
+
+    assert role.model == "qwen/qwen3-30b-a3b-instruct-2507"
+    assert role.effort == "medium"
+    assert role.temperature == 0.2

@@ -11,8 +11,7 @@ next draft see" behaviour is directly testable without any API call.
 import logging
 import re
 
-from config.settings import EFFORT_STRONG, MODEL_STRONG
-from src.pipeline.llm import parse_strong
+from src.pipeline.llm import effective_strong, parse_strong
 
 log = logging.getLogger(__name__)
 from src.pipeline.schemas import WriterOutput
@@ -258,14 +257,16 @@ def write_resume(state: PipelineState) -> dict:
     iteration = state.get("iteration", 1)
     has_revision = bool(state.get("revision_notes"))
     has_compile_err = bool(state.get("compile_errors"))
+    role = effective_strong()
     log.info(
         "writer       | iteration=%d  revision_notes=%s  compile_errors=%s  "
-        "→ sending to %s (effort=%s)",
+        "→ sending to %s (effort=%s, temp=%s)",
         iteration,
         "yes" if has_revision else "no",
         "yes" if has_compile_err else "no",
-        MODEL_STRONG,
-        EFFORT_STRONG,
+        role.model,
+        role.effort,
+        role.temperature,
     )
     user_msg = build_writer_user_message(state)
     output = parse_strong(WRITER_SYSTEM, user_msg, WriterOutput)

@@ -16,10 +16,10 @@ ranked, deduplicated directive list for the Writer's next iteration.
 import logging
 from typing import Mapping
 
-from config.settings import MODEL_SCORING, PLAUSIBILITY_FLOOR, RUBRIC_WEIGHTS, THRESHOLD
+from config.settings import PLAUSIBILITY_FLOOR, RUBRIC_WEIGHTS, THRESHOLD
 
 log = logging.getLogger(__name__)
-from src.pipeline.llm import parse_scoring
+from src.pipeline.llm import effective_scoring, parse_scoring
 from src.pipeline.schemas import PanelScore, RevisionNotes
 from src.pipeline.state import PipelineState
 from src.pipeline.tuning import get_tuning
@@ -140,7 +140,11 @@ def aggregator(state: PipelineState) -> dict:
         "passed": passed,
     }
     if not passed:
-        log.info("aggregator   | distilling revision notes via %s…", MODEL_SCORING)
+        role = effective_scoring()
+        log.info(
+            "aggregator   | distilling revision notes via %s… (effort=%s, temp=%s)",
+            role.model, role.effort, role.temperature,
+        )
         result["revision_notes"] = distill_revision_notes(scores)
         log.info("aggregator   | %d revision directives ready", len(result["revision_notes"]))
     return result

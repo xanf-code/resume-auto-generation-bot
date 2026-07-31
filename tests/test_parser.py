@@ -3,6 +3,8 @@
 `parse_fast` is mocked: NO live API calls. The mock returns a fixed
 ``ResumeStruct`` so we can assert the node's derivation logic in isolation.
 """
+import logging
+
 import pytest
 
 from src.agents import parser
@@ -91,6 +93,25 @@ def test_parse_resume_writes_struct_and_ledger(monkeypatch):
     assert ledger.roles[0].title == "Senior Data Engineer"
     assert ledger.roles[0].start == "Jan 2021"
     assert ledger.roles[0].end == "Present"
+
+
+def test_parse_resume_logs_the_actual_model_context_override(monkeypatch, caplog):
+    """Regression test: the log line used to hardcode MODEL_FAST from
+    config.settings, so it lied whenever a per-job model_context override was
+    active. It must report the override, not the static settings constant."""
+    from src.pipeline.llm import model_context
+
+    monkeypatch.setattr(parser, "parse_fast", lambda *a, **k: _fixed_struct())
+
+    with caplog.at_level(logging.INFO, logger="src.agents.parser"):
+        with model_context(
+            fast="google/gemini-2.5-flash-lite", strong="s", temp_fast=0.0
+        ):
+            parser.parse_resume({"resume_tex_raw": SAMPLE_TEX})
+
+    log_text = " ".join(caplog.messages)
+    assert "google/gemini-2.5-flash-lite" in log_text
+    assert "temp=0.0" in log_text
 
 
 def test_parse_resume_does_not_mutate_input_state(monkeypatch):

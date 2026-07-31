@@ -14,6 +14,7 @@ Key guarantees pinned here:
   never mutates input state.
 """
 import dataclasses
+import logging
 
 import pytest
 
@@ -182,6 +183,31 @@ def test_aggregator_fail_path_writes_revision_notes(monkeypatch):
     assert out["revision_notes"] == ["1. Source or remove the Salesforce claim."]
     assert "aggregate_score" in out and "panel_scores" in out
     assert called["n"] == 1, "the distillation LLM call must fire exactly once on fail"
+
+
+def test_aggregator_fail_path_logs_the_actual_model_context_override(monkeypatch, caplog):
+    """Regression test: the log line used to hardcode MODEL_SCORING from
+    config.settings, so it lied whenever a per-job model_context override was
+    active. It must report the override, not the static settings constant."""
+    from src.pipeline.llm import model_context
+
+    canned = RevisionNotes(notes=["1. Source or remove the Salesforce claim."])
+    monkeypatch.setattr(aggregator, "parse_scoring", lambda *a, **k: canned)
+
+    with caplog.at_level(logging.INFO, logger="src.agents.aggregator"):
+        with model_context(
+            fast="f",
+            strong="s",
+            scoring="deepseek/deepseek-v4-flash",
+            effort_scoring="xhigh",
+            temp_scoring=0.2,
+        ):
+            aggregator.aggregator({"panel_scores": _failing_scores()})
+
+    log_text = " ".join(caplog.messages)
+    assert "deepseek/deepseek-v4-flash" in log_text
+    assert "effort=xhigh" in log_text
+    assert "temp=0.2" in log_text
 
 
 def test_aggregator_pass_path_never_calls_llm(monkeypatch):
