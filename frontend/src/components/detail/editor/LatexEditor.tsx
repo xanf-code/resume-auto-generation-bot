@@ -63,7 +63,6 @@ export const LatexEditor = forwardRef<LatexEditorHandle, Props>(function LatexEd
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [compiling, setCompiling] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [showDownloadDialog, setShowDownloadDialog] = useState(false);
 
@@ -137,17 +136,19 @@ export const LatexEditor = forwardRef<LatexEditorHandle, Props>(function LatexEd
 
   const getLatex = () => viewRef.current?.state.doc.toString() ?? initialLatex;
 
+  // Compile also persists: the save endpoint recompiles, stores the PDF, and
+  // writes the LaTeX so the edit survives a reload.
   const handleCompile = async () => {
     setCompiling(true);
     setErrors([]);
     const latex = getLatex();
     try {
-      const result = await compileLatex(latex);
+      const result = await saveJobLatex(jobId, latex);
       if (result.ok) {
         renderedPdfRef.current = result.blob;
         renderedSourceRef.current = latex;
         onPdfReady?.(result.blob);
-        toast.success('Compiled - proof updated');
+        toast.success('Compiled and saved');
       } else {
         setErrors(result.errors);
         toast.error('Compile failed - see the marks below');
@@ -157,28 +158,6 @@ export const LatexEditor = forwardRef<LatexEditorHandle, Props>(function LatexEd
       toast.error('Could not reach the press. Check the connection and try again.');
     } finally {
       setCompiling(false);
-    }
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    setErrors([]);
-    const latex = getLatex();
-    try {
-      const result = await saveJobLatex(jobId, latex);
-      if (result.ok) {
-        renderedPdfRef.current = result.blob;
-        renderedSourceRef.current = latex;
-        onPdfReady?.(result.blob);
-        toast.success('Saved - your edits will persist');
-      } else {
-        setErrors(result.errors);
-        toast.error('Save failed - fix the marks below');
-      }
-    } catch {
-      toast.error('Could not reach the press. Check the connection and try again.');
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -220,10 +199,8 @@ export const LatexEditor = forwardRef<LatexEditorHandle, Props>(function LatexEd
     <div className="flex flex-col h-full min-h-0 bg-paper-raised">
       <EditorToolbar
         onCompile={handleCompile}
-        onSave={handleSave}
         onDownload={() => setShowDownloadDialog(true)}
         compiling={compiling}
-        saving={saving}
       />
       {showDownloadDialog && (
         <DownloadDialog
