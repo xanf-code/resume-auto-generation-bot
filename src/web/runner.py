@@ -177,10 +177,12 @@ def run_job(job: Job, manager: "JobManager") -> None:
                 strong=job.models.writer.model,
                 gap=job.models.gap.model,
                 scoring=job.models.scoring.model,
+                skills=job.models.skills.model,
                 effort_fast=job.models.parser.effort,
                 effort_strong=job.models.writer.effort,
                 effort_gap=job.models.gap.effort,
                 effort_scoring=job.models.scoring.effort,
+                effort_skills=job.models.skills.effort,
             ):
                 final_state = _stream()
         else:

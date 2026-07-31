@@ -52,6 +52,9 @@ describe('model presets', () => {
     expect(matchPreset(best)).toBe('best');
     expect(presetLabel('fast')).toBe('Fast');
     expect(presetLabel('best')).toBe('Best');
+    expect(fast.skills.model).toBe('openai/gpt-4o-mini');
+    expect(best.skills.model).toBe('openai/gpt-4o-mini');
+    expect(DEFAULT_MODELS.skills.model).toBe('openai/gpt-4o-mini');
   });
 
   it('returns custom when any role differs', () => {

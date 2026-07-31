@@ -252,7 +252,6 @@ export function NewJobModal() {
               <ModelControls
                 models={models}
                 onChange={setModels}
-                showScoring={enableScoring}
                 showRoleDetails={false}
               />
 
@@ -273,7 +272,6 @@ export function NewJobModal() {
                     <ModelControls
                       models={models}
                       onChange={setModels}
-                      showScoring={enableScoring}
                       showPresets={false}
                       showRoleDetails
                     />

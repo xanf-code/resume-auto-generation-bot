@@ -11,6 +11,16 @@ vi.mock('../api/models', () => ({
 const CATALOG = {
   models: [
     {
+      id: 'z-ai/glm-5.2',
+      name: 'GLM 5.2',
+      structured_output: true,
+      reasoning: {
+        mandatory: false,
+        supported_efforts: ['max', 'high', 'medium', 'low'],
+        default_effort: 'high',
+      },
+    },
+    {
       id: 'anthropic/claude-opus-5',
       name: 'Claude Opus 5',
       structured_output: true,
@@ -64,6 +74,7 @@ describe('ModelControls', () => {
     });
     expect(screen.getByLabelText('Parser model')).toBeInTheDocument();
     expect(screen.getByLabelText('Gap analyzer model')).toBeInTheDocument();
+    expect(screen.getByLabelText('Skills model')).toBeInTheDocument();
     expect(screen.getByLabelText('Scoring model')).toBeInTheDocument();
   });
 
@@ -123,6 +134,7 @@ describe('ModelControls', () => {
       expect(screen.getByLabelText('Parser model')).toBeInTheDocument();
     });
     expect(screen.queryByLabelText('Parser reasoning')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Skills reasoning')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Scoring reasoning')).not.toBeInTheDocument();
   });
 

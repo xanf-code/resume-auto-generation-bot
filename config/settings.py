@@ -39,10 +39,10 @@ RUBRIC_WEIGHTS = {
 
 # --- Model identifiers --------------------------------------------------------
 # OpenRouter-namespaced slugs (provider/model).
-# - MODEL_STRONG: Writer (creative optimization, keyword balancing, effort=high)
-# - MODEL_FAST: Parser + JD Analyzer (fast structured extraction, effort=low)
-# - MODEL_GAP: Gap Analyzer (creative reframing strategy, needs strong reasoning, effort=high)
-# - MODEL_SCORING: Scoring panel (independent evaluation, eliminates writer bias, effort=low)
+    # - MODEL_STRONG: Writer (creative optimization, keyword balancing, effort=high)
+    # - MODEL_FAST: Parser + JD Analyzer (fast structured extraction, effort=low)
+    # - MODEL_GAP: Gap Analyzer (creative reframing strategy, needs strong reasoning, effort=high)
+    # - MODEL_SCORING: Scoring panel (independent evaluation, eliminates writer bias, effort=low)
 MODEL_STRONG = "anthropic/claude-sonnet-5"
 MODEL_FAST = "openai/gpt-4o-mini"
 MODEL_GAP = "anthropic/claude-sonnet-5"

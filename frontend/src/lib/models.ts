@@ -1,7 +1,13 @@
 // Per-application model selection - mirrors backend ModelsDTO / PipelineModels.
 // Keys are snake_case to match the API wire format.
 
-export const MODEL_ROLES = ['writer', 'parser', 'gap', 'scoring'] as const;
+export const MODEL_ROLES = [
+  'writer',
+  'parser',
+  'gap',
+  'skills',
+  'scoring',
+] as const;
 
 export type ModelRoleKey = (typeof MODEL_ROLES)[number];
 
@@ -41,6 +47,7 @@ export const DEFAULT_MODELS: ModelsConfig = {
   writer: { model: 'z-ai/glm-5.2', effort: 'high' },
   parser: { model: 'openai/gpt-4o-mini', effort: null },
   gap: { model: 'anthropic/claude-opus-5', effort: 'medium' },
+  skills: { model: 'openai/gpt-4o-mini', effort: null },
   scoring: { model: 'openai/gpt-4o-mini', effort: null },
 };
 
@@ -48,6 +55,7 @@ export const ROLE_LABELS: Record<ModelRoleKey, string> = {
   writer: 'Writer',
   parser: 'Parser',
   gap: 'Gap analyzer',
+  skills: 'Skills',
   scoring: 'Scoring',
 };
 
@@ -70,6 +78,7 @@ export const MODEL_PRESETS: readonly ModelPreset[] = [
       writer: { model: 'openai/gpt-4o-mini', effort: null },
       parser: { model: 'openai/gpt-4o-mini', effort: null },
       gap: { model: 'openai/gpt-4o-mini', effort: null },
+      skills: { model: 'openai/gpt-4o-mini', effort: null },
       scoring: { model: 'openai/gpt-4o-mini', effort: null },
     },
   },
@@ -85,6 +94,7 @@ export const MODEL_PRESETS: readonly ModelPreset[] = [
       writer: { model: 'anthropic/claude-opus-5', effort: 'high' },
       parser: { model: 'openai/gpt-4o-mini', effort: null },
       gap: { model: 'anthropic/claude-opus-5', effort: 'high' },
+      skills: { model: 'openai/gpt-4o-mini', effort: null },
       scoring: { model: 'openai/gpt-4o-mini', effort: null },
     },
   },

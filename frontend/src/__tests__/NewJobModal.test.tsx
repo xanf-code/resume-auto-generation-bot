@@ -152,6 +152,7 @@ describe('NewJobModal', () => {
     fireEvent.click(screen.getByLabelText(/recruiter persona scoring/i));
     await openAdvanced();
     expect(screen.getByLabelText('Keyword match')).toBeInTheDocument();
+    expect(screen.getByLabelText('Skills model')).toBeInTheDocument();
     expect(screen.getByLabelText('Scoring model')).toBeInTheDocument();
   });
 
@@ -177,12 +178,23 @@ describe('NewJobModal', () => {
     expect(sum).toBeCloseTo(1.0, 6);
 
     expect(arg.models).toBeDefined();
-    expect(arg.models.writer.model).toBe('anthropic/claude-sonnet-5');
-    expect(arg.models.writer.effort).toBe('medium');
+    expect(arg.models.writer.model).toBe('z-ai/glm-5.2');
+    expect(arg.models.writer.effort).toBe('high');
     expect(arg.models.parser.model).toBe('openai/gpt-4o-mini');
     expect(arg.models.parser.effort).toBeNull();
     expect(arg.models.gap.model).toBe('anthropic/claude-opus-5');
+    expect(arg.models.skills.model).toBe('openai/gpt-4o-mini');
+    expect(arg.models.skills.effort).toBeNull();
     expect(arg.models.scoring.model).toBe('openai/gpt-4o-mini');
+  });
+
+  it('shows skills and scoring model pickers in advanced without enabling scoring', async () => {
+    await renderModalReady();
+    fireEvent.click(screen.getByRole('button', { name: /advanced/i }));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Skills model')).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText('Scoring model')).toBeInTheDocument();
   });
 
   it('applies a model preset without opening advanced', async () => {
@@ -202,6 +214,8 @@ describe('NewJobModal', () => {
     const arg = (createJob as unknown as Mock).mock.calls.at(-1)![0];
     expect(arg.models.writer.model).toBe('openai/gpt-4o-mini');
     expect(arg.models.gap.model).toBe('openai/gpt-4o-mini');
+    expect(arg.models.skills.model).toBe('openai/gpt-4o-mini');
+    expect(arg.models.scoring.model).toBe('openai/gpt-4o-mini');
   });
 
   it('renders the Bullet shapes section in the config panel', async () => {

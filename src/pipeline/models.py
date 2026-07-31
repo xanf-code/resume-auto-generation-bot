@@ -1,9 +1,9 @@
 """Per-run model selection for pipeline LLM roles.
 
-Historically writer / parser / gap / scoring models lived as module constants in
-``config.settings``. ``PipelineModels`` lifts them into an immutable per-run
-config so the New Application UI can override models (and optional reasoning
-effort) without mutating globals.
+Historically writer / parser / gap / scoring / skills models lived as module
+constants in ``config.settings``. ``PipelineModels`` lifts them into an
+immutable per-run config so the New Application UI can override models (and
+optional reasoning effort) without mutating globals.
 """
 from __future__ import annotations
 
@@ -27,11 +27,12 @@ class ModelRole:
 
 @dataclass(frozen=True)
 class PipelineModels:
-    """Immutable per-run model config for the four user-facing LLM roles."""
+    """Immutable per-run model config for the five user-facing LLM roles."""
 
     writer: ModelRole
     parser: ModelRole
     gap: ModelRole
+    skills: ModelRole
     scoring: ModelRole
 
     @classmethod
@@ -41,5 +42,6 @@ class PipelineModels:
             writer=ModelRole(settings.MODEL_STRONG, settings.EFFORT_STRONG),
             parser=ModelRole(settings.MODEL_FAST, None),
             gap=ModelRole(settings.MODEL_GAP, settings.EFFORT_GAP),
+            skills=ModelRole(settings.MODEL_SKILLS, None),
             scoring=ModelRole(settings.MODEL_SCORING, None),
         )

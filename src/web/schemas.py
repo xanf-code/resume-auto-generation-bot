@@ -116,21 +116,29 @@ class ModelRoleDTO(BaseModel):
 
 
 class ModelsDTO(BaseModel):
-    """Per-application model overrides for the four user-facing LLM roles."""
+    """Per-application model overrides for the five user-facing LLM roles.
+
+    ``skills`` defaults when omitted so older clients that only sent
+    writer/parser/gap/scoring keep working.
+    """
 
     writer: ModelRoleDTO
     parser: ModelRoleDTO
     gap: ModelRoleDTO
     scoring: ModelRoleDTO
+    skills: ModelRoleDTO | None = None
 
     def to_pipeline_models(self):
         """Convert to the internal PipelineModels dataclass."""
+        from config import settings
         from src.pipeline.models import ModelRole, PipelineModels
 
+        skills = self.skills or ModelRoleDTO(model=settings.MODEL_SKILLS, effort=None)
         return PipelineModels(
             writer=ModelRole(self.writer.model, self.writer.effort),
             parser=ModelRole(self.parser.model, self.parser.effort),
             gap=ModelRole(self.gap.model, self.gap.effort),
+            skills=ModelRole(skills.model, skills.effort),
             scoring=ModelRole(self.scoring.model, self.scoring.effort),
         )
 

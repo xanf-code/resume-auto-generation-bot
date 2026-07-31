@@ -16,6 +16,7 @@ def _models(**over) -> dict:
         "writer": _role("anthropic/claude-sonnet-5", "medium"),
         "parser": _role("openai/gpt-4o-mini"),
         "gap": _role("anthropic/claude-opus-5", "medium"),
+        "skills": _role("openai/gpt-4o-mini"),
         "scoring": _role("openai/gpt-4o-mini"),
     }
     base.update(over)
@@ -41,7 +42,25 @@ def test_models_dto_to_pipeline_models():
     assert pm.parser.model == "openai/gpt-4o-mini"
     assert pm.parser.effort is None
     assert pm.gap.model == "anthropic/claude-opus-5"
+    assert pm.skills.model == "openai/gpt-4o-mini"
+    assert pm.skills.effort is None
     assert pm.scoring.model == "openai/gpt-4o-mini"
+
+
+def test_models_dto_skills_defaults_when_omitted():
+    """Older payloads without skills still convert; skills falls back to MODEL_SKILLS."""
+    from config import settings
+    from src.web.schemas import ModelsDTO
+
+    payload = {
+        "writer": _role("anthropic/claude-sonnet-5", "medium"),
+        "parser": _role("openai/gpt-4o-mini"),
+        "gap": _role("anthropic/claude-opus-5", "medium"),
+        "scoring": _role("openai/gpt-4o-mini"),
+    }
+    pm = ModelsDTO(**payload).to_pipeline_models()
+    assert pm.skills.model == settings.MODEL_SKILLS
+    assert pm.skills.effort is None
 
 
 def test_model_role_rejects_blank_model():
@@ -100,7 +119,14 @@ def test_runner_wraps_pipeline_in_model_context():
     from unittest.mock import patch
 
     import src.web.runner as runner_module
-    from src.pipeline.llm import _ctx_model_fast, _ctx_model_strong, _ctx_effort_strong
+    from src.pipeline.llm import (
+        _ctx_effort_skills,
+        _ctx_effort_strong,
+        _ctx_model_fast,
+        _ctx_model_scoring,
+        _ctx_model_skills,
+        _ctx_model_strong,
+    )
     from src.pipeline.models import ModelRole, PipelineModels
     from src.web.config import WebSettings
     from src.web.job import Job
@@ -120,7 +146,10 @@ def test_runner_wraps_pipeline_in_model_context():
     def capturing_pipeline(**kwargs):
         captured["fast"] = _ctx_model_fast.get()
         captured["strong"] = _ctx_model_strong.get()
+        captured["skills"] = _ctx_model_skills.get()
+        captured["scoring"] = _ctx_model_scoring.get()
         captured["effort_strong"] = _ctx_effort_strong.get()
+        captured["effort_skills"] = _ctx_effort_skills.get()
         return {
             "best_latex": "x",
             "aggregate_score": 80.0,
@@ -136,7 +165,8 @@ def test_runner_wraps_pipeline_in_model_context():
         writer=ModelRole("anthropic/claude-opus-5", "high"),
         parser=ModelRole("openai/gpt-4o-mini", None),
         gap=ModelRole("anthropic/claude-opus-5", "medium"),
-        scoring=ModelRole("openai/gpt-4o-mini", None),
+        skills=ModelRole("deepseek/deepseek-v4-flash", None),
+        scoring=ModelRole("openai/gpt-4o-mini", "low"),
     )
 
     with patch.object(
@@ -154,6 +184,19 @@ def test_runner_wraps_pipeline_in_model_context():
     assert job.status == JobStatus.DONE, job.error
     assert captured["fast"] == "openai/gpt-4o-mini"
     assert captured["strong"] == "anthropic/claude-opus-5"
+    assert captured["skills"] == "deepseek/deepseek-v4-flash"
+    assert captured["scoring"] == "openai/gpt-4o-mini"
     assert captured["effort_strong"] == "high"
+    assert captured["effort_skills"] is None
 
     loop.call_soon_threadsafe(loop.stop)
+
+
+def test_pipeline_models_defaults_include_skills():
+    from src.pipeline.models import PipelineModels
+    from config import settings
+
+    pm = PipelineModels.defaults()
+    assert pm.skills.model == settings.MODEL_SKILLS
+    assert pm.skills.effort is None
+    assert pm.scoring.model == settings.MODEL_SCORING

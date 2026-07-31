@@ -511,10 +511,30 @@ def test_model_context_effort_scoring_forwards_from_parse_scoring(monkeypatch):
     assert captured["effort"] == "high"
 
 
-def test_model_context_resets_effort_vars():
-    from src.pipeline.llm import _UNSET, _ctx_effort_strong, model_context
+def test_model_context_effort_skills_forwards_from_parse_skills(monkeypatch):
+    """model_context(effort_skills=...) is picked up by parse_skills."""
+    import src.pipeline.llm as llm
 
-    with model_context(fast="f", strong="s", effort_strong="high"):
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, effort=None):
+        captured["effort"] = effort
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    with llm.model_context(fast="f", strong="s", effort_skills="medium"):
+        llm.parse_skills("sys", "user", _DummySchema)
+
+    assert captured["effort"] == "medium"
+
+
+def test_model_context_resets_effort_vars():
+    from src.pipeline.llm import _UNSET, _ctx_effort_skills, _ctx_effort_strong, model_context
+
+    with model_context(fast="f", strong="s", effort_strong="high", effort_skills="low"):
         assert _ctx_effort_strong.get() == "high"
+        assert _ctx_effort_skills.get() == "low"
 
     assert _ctx_effort_strong.get() is _UNSET
+    assert _ctx_effort_skills.get() is _UNSET

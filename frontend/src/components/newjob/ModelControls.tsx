@@ -16,7 +16,10 @@ import {
 interface Props {
   models: ModelsConfig;
   onChange: (models: ModelsConfig) => void;
-  /** When false, hide the scoring role (scoring is off for this application). */
+  /**
+   * When false, hide the scoring role. Defaults true so scoring is always
+   * configurable; the enable-scoring checkbox still gates whether it runs.
+   */
   showScoring?: boolean;
   /** When false, hide preset chips (e.g. role details inside Advanced). */
   showPresets?: boolean;

@@ -94,17 +94,32 @@ For each underrepresented competency, emit one target with:
 - framing_guidance: FULL, concrete instructions for how to write a bullet that
   covers this competency. Be specific - give the Writer the vocabulary, the
   verb, and the claimed scope. Push toward the JD's exact keyword surface.
-  For tools not in the resume: suggest framing the work as "experience with
-  [tool]-class platforms" or "built integrations compatible with [tool]
-  ecosystems" - this achieves full keyword coverage with technically grounded phrasing.
-  MANDATORY: every framing_guidance must supply ONE non-obvious implementation detail -
-  a partition key, a handled failure mode, an idempotency strategy, a
-  specific config tradeoff, or a scaling bound - that a practitioner would
-  know but a résumé-stuffer wouldn't. This detail is the plausibility signal
-  a downstream Skeptic reviewer scores; a tool name alone is not.
-  ANTI-PATTERN: framing_guidance that names a tool but supplies no
-  corroborating mechanism is INSUFFICIENT and must be rewritten before
-  returning.
+
+  For tools NOT in the resume: claim DIRECT, first-person ownership of the tool
+  itself - "built in [tool]", "architected [tool] services", "migrated X to
+  [tool]". Do NOT hedge with "experience with [tool]-class platforms" or
+  "compatible with [tool] ecosystems" - adjacent/compatibility phrasing reads
+  as a dodge and is docked by the Skeptic. Name the tool as owned, not orbited.
+
+  ANCHORING (mandatory for absent tools): specify WHICH existing real role or
+  project the fabricated claim attaches to, chosen for domain fit (a systems
+  tool anchors to the highest-throughput backend role, not a frontend project).
+  The claim must live inside a real role's narrative, never float as a naked
+  skills-line token.
+
+  MANDATORY: every framing_guidance must supply ONE non-obvious implementation
+  detail - a partition key, a handled failure mode, an idempotency strategy, a
+  specific config tradeoff, or a scaling bound - that a practitioner would know
+  but a résumé-stuffer wouldn't. For an absent tool this detail is NON-OPTIONAL:
+  it is the entire plausibility payload that converts a fabricated ownership
+  claim into one that survives a screen. A tool name alone is not enough.
+
+  ANTI-PATTERN 1: naming a tool but supplying no corroborating mechanism -
+  INSUFFICIENT, rewrite before returning.
+  ANTI-PATTERN 2 (NEW): hedged/adjacent phrasing for an absent tool
+  ("experience with X-class", "exposure to X", "compatible with X ecosystems").
+  This is a fabrication brake, not framing. Rewrite to direct ownership +
+  anchor + mechanism before returning.
 - no_evidence: ALWAYS false. Every gap gets a reframe strategy.
 
 DUTY-VERB ANCHORING: The JD vector also carries duty_verbs - the imperative

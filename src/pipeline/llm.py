@@ -51,6 +51,7 @@ _ctx_effort_fast: ContextVar[Any] = ContextVar("effort_fast", default=_UNSET)
 _ctx_effort_strong: ContextVar[Any] = ContextVar("effort_strong", default=_UNSET)
 _ctx_effort_gap: ContextVar[Any] = ContextVar("effort_gap", default=_UNSET)
 _ctx_effort_scoring: ContextVar[Any] = ContextVar("effort_scoring", default=_UNSET)
+_ctx_effort_skills: ContextVar[Any] = ContextVar("effort_skills", default=_UNSET)
 
 # Accumulates raw usage dicts [{model, input_tokens, output_tokens}] when set.
 _ctx_usage: ContextVar[list | None] = ContextVar("usage", default=None)
@@ -68,6 +69,7 @@ def model_context(
     effort_strong: str | None | Any = _UNSET,
     effort_gap: str | None | Any = _UNSET,
     effort_scoring: str | None | Any = _UNSET,
+    effort_skills: str | None | Any = _UNSET,
 ) -> Generator[list[dict], None, None]:
     """Inject model (and optional effort) overrides for one pipeline run.
 
@@ -89,6 +91,7 @@ def model_context(
                            strong="anthropic/claude-opus-5",
                            gap="anthropic/claude-opus-5",
                            scoring="openai/gpt-4o-mini",
+                           skills="openai/gpt-4o-mini",
                            effort_strong="high") as usage:
             run_pipeline(...)
         cost = compute_cost(usage)
@@ -102,6 +105,7 @@ def model_context(
     t_es = _ctx_effort_strong.set(effort_strong)
     t_eg = _ctx_effort_gap.set(effort_gap)
     t_esc = _ctx_effort_scoring.set(effort_scoring)
+    t_esk = _ctx_effort_skills.set(effort_skills)
     usage: list[dict] = []
     t_usage = _ctx_usage.set(usage)
     try:
@@ -116,6 +120,7 @@ def model_context(
         _ctx_effort_strong.reset(t_es)
         _ctx_effort_gap.reset(t_eg)
         _ctx_effort_scoring.reset(t_esc)
+        _ctx_effort_skills.reset(t_esk)
         _ctx_usage.reset(t_usage)
 
 
@@ -270,16 +275,20 @@ def parse_skills(
     system: str,
     user: str,
     schema: type[SchemaT],
-    effort: str | None = None,
+    effort: Any = _UNSET,
     max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> SchemaT:
     """Structured parse on the skills model (categorized skill dump).
 
     Uses MODEL_SKILLS by default (gpt-4o-mini). No effort is forwarded by
     default - gpt-4o-mini is not a reasoning model and rejects the field.
-    Pass an explicit ``effort`` only when overriding to a reasoning model.
+    Pass an explicit ``effort`` (or set ``effort_skills`` in model_context)
+    only when overriding to a reasoning model.
     ``max_tokens`` defaults to DEFAULT_MAX_TOKENS (not REASONING_MAX_TOKENS)
     since gpt-4o-mini caps completions at ~16k.
     """
     model = _ctx_model_skills.get() or MODEL_SKILLS
-    return _parse(system, user, schema, model, max_tokens, effort=effort)
+    resolved = _resolve_effort(effort, _ctx_effort_skills, None)
+    if resolved is None:
+        return _parse(system, user, schema, model, max_tokens)
+    return _parse(system, user, schema, model, max_tokens, effort=resolved)
