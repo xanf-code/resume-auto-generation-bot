@@ -199,7 +199,7 @@ export function NewJobModal() {
                   value={label}
                   maxLength={200}
                   onChange={(e) => setLabel(e.target.value)}
-                  placeholder="e.g. Vestwell - Backend Engineer"
+                  placeholder="e.g. Company Name - Job Title"
                   className="bg-paper-raised border border-rule text-ink text-[14px] px-3 py-2.5 rounded-[3px] focus:outline-none focus:border-accent/60 placeholder:text-ink-faint"
                 />
               </div>

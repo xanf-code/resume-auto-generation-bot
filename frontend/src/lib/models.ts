@@ -38,7 +38,7 @@ export interface CatalogModel {
 
 // Defaults sourced from config/settings.py - keep in lockstep with the backend.
 export const DEFAULT_MODELS: ModelsConfig = {
-  writer: { model: 'anthropic/claude-sonnet-5', effort: 'medium' },
+  writer: { model: 'z-ai/glm-5.2', effort: 'high' },
   parser: { model: 'openai/gpt-4o-mini', effort: null },
   gap: { model: 'anthropic/claude-opus-5', effort: 'medium' },
   scoring: { model: 'openai/gpt-4o-mini', effort: null },
