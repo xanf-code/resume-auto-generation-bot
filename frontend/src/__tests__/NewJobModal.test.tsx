@@ -178,14 +178,21 @@ describe('NewJobModal', () => {
     expect(sum).toBeCloseTo(1.0, 6);
 
     expect(arg.models).toBeDefined();
-    expect(arg.models.writer.model).toBe('z-ai/glm-5.2');
-    expect(arg.models.writer.effort).toBe('high');
-    expect(arg.models.parser.model).toBe('openai/gpt-4o-mini');
+    expect(arg.models.writer.model).toBe('anthropic/claude-sonnet-5');
+    expect(arg.models.writer.effort).toBe('medium');
+    expect(arg.models.writer.temperature).toBe(0.7);
+    expect(arg.models.parser.model).toBe('google/gemini-2.5-flash-lite');
     expect(arg.models.parser.effort).toBeNull();
-    expect(arg.models.gap.model).toBe('anthropic/claude-opus-5');
-    expect(arg.models.skills.model).toBe('openai/gpt-4o-mini');
+    expect(arg.models.parser.temperature).toBe(0);
+    expect(arg.models.gap.model).toBe('z-ai/glm-5.2');
+    expect(arg.models.gap.effort).toBe('high');
+    expect(arg.models.gap.temperature).toBe(0.5);
+    expect(arg.models.skills.model).toBe('qwen/qwen3-30b-a3b-instruct-2507');
     expect(arg.models.skills.effort).toBeNull();
-    expect(arg.models.scoring.model).toBe('openai/gpt-4o-mini');
+    expect(arg.models.skills.temperature).toBe(0.2);
+    expect(arg.models.scoring.model).toBe('deepseek/deepseek-v4-flash');
+    expect(arg.models.scoring.effort).toBe('xhigh');
+    expect(arg.models.scoring.temperature).toBe(0.2);
   });
 
   it('shows skills and scoring model pickers in advanced without enabling scoring', async () => {

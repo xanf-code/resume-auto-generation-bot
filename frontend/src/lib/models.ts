@@ -14,6 +14,8 @@ export type ModelRoleKey = (typeof MODEL_ROLES)[number];
 export interface ModelRoleConfig {
   model: string;
   effort: string | null;
+  /** null omits the parameter entirely (provider default). 0 is meaningful, not "unset". */
+  temperature: number | null;
 }
 
 export type ModelsConfig = Record<ModelRoleKey, ModelRoleConfig>;
@@ -47,13 +49,14 @@ export interface CatalogModel {
   reasoning: ModelReasoning | null;
 }
 
-// Defaults sourced from config/settings.py - keep in lockstep with the backend.
+// Frontend-owned defaults for the New Application UI. Not required to match
+// config/settings.py's backend defaults - ModelsDTO is always explicit when sent.
 export const DEFAULT_MODELS: ModelsConfig = {
-  writer: { model: 'z-ai/glm-5.2', effort: 'high' },
-  parser: { model: 'openai/gpt-4o-mini', effort: null },
-  gap: { model: 'anthropic/claude-opus-5', effort: 'medium' },
-  skills: { model: 'openai/gpt-4o-mini', effort: null },
-  scoring: { model: 'openai/gpt-4o-mini', effort: null },
+  writer: { model: 'anthropic/claude-sonnet-5', effort: 'medium', temperature: 0.7 },
+  parser: { model: 'google/gemini-2.5-flash-lite', effort: null, temperature: 0 },
+  gap: { model: 'z-ai/glm-5.2', effort: 'high', temperature: 0.5 },
+  skills: { model: 'qwen/qwen3-30b-a3b-instruct-2507', effort: null, temperature: 0.2 },
+  scoring: { model: 'deepseek/deepseek-v4-flash', effort: 'xhigh', temperature: 0.2 },
 };
 
 export const ROLE_LABELS: Record<ModelRoleKey, string> = {
@@ -80,11 +83,11 @@ export const MODEL_PRESETS: readonly ModelPreset[] = [
     id: 'fast',
     label: 'Fast',
     models: {
-      writer: { model: 'openai/gpt-4o-mini', effort: null },
-      parser: { model: 'openai/gpt-4o-mini', effort: null },
-      gap: { model: 'openai/gpt-4o-mini', effort: null },
-      skills: { model: 'openai/gpt-4o-mini', effort: null },
-      scoring: { model: 'openai/gpt-4o-mini', effort: null },
+      writer: { model: 'openai/gpt-4o-mini', effort: null, temperature: 0 },
+      parser: { model: 'openai/gpt-4o-mini', effort: null, temperature: 0 },
+      gap: { model: 'openai/gpt-4o-mini', effort: null, temperature: 0 },
+      skills: { model: 'openai/gpt-4o-mini', effort: null, temperature: 0 },
+      scoring: { model: 'openai/gpt-4o-mini', effort: null, temperature: 0 },
     },
   },
   {
@@ -96,17 +99,37 @@ export const MODEL_PRESETS: readonly ModelPreset[] = [
     id: 'best',
     label: 'Best',
     models: {
-      writer: { model: 'anthropic/claude-opus-5', effort: 'high' },
-      parser: { model: 'openai/gpt-4o-mini', effort: null },
-      gap: { model: 'anthropic/claude-opus-5', effort: 'high' },
-      skills: { model: 'openai/gpt-4o-mini', effort: null },
-      scoring: { model: 'openai/gpt-4o-mini', effort: null },
+      writer: {
+        model: 'anthropic/claude-opus-5',
+        effort: 'high',
+        temperature: DEFAULT_MODELS.writer.temperature,
+      },
+      parser: {
+        model: 'openai/gpt-4o-mini',
+        effort: null,
+        temperature: DEFAULT_MODELS.parser.temperature,
+      },
+      gap: {
+        model: 'anthropic/claude-opus-5',
+        effort: 'high',
+        temperature: DEFAULT_MODELS.gap.temperature,
+      },
+      skills: {
+        model: 'openai/gpt-4o-mini',
+        effort: null,
+        temperature: DEFAULT_MODELS.skills.temperature,
+      },
+      scoring: {
+        model: 'openai/gpt-4o-mini',
+        effort: null,
+        temperature: DEFAULT_MODELS.scoring.temperature,
+      },
     },
   },
 ];
 
 function roleConfigsEqual(a: ModelRoleConfig, b: ModelRoleConfig): boolean {
-  return a.model === b.model && a.effort === b.effort;
+  return a.model === b.model && a.effort === b.effort && a.temperature === b.temperature;
 }
 
 export function modelsEqual(a: ModelsConfig, b: ModelsConfig): boolean {

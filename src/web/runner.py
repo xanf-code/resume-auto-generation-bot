@@ -183,6 +183,11 @@ def run_job(job: Job, manager: "JobManager") -> None:
                 effort_gap=job.models.gap.effort,
                 effort_scoring=job.models.scoring.effort,
                 effort_skills=job.models.skills.effort,
+                temp_fast=job.models.parser.temperature,
+                temp_strong=job.models.writer.temperature,
+                temp_gap=job.models.gap.temperature,
+                temp_scoring=job.models.scoring.temperature,
+                temp_skills=job.models.skills.temperature,
             ):
                 final_state = _stream()
         else:

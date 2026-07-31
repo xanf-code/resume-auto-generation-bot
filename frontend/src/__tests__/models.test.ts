@@ -76,15 +76,69 @@ describe('model presets', () => {
     expect(presetLabel('best')).toBe('Best');
     expect(fast.skills.model).toBe('openai/gpt-4o-mini');
     expect(best.skills.model).toBe('openai/gpt-4o-mini');
-    expect(DEFAULT_MODELS.skills.model).toBe('openai/gpt-4o-mini');
+    expect(DEFAULT_MODELS.skills.model).toBe('qwen/qwen3-30b-a3b-instruct-2507');
   });
 
   it('returns custom when any role differs', () => {
     const custom: ModelsConfig = {
       ...DEFAULT_MODELS,
-      writer: { model: 'openai/gpt-4o-mini', effort: null },
+      writer: { model: 'openai/gpt-4o-mini', effort: null, temperature: 0 },
     };
     expect(matchPreset(custom)).toBe('custom');
     expect(presetLabel('custom')).toBe('Custom');
+  });
+
+  it('returns custom when only temperature differs', () => {
+    const custom: ModelsConfig = {
+      ...DEFAULT_MODELS,
+      writer: { ...DEFAULT_MODELS.writer, temperature: 0.99 },
+    };
+    expect(matchPreset(custom)).toBe('custom');
+  });
+});
+
+describe('DEFAULT_MODELS', () => {
+  it('matches the specified per-role model/effort/temperature defaults', () => {
+    expect(DEFAULT_MODELS.writer).toEqual({
+      model: 'anthropic/claude-sonnet-5',
+      effort: 'medium',
+      temperature: 0.7,
+    });
+    expect(DEFAULT_MODELS.parser).toEqual({
+      model: 'google/gemini-2.5-flash-lite',
+      effort: null,
+      temperature: 0,
+    });
+    expect(DEFAULT_MODELS.gap).toEqual({
+      model: 'z-ai/glm-5.2',
+      effort: 'high',
+      temperature: 0.5,
+    });
+    expect(DEFAULT_MODELS.skills).toEqual({
+      model: 'qwen/qwen3-30b-a3b-instruct-2507',
+      effort: null,
+      temperature: 0.2,
+    });
+    expect(DEFAULT_MODELS.scoring).toEqual({
+      model: 'deepseek/deepseek-v4-flash',
+      effort: 'xhigh',
+      temperature: 0.2,
+    });
+  });
+});
+
+describe('preset temperature bundles', () => {
+  it('sets temperature 0 for every role in the Fast preset', () => {
+    const fast = MODEL_PRESETS.find((p) => p.id === 'fast')!.models;
+    for (const role of ['writer', 'parser', 'gap', 'skills', 'scoring'] as const) {
+      expect(fast[role].temperature).toBe(0);
+    }
+  });
+
+  it('reuses Balanced per-role temperatures in the Best preset', () => {
+    const best = MODEL_PRESETS.find((p) => p.id === 'best')!.models;
+    for (const role of ['writer', 'parser', 'gap', 'skills', 'scoring'] as const) {
+      expect(best[role].temperature).toBe(DEFAULT_MODELS[role].temperature);
+    }
   });
 });

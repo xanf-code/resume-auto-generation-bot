@@ -91,7 +91,7 @@ export function ModelControls({
     }
     onChange({
       ...models,
-      [role]: { model: modelId, effort },
+      [role]: { ...models[role], model: modelId, effort },
     });
   };
 
@@ -99,6 +99,13 @@ export function ModelControls({
     onChange({
       ...models,
       [role]: { ...models[role], effort },
+    });
+  };
+
+  const setTemperature = (role: ModelRoleKey, temperature: number | null) => {
+    onChange({
+      ...models,
+      [role]: { ...models[role], temperature },
     });
   };
 
@@ -161,6 +168,7 @@ export function ModelControls({
                 const efforts = effortOptionsFor(entry?.reasoning);
                 const modelId = `${baseId}-${role}-model`;
                 const effortId = `${baseId}-${role}-effort`;
+                const temperatureId = `${baseId}-${role}-temperature`;
                 const label = ROLE_LABELS[role];
 
                 // Ensure the current selection appears even if missing from catalog
@@ -218,6 +226,26 @@ export function ModelControls({
                         </select>
                       </>
                     )}
+                    <label
+                      className="text-[12px] text-ink-soft mt-1"
+                      htmlFor={temperatureId}
+                    >
+                      {label} temperature
+                    </label>
+                    <input
+                      id={temperatureId}
+                      aria-label={`${label} temperature`}
+                      type="number"
+                      min={0}
+                      max={2}
+                      step={0.1}
+                      className={selectClass}
+                      value={cfg.temperature ?? ''}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setTemperature(role, raw === '' ? null : Number(raw));
+                      }}
+                    />
                   </div>
                 );
               })}

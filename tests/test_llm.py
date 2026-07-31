@@ -562,3 +562,232 @@ def test_model_context_resets_effort_vars():
 
     assert _ctx_effort_strong.get() is _UNSET
     assert _ctx_effort_skills.get() is _UNSET
+
+
+# --- per-tier temperature -----------------------------------------------------
+#
+# temperature is a native OpenAI/OpenRouter chat-completions parameter (unlike
+# `effort`, which OpenRouter only accepts via extra_body). No role has a
+# config.settings default - it stays None (omitted, provider default) unless a
+# caller passes an explicit value or model_context sets a temp_* override.
+# 0 is a legitimate override and must never be treated as falsy/unset.
+
+
+def test_parse_forwards_temperature_as_native_kwarg(monkeypatch):
+    """_parse must pass temperature straight through - no extra_body wrapping."""
+    import src.pipeline.llm as llm
+
+    captured = {}
+    monkeypatch.setattr(llm, "client", lambda: _fake_openai_client(captured))
+
+    llm._parse("sys", "user", _DummySchema, "some/model", 1234, temperature=0.7)
+
+    assert captured["temperature"] == 0.7
+    assert "extra_body" not in captured
+
+
+def test_parse_omits_temperature_when_none(monkeypatch):
+    import src.pipeline.llm as llm
+
+    captured = {}
+    monkeypatch.setattr(llm, "client", lambda: _fake_openai_client(captured))
+
+    llm._parse("sys", "user", _DummySchema, "some/model", 1234)
+
+    assert "temperature" not in captured
+
+
+def test_parse_forwards_temperature_zero_not_treated_as_falsy(monkeypatch):
+    """0 is a legitimate temperature override - must not be dropped like None."""
+    import src.pipeline.llm as llm
+
+    captured = {}
+    monkeypatch.setattr(llm, "client", lambda: _fake_openai_client(captured))
+
+    llm._parse("sys", "user", _DummySchema, "some/model", 1234, temperature=0.0)
+
+    assert captured["temperature"] == 0.0
+
+
+def test_model_context_sets_and_resets_temperature_vars():
+    from src.pipeline.llm import (
+        _UNSET,
+        _ctx_temp_fast,
+        _ctx_temp_gap,
+        _ctx_temp_scoring,
+        _ctx_temp_skills,
+        _ctx_temp_strong,
+        model_context,
+    )
+
+    with model_context(
+        fast="f",
+        strong="s",
+        temp_fast=0.0,
+        temp_strong=0.7,
+        temp_gap=0.5,
+        temp_scoring=0.2,
+        temp_skills=0.2,
+    ):
+        assert _ctx_temp_fast.get() == 0.0
+        assert _ctx_temp_strong.get() == 0.7
+        assert _ctx_temp_gap.get() == 0.5
+        assert _ctx_temp_scoring.get() == 0.2
+        assert _ctx_temp_skills.get() == 0.2
+
+    assert _ctx_temp_fast.get() is _UNSET
+    assert _ctx_temp_strong.get() is _UNSET
+    assert _ctx_temp_gap.get() is _UNSET
+    assert _ctx_temp_scoring.get() is _UNSET
+    assert _ctx_temp_skills.get() is _UNSET
+
+
+def test_parse_strong_omits_temperature_by_default(monkeypatch):
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, **kwargs):
+        captured.update(kwargs)
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    llm.parse_strong("sys", "user", _DummySchema)
+
+    assert "temperature" not in captured
+
+
+def test_parse_strong_forwards_explicit_temperature_kwarg(monkeypatch):
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, **kwargs):
+        captured.update(kwargs)
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    llm.parse_strong("sys", "user", _DummySchema, temperature=0.7)
+
+    assert captured["temperature"] == 0.7
+
+
+def test_parse_strong_forwards_temperature_from_context_override(monkeypatch):
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, **kwargs):
+        captured.update(kwargs)
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    with llm.model_context(fast="f", strong="s", temp_strong=0.9):
+        llm.parse_strong("sys", "user", _DummySchema)
+
+    assert captured["temperature"] == 0.9
+
+
+def test_parse_strong_explicit_temperature_wins_over_context(monkeypatch):
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, **kwargs):
+        captured.update(kwargs)
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    with llm.model_context(fast="f", strong="s", temp_strong=0.9):
+        llm.parse_strong("sys", "user", _DummySchema, temperature=0.1)
+
+    assert captured["temperature"] == 0.1
+
+
+def test_parse_fast_forwards_temperature_zero_from_context(monkeypatch):
+    """0 is a legitimate override for parse_fast - must not be dropped as falsy."""
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, **kwargs):
+        captured.update(kwargs)
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    with llm.model_context(fast="f", strong="s", temp_fast=0.0):
+        llm.parse_fast("sys", "user", _DummySchema)
+
+    assert captured["temperature"] == 0.0
+
+
+def test_parse_gap_forwards_temperature_from_context(monkeypatch):
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, **kwargs):
+        captured.update(kwargs)
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    with llm.model_context(fast="f", strong="s", temp_gap=0.5):
+        llm.parse_gap("sys", "user", _DummySchema)
+
+    assert captured["temperature"] == 0.5
+
+
+def test_parse_scoring_forwards_temperature_from_context(monkeypatch):
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, **kwargs):
+        captured.update(kwargs)
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    with llm.model_context(fast="f", strong="s", temp_scoring=0.2):
+        llm.parse_scoring("sys", "user", _DummySchema)
+
+    assert captured["temperature"] == 0.2
+
+
+def test_parse_skills_forwards_temperature_from_context(monkeypatch):
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, **kwargs):
+        captured.update(kwargs)
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    with llm.model_context(fast="f", strong="s", temp_skills=0.2):
+        llm.parse_skills("sys", "user", _DummySchema)
+
+    assert captured["temperature"] == 0.2
+
+
+def test_parse_skills_forwards_explicit_temperature_kwarg(monkeypatch):
+    import src.pipeline.llm as llm
+
+    captured = {}
+
+    def fake_parse(system, user, schema, model, max_tokens, **kwargs):
+        captured.update(kwargs)
+        return "PARSED"
+
+    monkeypatch.setattr(llm, "_parse", fake_parse)
+
+    llm.parse_skills("sys", "user", _DummySchema, temperature=0.3)
+
+    assert captured["temperature"] == 0.3

@@ -19,10 +19,11 @@ KNOWN_EFFORTS: frozenset[str] = frozenset(
 
 @dataclass(frozen=True)
 class ModelRole:
-    """One pipeline role's model slug and optional reasoning effort."""
+    """One pipeline role's model slug, optional reasoning effort, and temperature."""
 
     model: str
     effort: str | None = None
+    temperature: float | None = None
 
 
 @dataclass(frozen=True)

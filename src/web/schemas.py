@@ -90,10 +90,13 @@ _KNOWN_EFFORTS = frozenset(
 
 
 class ModelRoleDTO(BaseModel):
-    """One LLM role: OpenRouter model slug + optional reasoning effort."""
+    """One LLM role: OpenRouter model slug + optional reasoning effort + temperature."""
 
     model: str
     effort: str | None = None
+    # None omits the parameter entirely (provider default) - same convention
+    # as effort=None. 0 is a legitimate, meaningful value, not "unset".
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
 
     @field_validator("model")
     @classmethod
@@ -135,11 +138,11 @@ class ModelsDTO(BaseModel):
 
         skills = self.skills or ModelRoleDTO(model=settings.MODEL_SKILLS, effort=None)
         return PipelineModels(
-            writer=ModelRole(self.writer.model, self.writer.effort),
-            parser=ModelRole(self.parser.model, self.parser.effort),
-            gap=ModelRole(self.gap.model, self.gap.effort),
-            skills=ModelRole(skills.model, skills.effort),
-            scoring=ModelRole(self.scoring.model, self.scoring.effort),
+            writer=ModelRole(self.writer.model, self.writer.effort, self.writer.temperature),
+            parser=ModelRole(self.parser.model, self.parser.effort, self.parser.temperature),
+            gap=ModelRole(self.gap.model, self.gap.effort, self.gap.temperature),
+            skills=ModelRole(skills.model, skills.effort, skills.temperature),
+            scoring=ModelRole(self.scoring.model, self.scoring.effort, self.scoring.temperature),
         )
 
 

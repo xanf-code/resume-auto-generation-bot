@@ -52,6 +52,28 @@ const CATALOG = {
       structured_output: true,
       reasoning: { mandatory: true },
     },
+    {
+      id: 'google/gemini-2.5-flash-lite',
+      name: 'Gemini 2.5 Flash Lite',
+      structured_output: true,
+      reasoning: { mandatory: false },
+    },
+    {
+      id: 'qwen/qwen3-30b-a3b-instruct-2507',
+      name: 'Qwen3 30B A3B Instruct 2507',
+      structured_output: true,
+      reasoning: null,
+    },
+    {
+      id: 'deepseek/deepseek-v4-flash',
+      name: 'DeepSeek V4 Flash',
+      structured_output: true,
+      reasoning: {
+        mandatory: false,
+        supported_efforts: ['xhigh', 'high'],
+        default_effort: 'high',
+      },
+    },
   ],
 };
 
@@ -126,6 +148,8 @@ describe('ModelControls', () => {
       expect(screen.getByLabelText('Writer reasoning')).toBeInTheDocument();
     });
     expect(screen.getByLabelText('Gap analyzer reasoning')).toBeInTheDocument();
+    // Default scoring model (deepseek-v4-flash) also supports reasoning effort.
+    expect(screen.getByLabelText('Scoring reasoning')).toBeInTheDocument();
   });
 
   it('hides effort for models without reasoning', async () => {
@@ -135,7 +159,6 @@ describe('ModelControls', () => {
     });
     expect(screen.queryByLabelText('Parser reasoning')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Skills reasoning')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Scoring reasoning')).not.toBeInTheDocument();
   });
 
   it('clears effort when switching to a non-reasoning model', async () => {
@@ -156,7 +179,7 @@ describe('ModelControls', () => {
   it('sets default effort when switching to a reasoning model', async () => {
     const models: ModelsConfig = {
       ...DEFAULT_MODELS,
-      parser: { model: 'openai/gpt-4o-mini', effort: null },
+      parser: { model: 'openai/gpt-4o-mini', effort: null, temperature: 0 },
     };
     const { onChange } = setup(models);
     await waitFor(() => {
@@ -189,7 +212,7 @@ describe('ModelControls', () => {
   it('hides none when reasoning is mandatory', async () => {
     const models: ModelsConfig = {
       ...DEFAULT_MODELS,
-      writer: { model: 'acme/mandatory-reasoner', effort: 'high' },
+      writer: { model: 'acme/mandatory-reasoner', effort: 'high', temperature: 0.7 },
     };
     (listModels as unknown as Mock).mockResolvedValue({
       models: [
@@ -219,12 +242,68 @@ describe('ModelControls', () => {
   it('hides effort when the model has reasoning but no supported_efforts key', async () => {
     const models: ModelsConfig = {
       ...DEFAULT_MODELS,
-      writer: { model: 'google/gemini-2.5-pro', effort: null },
+      writer: { model: 'google/gemini-2.5-pro', effort: null, temperature: 0.7 },
     };
     setup(models);
     await waitFor(() => {
       expect(screen.getByLabelText('Writer model')).toBeInTheDocument();
     });
     expect(screen.queryByLabelText('Writer reasoning')).not.toBeInTheDocument();
+  });
+
+  it('renders a temperature input for each role, prefilled with the current value', async () => {
+    setup();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Writer model')).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText('Writer temperature')).toHaveValue(0.7);
+    expect(screen.getByLabelText('Parser temperature')).toHaveValue(0);
+    expect(screen.getByLabelText('Gap analyzer temperature')).toHaveValue(0.5);
+    expect(screen.getByLabelText('Skills temperature')).toHaveValue(0.2);
+    expect(screen.getByLabelText('Scoring temperature')).toHaveValue(0.2);
+  });
+
+  it('updates temperature via onChange while preserving model and effort', async () => {
+    const { onChange } = setup();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Writer temperature')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Writer temperature'), {
+      target: { value: '1.1' },
+    });
+
+    const arg = onChange.mock.calls.at(-1)![0] as ModelsConfig;
+    expect(arg.writer.temperature).toBe(1.1);
+    expect(arg.writer.model).toBe(DEFAULT_MODELS.writer.model);
+    expect(arg.writer.effort).toBe(DEFAULT_MODELS.writer.effort);
+  });
+
+  it('sets temperature to null when the input is cleared', async () => {
+    const { onChange } = setup();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Writer temperature')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Writer temperature'), {
+      target: { value: '' },
+    });
+
+    const arg = onChange.mock.calls.at(-1)![0] as ModelsConfig;
+    expect(arg.writer.temperature).toBeNull();
+  });
+
+  it('accepts a temperature of exactly 0 without treating it as empty', async () => {
+    const { onChange } = setup();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Gap analyzer temperature')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Gap analyzer temperature'), {
+      target: { value: '0' },
+    });
+
+    const arg = onChange.mock.calls.at(-1)![0] as ModelsConfig;
+    expect(arg.gap.temperature).toBe(0);
   });
 });
