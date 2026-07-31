@@ -169,6 +169,81 @@ def test_parse_resume_cache_requires_both_fields(monkeypatch):
     assert captured.get("called") is True
 
 
+def test_parse_resume_cache_miss_stores_payload_then_hits_on_next_call(monkeypatch):
+    """First call with no state-seed and an empty hash cache is a MISS: it calls
+    the LLM and stores the result. A second call with the identical resume text
+    (fresh state, no seeding) is a HIT: it must NOT call the LLM again, and must
+    return a byte-identical resume_struct/identity_ledger to the first call."""
+    from src.db.parse_cache import InMemoryResumeParseCacheRepository
+
+    called = {"n": 0}
+
+    def fake_parse_fast(system, user, schema, **kwargs):
+        called["n"] += 1
+        return _fixed_struct()
+
+    monkeypatch.setattr(parser, "parse_fast", fake_parse_fast)
+    # Single repo instance shared across both calls, like a real persistent cache.
+    repo = InMemoryResumeParseCacheRepository()
+    monkeypatch.setattr(parser, "get_parse_cache_repo", lambda: repo)
+
+    first = parser.parse_resume({"resume_tex_raw": SAMPLE_TEX})
+    assert called["n"] == 1
+
+    second = parser.parse_resume({"resume_tex_raw": SAMPLE_TEX})
+    assert called["n"] == 1, "cache HIT must not re-invoke the LLM"
+
+    assert second["resume_struct"] == first["resume_struct"]
+    assert second["identity_ledger"] == first["identity_ledger"]
+
+
+def test_parse_resume_cache_hit_logs_and_miss_stores(monkeypatch, caplog):
+    """Logging contract: MISS logs the existing 'sending N chars' line plus a
+    new 'cache MISS - stored' line; HIT logs 'cache HIT ... skipping LLM call'
+    and never logs the 'sending N chars' line."""
+    from src.db.parse_cache import InMemoryResumeParseCacheRepository
+
+    monkeypatch.setattr(parser, "parse_fast", lambda *a, **k: _fixed_struct())
+    repo = InMemoryResumeParseCacheRepository()
+    monkeypatch.setattr(parser, "get_parse_cache_repo", lambda: repo)
+
+    with caplog.at_level(logging.INFO, logger="src.agents.parser"):
+        parser.parse_resume({"resume_tex_raw": SAMPLE_TEX})
+    miss_text = " ".join(caplog.messages)
+    assert "sending" in miss_text and "chars" in miss_text
+    assert "cache MISS - stored" in miss_text
+
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger="src.agents.parser"):
+        parser.parse_resume({"resume_tex_raw": SAMPLE_TEX})
+    hit_text = " ".join(caplog.messages)
+    assert "cache HIT" in hit_text and "skipping LLM call" in hit_text
+    assert "sending" not in hit_text
+
+
+def test_parse_resume_cache_never_returns_payload_for_different_resume(monkeypatch):
+    """A cache HIT for one resume must never leak into a request for a
+    different resume (different hash) - each must call the LLM independently."""
+    from src.db.parse_cache import InMemoryResumeParseCacheRepository
+
+    called = {"n": 0}
+
+    def fake_parse_fast(*a, **k):
+        called["n"] += 1
+        return _fixed_struct()
+
+    monkeypatch.setattr(parser, "parse_fast", fake_parse_fast)
+    repo = InMemoryResumeParseCacheRepository()
+    monkeypatch.setattr(parser, "get_parse_cache_repo", lambda: repo)
+
+    other_tex = SAMPLE_TEX + "\n% a trailing comment that changes the hash\n"
+
+    parser.parse_resume({"resume_tex_raw": SAMPLE_TEX})
+    parser.parse_resume({"resume_tex_raw": other_tex})
+
+    assert called["n"] == 2
+
+
 def _ledger_from_struct(struct: ResumeStruct) -> IdentityLedger:
     return parser.derive_ledger(struct, name="Jane Doe", contact="jane.doe@example.com")
 

@@ -6,9 +6,11 @@ identity string (company / title / start / end) still appears verbatim in the
 source .tex. Any drift means the model paraphrased an identity field, which the
 guard rejects loudly.
 """
+import hashlib
 import logging
 import re
 
+from src.db.parse_cache import get_parse_cache_repo
 from src.pipeline.llm import effective_fast, parse_fast
 
 log = logging.getLogger(__name__)
@@ -185,6 +187,19 @@ def parse_resume(state: PipelineState) -> dict:
         return {"resume_struct": cached_struct, "identity_ledger": cached_ledger}
 
     resume_tex_raw = state["resume_tex_raw"]
+    resume_hash = hashlib.sha256(resume_tex_raw.encode("utf-8")).hexdigest()
+
+    cache_repo = get_parse_cache_repo()
+    cached_payload = cache_repo.get(resume_hash)
+    if cached_payload is not None:
+        struct = ResumeStruct.model_validate(cached_payload["resume_struct"])
+        ledger = IdentityLedger.model_validate(cached_payload["identity_ledger"])
+        log.info(
+            "parse_resume | cache HIT (hash=%s...) - skipping LLM call",
+            resume_hash[:12],
+        )
+        return {"resume_struct": struct, "identity_ledger": ledger}
+
     role = effective_fast()
     log.info(
         "parse_resume | sending %d chars to %s (effort=%s, temp=%s)",
@@ -198,4 +213,9 @@ def parse_resume(state: PipelineState) -> dict:
         "parse_resume | done - candidate=%r, %d roles, %d skills, ledger locked",
         name, len(struct.roles), len(struct.skills),
     )
+    cache_repo.store(
+        resume_hash,
+        {"resume_struct": struct.model_dump(), "identity_ledger": ledger.model_dump()},
+    )
+    log.info("parse_resume | cache MISS - stored (hash=%s...)", resume_hash[:12])
     return {"resume_struct": struct, "identity_ledger": ledger}

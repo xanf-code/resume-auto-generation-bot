@@ -42,3 +42,16 @@ def load_db_settings() -> DbSettings:
 
     bucket = os.environ.get("SUPABASE_BUCKET", "resumes").strip() or "resumes"
     return DbSettings(url=url, service_key=service_key, bucket=bucket)
+
+
+def try_load_db_settings() -> DbSettings | None:
+    """Return ``DbSettings`` when Supabase env vars are present, else ``None``.
+
+    Non-raising variant of ``load_db_settings`` for callers (e.g. the parse
+    cache) that should fall back to an in-memory backend rather than error
+    when Supabase isn't configured.
+    """
+    try:
+        return load_db_settings()
+    except RuntimeError:
+        return None
