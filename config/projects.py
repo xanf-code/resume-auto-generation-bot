@@ -8,7 +8,7 @@ from __future__ import annotations
 
 PROJECTS: list[dict] = [
     {
-        "id": "goonedin",
+        "id": "hirefeed",
         "context": (
             "Built a real-time job aggregation platform that pulls listings from LinkedIn, "
             "Indeed, and other portals using WebSockets for split-second delivery. Proxy "
@@ -18,7 +18,7 @@ PROJECTS: list[dict] = [
             "system scrapes them on configurable intervals, converting raw HTML and PDF "
             "extractions into structured JSON via an LLM pipeline."
         ),
-        "link": "https://goonedin.vercel.app/",
+        "link": "https://goonedin.xyz/",
     },
     {
         "id": "spendai",
@@ -31,7 +31,7 @@ PROJECTS: list[dict] = [
             "automatically blocks transactions to flagged parties, and a financial audit "
             "module for transaction traceability and compliance reporting."
         ),
-        "link": "https://github.com/xanf-code/spendai",
+        "link": "https://github.com/darshan-aswathappa/spend-analyzer",
     },
     {
         "id": "neu-advisor",
@@ -45,7 +45,7 @@ PROJECTS: list[dict] = [
             "maps to their career goals — all powered by RAG over structured and unstructured "
             "academic data."
         ),
-        "link": "https://github.com/xanf-code/neu-advisor",
+        "link": "https://github.com/darshan-aswathappa/cousre-recommendation-system-backend",
     },
     {
         "id": "bettercal",
@@ -57,6 +57,6 @@ PROJECTS: list[dict] = [
             "peak periods like finals week. The prediction model surfaces low-traffic windows "
             "and high-demand hotspots to help students plan study sessions efficiently."
         ),
-        "link": "https://github.com/xanf-code/bettercal",
+        "link": "https://github.com/darshan-aswathappa/bettercal",
     },
 ]
