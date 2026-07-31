@@ -417,14 +417,16 @@ def test_writer_system_enforces_bullet_band():
     assert "195-210" in WRITER_SYSTEM, "Missing 195-210 bullet band"
 
 
-def test_writer_system_caps_bullet_count_flexibly():
-    """8 bullets total, hard-max 5 per role, relevance-driven split."""
+def test_writer_system_caps_bullet_count_fixed():
+    """Exactly 4 bullets for role 0, exactly 3 for role 1, 7 total."""
     from src.prompts.writer import WRITER_SYSTEM
 
-    assert "8 bullets total" in WRITER_SYSTEM
-    assert "5 per role" in WRITER_SYSTEM
-    # The old rigid 4-per-role cap must be gone.
-    assert "maximum 4 bullets per role" not in WRITER_SYSTEM
+    assert "EXACTLY 4 bullets for role index 0" in WRITER_SYSTEM
+    assert "EXACTLY 3 bullets for role index 1" in WRITER_SYSTEM
+    assert "7 bullets total" in WRITER_SYSTEM
+    # Old flexible budget must be gone.
+    assert "8 bullets total" not in WRITER_SYSTEM
+    assert "5 per role" not in WRITER_SYSTEM
 
 
 def test_writer_system_does_not_mention_summary():

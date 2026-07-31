@@ -111,9 +111,9 @@ def compile_node(state: PipelineState) -> dict:
                     f"exactly 1 page. Every bullet is locked to the 195-210 char band "
                     f"and CANNOT be shortened below 195 - the lever is bullet COUNT, "
                     f"not bullet length. ACTION: cut the lowest-value bullet(s) from the "
-                    f"role(s) carrying the most bullets (stay within the 8-total / "
-                    f"5-per-role caps). Do NOT add new content and do NOT shorten bullets "
-                    f"below 195."
+                    f"role(s) carrying the most bullets (fixed budget: 7 total, "
+                    f"role 0 = exactly 4, role 1 = exactly 3). Do NOT add new content "
+                    f"and do NOT shorten bullets below 195."
                 ),
                 "pdf_path": "",
                 "compile_retries": retries + 1,

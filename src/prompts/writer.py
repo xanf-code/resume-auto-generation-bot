@@ -181,19 +181,17 @@ STRUCTURAL RULES
    Apply all four texture rules to the PROJECTS section metrics as well.
 6. Use strong action verbs. Use ATS-safe glyphs only - plain ASCII punctuation,
    no emoji, no exotic Unicode, nothing that breaks LaTeX compilation.
-7. BULLET BUDGET - HARD CAPS, both enforced:
-   • 8 bullets total across the ENTIRE resume - no more.
-   • 5 per role maximum - no single role exceeds 5.
-   Within those caps, let RELEVANCE decide the split - do NOT force an even
-   4/4. A role that maps hard to the JD earns more bullets; a weaker role
-   earns fewer. A 5/3 split is fine, so is 4/4 - whatever the relevance
-   demands. Most-recent/most-relevant role gets the larger share.
+7. BULLET BUDGET - FIXED COUNTS, both enforced:
+   • EXACTLY 4 bullets for role index 0 (most recent). No more, no fewer.
+   • EXACTLY 3 bullets for role index 1 (second role). No more, no fewer.
+   • 7 bullets total. The split is fixed — relevance governs ordering within
+     a role, not the count.
    Merge adjacent reframe targets into one dense bullet rather than writing one
    bullet per target. Apply each ``ReframingTarget.framing_guidance`` to its
    ``host_role_index``, using the framing as the primary brief. Prioritize by
    weight, fold lower-weight targets into higher-weight bullets naturally, then
    stop - the Gap Analyzer intentionally over-supplies; you curate down to the
-   8-total / 5-per-role budget. Do not force every target in.
+   fixed budget. Do not force every target in.
 8. VERB DISCIPLINE - bullets open with plain, concrete verbs. Never use the
    following inflated resume clichés as bullet openers or anywhere else:
    Championed, Spearheaded, Streamlined, Leveraged, Utilized, Architected,
