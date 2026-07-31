@@ -182,6 +182,30 @@ async def test_score_one_wraps_parse_scoring_in_thread(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_score_one_overrides_persona_even_when_model_omitted_it(monkeypatch):
+    """Regression test for the real production crash: some providers' structured
+    output can omit `persona` entirely (the prompt never asks the model to fill
+    it in - see PanelScore's docstring). PanelScore.model_validate mirrors what
+    the OpenAI SDK does internally when parsing the raw response; it must not
+    raise, and score_one must still stamp the canonical persona name on top."""
+
+    def fake_parse_scoring(system, user, schema, **kwargs):
+        # Simulates the model's JSON response arriving with no "persona" key -
+        # PanelScore.persona defaults instead of raising a ValidationError.
+        return PanelScore.model_validate({
+            "keyword_match": 45, "impact_quality": 50, "coherence": 60,
+            "plausibility": 55, "formatting": 65, "notes": "Clean and ATS-friendly.",
+        })
+
+    monkeypatch.setattr(recruiters, "parse_scoring", fake_parse_scoring)
+
+    result = await recruiters.score_one("Technical Screener", "sys", "user")
+
+    assert result.persona == "Technical Screener"
+    assert result.keyword_match == 45
+
+
+@pytest.mark.asyncio
 async def test_score_one_retries_once_on_length_error_and_succeeds(monkeypatch):
     """A single LengthFinishReasonError is retried transparently - the caller
     never sees it as long as the retry succeeds."""

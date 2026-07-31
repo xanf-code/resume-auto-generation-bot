@@ -186,6 +186,46 @@ def test_writer_output_rejects_skills_kwarg():
         )
 
 
+# --- PanelScore.persona defaults instead of hard-requiring the model to emit it -
+#
+# recruiters.score_one() always overwrites `persona` with the canonical
+# persona_name right after a successful parse - the model's own value (if any)
+# is discarded unconditionally. Some providers' structured-output enforcement
+# is looser than OpenAI's native strict mode and can omit a field the prompt
+# never actually asked the model to fill in, which used to raise a Pydantic
+# ValidationError deep inside the SDK's response parsing, before score_one's
+# override ever ran. A default absorbs that without changing any real call
+# site's behavior (every real construction already passes persona= explicitly).
+
+
+def test_panel_score_persona_has_a_default():
+    """persona must not be strictly required - see module docstring above."""
+    score = PanelScore(
+        keyword_match=80, impact_quality=75,
+        coherence=90, plausibility=85, formatting=70, notes="ok",
+    )
+    assert score.persona == ""
+
+
+def test_panel_score_model_validate_tolerates_missing_persona():
+    """Mirrors what the OpenAI SDK does internally when parsing the model's
+    JSON response into PanelScore - must not raise even if `persona` is absent."""
+    score = PanelScore.model_validate({
+        "keyword_match": 45, "impact_quality": 50, "coherence": 60,
+        "plausibility": 55, "formatting": 65, "notes": "Clean and ATS-friendly.",
+    })
+    assert score.persona == ""
+
+
+def test_panel_score_persona_explicit_value_still_works():
+    """Existing behavior (persona always passed explicitly) must be unchanged."""
+    score = PanelScore(
+        persona="Skeptic", keyword_match=80, impact_quality=75,
+        coherence=90, plausibility=85, formatting=70, notes="ok",
+    )
+    assert score.persona == "Skeptic"
+
+
 # --- invention ledger (GAP 1: cross-bullet fabrication consistency) ----------
 
 

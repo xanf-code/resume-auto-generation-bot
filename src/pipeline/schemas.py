@@ -239,7 +239,12 @@ class PanelScore(BaseModel):
 
     model_config = _STRICT
 
-    persona: str
+    # Defaulted, not required: score_one() always overwrites this with the
+    # canonical persona_name right after parsing, discarding whatever the model
+    # returned. Some providers' structured-output enforcement is looser than
+    # OpenAI's native strict mode and can omit a field the prompt never asked
+    # the model to fill in - a default absorbs that instead of crashing.
+    persona: str = ""
     keyword_match: int
     impact_quality: int
     coherence: int
