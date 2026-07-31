@@ -27,13 +27,13 @@ SchemaT = TypeVar("SchemaT", bound=BaseModel)
 
 # Sized just under gpt-4o-mini's real 16,384-token output ceiling
 # (MODEL_FAST / MODEL_SCORING) - do not raise this without checking that cap.
-DEFAULT_MAX_TOKENS = 16000
+DEFAULT_MAX_TOKENS = 16_000
 # MODEL_STRONG / MODEL_GAP are Anthropic reasoning models whose extended-
 # thinking tokens bill against the SAME completion budget as the structured
 # output. DEFAULT_MAX_TOKENS is too tight for them - reasoning alone can eat
 # the ceiling before the schema is emitted, surfacing as
 # openai.LengthFinishReasonError. These two calls get more headroom.
-REASONING_MAX_TOKENS = 32000
+REASONING_MAX_TOKENS = 16_000
 
 # Sentinel: ContextVar / kwarg default meaning "use role settings default".
 _UNSET: Any = object()
@@ -128,6 +128,23 @@ def client() -> openai.OpenAI:
     )
 
 
+def _system_message(model: str, system: str) -> dict:
+    """Build the system message dict for the given model.
+
+    Anthropic models support prompt caching via cache_control on content blocks.
+    Caching the system prompt saves ~90% of its input-token cost on every call
+    after the first within the 5-minute cache window — meaningful because the
+    writer and gap system prompts are large (10-19 KB) and fire repeatedly.
+    Non-Anthropic models (gpt-4o-mini) receive the plain string form.
+    """
+    if model.startswith("anthropic/"):
+        return {
+            "role": "system",
+            "content": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+        }
+    return {"role": "system", "content": system}
+
+
 def _parse(
     system: str,
     user: str,
@@ -147,7 +164,7 @@ def _parse(
         model=model,
         max_tokens=max_tokens,
         messages=[
-            {"role": "system", "content": system},
+            _system_message(model, system),
             {"role": "user", "content": user},
         ],
         response_format=schema,
