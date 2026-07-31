@@ -13,6 +13,7 @@ import {
 } from '../../lib/models';
 import { DEFAULT_TUNING, type Tuning } from '../../lib/tuning';
 import { DEFAULT_BULLET_SHAPES, type BulletShape } from '../../lib/bulletShapes';
+import { loadRememberedConfig, saveRememberedConfig } from '../../lib/rememberedConfig';
 import { useStore } from '../../store';
 
 type MobilePane = 'inputs' | 'config';
@@ -27,8 +28,13 @@ export function NewJobModal() {
   const [jdText, setJdText] = useState('');
   const [enableScoring, setEnableScoring] = useState(false);
   const [obsidianLearnOff, setObsidianLearnOff] = useState(false);
-  const [tuning, setTuning] = useState<Tuning>(DEFAULT_TUNING);
-  const [models, setModels] = useState<ModelsConfig>(DEFAULT_MODELS);
+  const [rememberNextRun, setRememberNextRun] = useState(false);
+  const [tuning, setTuning] = useState<Tuning>(
+    () => loadRememberedConfig()?.tuning ?? DEFAULT_TUNING,
+  );
+  const [models, setModels] = useState<ModelsConfig>(
+    () => loadRememberedConfig()?.models ?? DEFAULT_MODELS,
+  );
   const [bulletShapes, setBulletShapes] = useState<BulletShape[]>(DEFAULT_BULLET_SHAPES);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<MobilePane>('inputs');
@@ -84,6 +90,10 @@ export function NewJobModal() {
 
     setSubmitting(true);
     setError(null);
+
+    if (rememberNextRun) {
+      saveRememberedConfig({ models, tuning });
+    }
 
     try {
       const job = await createJob({
@@ -284,6 +294,21 @@ export function NewJobModal() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              <div className="border-t border-rule pt-4 flex flex-col gap-1.5">
+                <label className="flex items-center gap-2.5 text-[13px] text-ink-soft cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rememberNextRun}
+                    onChange={(e) => setRememberNextRun(e.target.checked)}
+                    className="accent-[#c0362c] w-4 h-4"
+                  />
+                  Remember these settings for next run
+                </label>
+                <p className="text-[11px] text-ink-faint pl-6">
+                  Saves models, effort, temperature, and tuning in this browser only.
+                </p>
               </div>
 
               <div className="border-t border-rule pt-4">

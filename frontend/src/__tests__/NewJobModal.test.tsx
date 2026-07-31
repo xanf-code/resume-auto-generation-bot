@@ -5,6 +5,9 @@ import { NewJobModal } from '../components/newjob/NewJobModal';
 import { useStore } from '../store';
 import { createJob } from '../api/jobs';
 import { listModels } from '../api/models';
+import { loadRememberedConfig, saveRememberedConfig } from '../lib/rememberedConfig';
+import { DEFAULT_MODELS } from '../lib/models';
+import { DEFAULT_TUNING } from '../lib/tuning';
 
 vi.mock('../api/jobs', () => ({
   createJob: vi.fn(),
@@ -82,6 +85,7 @@ describe('NewJobModal', () => {
     (createJob as unknown as Mock).mockReset();
     (listModels as unknown as Mock).mockReset();
     (listModels as unknown as Mock).mockResolvedValue(CATALOG);
+    localStorage.clear();
     useStore.setState({
       closeNewJobModal: () => useStore.setState({ newJobModalOpen: false }),
     });
@@ -310,6 +314,72 @@ describe('NewJobModal', () => {
 
     const arg = (createJob as unknown as Mock).mock.calls.at(-1)![0];
     expect(arg.obsidian_learn).toBe(false);
+  });
+
+  it('renders the "remember for next run" checkbox, unchecked by default', async () => {
+    await renderModalReady();
+    expect(screen.getByLabelText(/remember.*next run/i)).not.toBeChecked();
+  });
+
+  it('does not persist models/tuning when the remember checkbox is left unchecked', async () => {
+    (createJob as unknown as Mock).mockResolvedValue({ job_id: 'abc', label: 'X' });
+    await renderModalReady();
+
+    fillRequiredFields();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /start typesetting/i }));
+    });
+
+    expect(loadRememberedConfig()).toBeNull();
+  });
+
+  it('persists the current models/tuning when the remember checkbox is checked at submit', async () => {
+    (createJob as unknown as Mock).mockResolvedValue({ job_id: 'abc', label: 'X' });
+    await renderModalReady();
+    await openAdvanced();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fast' }));
+    fireEvent.click(screen.getByLabelText(/remember.*next run/i));
+    fillRequiredFields();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /start typesetting/i }));
+    });
+
+    const remembered = loadRememberedConfig();
+    expect(remembered).not.toBeNull();
+    expect(remembered!.models.writer.model).toBe('openai/gpt-4o-mini');
+    expect(remembered!.tuning).toEqual(DEFAULT_TUNING);
+  });
+
+  it('pre-fills models from a previously remembered config on mount', async () => {
+    const remembered = {
+      models: {
+        ...DEFAULT_MODELS,
+        writer: { model: 'anthropic/claude-opus-5', effort: 'high', temperature: 0.9 },
+      },
+      tuning: DEFAULT_TUNING,
+    };
+    saveRememberedConfig(remembered);
+
+    await renderModalReady();
+    await openAdvanced();
+
+    expect(screen.getByLabelText('Writer model')).toHaveValue('anthropic/claude-opus-5');
+  });
+
+  it('leaves a previously remembered config untouched when submitting with the box unchecked', async () => {
+    const remembered = { models: DEFAULT_MODELS, tuning: { ...DEFAULT_TUNING, threshold: 91 } };
+    saveRememberedConfig(remembered);
+
+    (createJob as unknown as Mock).mockResolvedValue({ job_id: 'abc', label: 'X' });
+    await renderModalReady();
+
+    fillRequiredFields();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /start typesetting/i }));
+    });
+
+    expect(loadRememberedConfig()).toEqual(remembered);
   });
 
   it('does not close on Escape while a submission is in flight', async () => {
