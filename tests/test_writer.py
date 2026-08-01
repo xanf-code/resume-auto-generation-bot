@@ -441,15 +441,29 @@ def test_writer_system_enforces_bullet_band():
 
 
 def test_writer_system_caps_bullet_count_fixed():
-    """Exactly 4 bullets for role 0, exactly 3 for role 1, 7 total."""
+    """Exactly 4 bullets per role for roles 0 and 1 - 8 total, uniform split."""
     from src.prompts.writer import WRITER_SYSTEM
 
     assert "EXACTLY 4 bullets for role index 0" in WRITER_SYSTEM
-    assert "EXACTLY 3 bullets for role index 1" in WRITER_SYSTEM
-    assert "7 bullets total" in WRITER_SYSTEM
-    # Old flexible budget must be gone.
-    assert "8 bullets total" not in WRITER_SYSTEM
+    assert "EXACTLY 4 bullets for role index 1" in WRITER_SYSTEM
+    assert "8 bullets total" in WRITER_SYSTEM
+    # Old lopsided 4+3 budget must be gone.
+    assert "EXACTLY 3 bullets for role index 1" not in WRITER_SYSTEM
+    assert "7 bullets total" not in WRITER_SYSTEM
     assert "5 per role" not in WRITER_SYSTEM
+
+
+def test_compile_overflow_note_matches_writer_bullet_budget():
+    """The page-overflow revision note must quote the same budget the Writer
+    prompt enforces - a stale 4+3 note would order the writer to cut below its
+    own hard floor and deadlock the compile loop."""
+    import inspect
+
+    from src.pipeline import graph as graph_module
+
+    source = inspect.getsource(graph_module.compile_node)
+    assert "fixed budget: 8 total" in source
+    assert "role 0 = exactly 4, role 1 = exactly 4" in source
 
 
 def test_writer_system_does_not_mention_summary():
@@ -506,10 +520,10 @@ def test_writer_system_projects_section_mandates_practitioner_detail():
 
 
 def test_writer_system_rule5_metric_texture_sub_rules_present():
-    """GAP 3: rule 5 must add metric-texture discipline so numbers read measured,
-    not invented - vary precision, vary magnitude, cap hero metrics per role,
-    and calibrate the ownership verb to seniority. Lives inside rule 5, before
-    rule 6, and covers PROJECTS metrics too."""
+    """GAP 3: rule 5 must carry the METRIC TEXTURE hard rule so composed numbers
+    read measured, not invented - round percentages banned, verbatim source
+    figures exempt, precision matched to the config/scale figures, plus a
+    self-check. Lives inside rule 5, before rule 6."""
     from src.prompts.writer import WRITER_SYSTEM
 
     metrics_pos = WRITER_SYSTEM.index("5. Metrics")
@@ -521,25 +535,40 @@ def test_writer_system_rule5_metric_texture_sub_rules_present():
     assert "lead with real numbers from source" in rule_5
     assert "195-210 char target from rule 3" in rule_5
 
-    # New texture sub-rules.
-    assert "VARY PRECISION" in rule_5
-    assert "VARY MAGNITUDE" in rule_5
-    assert "CAP HERO METRICS" in rule_5
-    assert "CALIBRATE THE OWNERSHIP VERB TO SENIORITY" in rule_5
+    # Texture sub-rules.
+    assert "METRIC TEXTURE (HARD RULE)" in rule_5
+    assert "BANNED" in rule_5
+    assert "SOURCE EXCEPTION" in rule_5
+    assert "MATCH YOUR OWN PRECISION" in rule_5
+    assert "SELF-CHECK" in rule_5
 
     # Odd/specific vs round-number framing.
     assert "73%" in rule_5
-    assert "than a round one" in rule_5.lower() or "invented" in rule_5.lower()
+    assert "fabrication tell" in rule_5
+    assert "divisible by 5" in rule_5
 
-    # At most one hero number per role.
-    assert "at most ONE" in rule_5 or "one wow" in rule_5.lower()
+    # A real figure from source is never doctored to look lumpy.
+    assert "VERBATIM" in rule_5
+    assert "COMPOSED numbers only" in rule_5
 
-    # Seniority-calibrated verb example: contribution verb vs staff-level ownership verb.
-    assert '"built"' in rule_5.lower() or "built" in rule_5
-    assert "led system design" in rule_5.lower()
 
-    # Texture rules extend to the PROJECTS section too.
-    assert "PROJECTS" in rule_5
+def test_writer_system_rule5_examples_obey_its_own_metric_ban():
+    """The illustrative metrics inside rule 5 must not themselves be round
+    percentages - a banned example undercuts the ban."""
+    import re
+
+    from src.prompts.writer import WRITER_SYSTEM
+
+    metrics_pos = WRITER_SYSTEM.index("5. Metrics")
+    texture_pos = WRITER_SYSTEM.index("## METRIC TEXTURE (HARD RULE)")
+    preamble = WRITER_SYSTEM[metrics_pos:texture_pos]
+
+    for pct in re.findall(r"(\d+)%", preamble):
+        assert int(pct) % 5 != 0, f"rule 5 example uses banned round percentage {pct}%"
+
+    # The ban is scoped to EVERY quantified claim, not just the roles block, so
+    # PROJECTS metrics inherit it without needing a separate carve-out.
+    assert "Every quantified claim" in WRITER_SYSTEM
 
 
 def test_writer_system_rule5_does_not_touch_other_rules():

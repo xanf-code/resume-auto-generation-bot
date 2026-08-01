@@ -153,38 +153,42 @@ STRUCTURAL RULES
      honor that flag over the general framing rule above.
 5. Metrics: lead with real numbers from source where they exist; where none
    exist, compose representative quantified outcomes calibrated to the role's
-   scope and seniority ("cut latency ~40%", "reduced close from 5 days to 2").
+   scope and seniority ("cut latency 38%", "reduced close from 5 days to 2").
    Scope/scale language ("enterprise-scale", "high-volume", "cross-functional")
    supplements but does not replace a concrete figure - every result-clause
    carries a number. Place the metric mid-clause or as a trailing result, and
    use it to help fill the 195-210 char target from rule 3 rather than as a
    terse standalone.
 
-   METRIC TEXTURE - real metrics are lumpy, not round. A wall of clean round
-   percentages is a fabrication tell:
-   • VARY PRECISION - prefer an odd, specific figure ("cut latency 73%") over
-     a round one ("cut latency 70%"). Specificity reads as measured; a round
-     number reads as invented.
-   • VARY MAGNITUDE - never stack multiple huge numbers in one role. Pair one
-     large scale figure (records/day, revenue, users) with at least one small,
-     human-scale figure (on-call headcount, a day-count, a team size) so the
-     role doesn't read as a wall of heroics.
-   • CAP HERO METRICS - at most ONE "wow" number per role. Every other metric
-     in that role is modest and tied directly to the mechanism that produced
-     it (the tool, the rewrite, the process change) rather than standing alone.
-   • CALIBRATE THE OWNERSHIP VERB TO SENIORITY, NOT JUST THE NUMBER - the
-     claimed scale AND the claimed verb must both fit the years implied by the
-     role. On a mid-level timeline, scope claims to contribution ("built",
-     "rebuilt a service handling X") rather than staff-level ownership
-     ("led system design for a platform processing X") - that mismatch
-     between verb and years is as loud a tell as an inflated number.
-   Apply all four texture rules to the PROJECTS section metrics as well.
+  ## METRIC TEXTURE (HARD RULE)
+
+  Every quantified claim must read like a real measurement, not a placeholder.
+
+  - BANNED — composed percentages divisible by 5 or 10. Do NOT emit 10%, 15%,
+    20%, 25%, 40%, 50%, 70%, 75%, 90%, 100%, 200%. A percentage you are
+    INVENTING must be odd and non-round: 73%, 42%, 38%, 2.3x, 61%, 17%. Round
+    percentages are a fabrication tell — real measurements are never that clean,
+    and an interviewer reads "70%" as "made up."
+
+  - SOURCE EXCEPTION — if a percentage comes VERBATIM from the candidate's source
+    material, keep it exactly as given even if round. Never alter a real figure
+    to satisfy this rule; fabricating "51%" over a true "50%" makes the candidate
+    indefensible in the interview. This rule governs COMPOSED numbers only.
+
+  - MATCH YOUR OWN PRECISION — your config and scale figures are already sharp
+    (M=16, ef_construction=200, under 50ms, 8M+ users, 1.4B records). Apply the
+    SAME specificity to improvement percentages. An invented percentage should be
+    the LUMPIEST number in the bullet, never the roundest.
+
+  - SELF-CHECK before finalizing each metric: is this percentage divisible by 5?
+    If YES and you composed it (not from source), change it to an odd figure
+    before moving on. No exceptions for "clean-looking" numbers.
 6. Use strong action verbs. Use ATS-safe glyphs only - plain ASCII punctuation,
    no emoji, no exotic Unicode, nothing that breaks LaTeX compilation.
 7. BULLET BUDGET - FIXED COUNTS, both enforced:
    • EXACTLY 4 bullets for role index 0 (most recent). No more, no fewer.
-   • EXACTLY 3 bullets for role index 1 (second role). No more, no fewer.
-   • 7 bullets total. The split is fixed — relevance governs ordering within
+   • EXACTLY 4 bullets for role index 1 (second role). No more, no fewer.
+   • 8 bullets total. The split is fixed — relevance governs ordering within
      a role, not the count.
    Merge adjacent reframe targets into one dense bullet rather than writing one
    bullet per target. Apply each ``ReframingTarget.framing_guidance`` to its
