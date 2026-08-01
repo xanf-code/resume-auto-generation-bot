@@ -189,27 +189,37 @@ def _parse(
     effort: str | None = None,
     temperature: float | None = None,
 ) -> SchemaT:
-    extra_kwargs = {}
+    extra_body: dict = {}
     if effort is not None:
-        # OpenRouter's unified reasoning parameter - not a native OpenAI SDK
-        # field, so it must go through extra_body. Anthropic reasoning models
-        # translate this into a thinking-effort depth; the thinking token
-        # budget itself is calculated from max_tokens.
-        # effort="none" is intentional: send it so OpenRouter disables
-        # reasoning. Python None (omit this block) is for non-reasoning models.
-        extra_kwargs["extra_body"] = {"reasoning": {"effort": effort}}
+        # OpenRouter's unified reasoning parameter. Anthropic models translate
+        # this into a thinking-effort depth; the thinking token budget is
+        # calculated from max_tokens. effort="none" is intentional: send it so
+        # OpenRouter disables reasoning. Python None (omit this block) is for
+        # non-reasoning models.
+        extra_body["reasoning"] = {"effort": effort}
+    extra_kwargs: dict = {"extra_body": extra_body} if extra_body else {}
     if temperature is not None:
-        # Native OpenAI SDK kwarg (unlike effort) - forwarded as-is. 0 is a
-        # legitimate value here, so the check must be `is not None`.
         extra_kwargs["temperature"] = temperature
-    response = client().beta.chat.completions.parse(
+    # Use chat.completions.create() with an explicit json_schema response_format
+    # instead of beta.chat.completions.parse(). OpenRouter honors the json_schema
+    # type natively across all providers; beta.parse() is an OpenAI-SDK abstraction
+    # that OpenRouter doesn't fully implement for non-OpenAI models — Anthropic
+    # thinking blocks can bleed into the response payload and cause JSONDecodeError.
+    response = client().chat.completions.create(
         model=model,
         max_tokens=max_tokens,
         messages=[
             _system_message(model, system),
             {"role": "user", "content": user},
         ],
-        response_format=schema,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": schema.__name__,
+                "strict": True,
+                "schema": schema.model_json_schema(),
+            },
+        },
         **extra_kwargs,
     )
     usage_log = _ctx_usage.get()
@@ -219,11 +229,12 @@ def _parse(
             "input_tokens": response.usage.prompt_tokens,
             "output_tokens": response.usage.completion_tokens,
         })
-    parsed = response.choices[0].message.parsed
-    if parsed is None:
+    content = response.choices[0].message.content
+    if not content:
         raise ValueError(
-            f"No parsed {schema.__name__} instance found in model response."
+            f"Empty response content for {schema.__name__} — model returned nothing."
         )
+    parsed = schema.model_validate_json(content)
     return parsed
 
 

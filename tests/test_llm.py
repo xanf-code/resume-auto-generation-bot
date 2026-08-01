@@ -9,21 +9,19 @@ class _DummySchema(BaseModel):
     """Placeholder schema - _parse is mocked in these tests, so its shape never matters."""
 
 
-def _fake_openai_client(captured: dict, parsed: object = "PARSED"):
-    """Build a stand-in for llm.client() that records completions.parse(**kwargs)."""
+def _fake_openai_client(captured: dict):
+    """Build a stand-in for llm.client() that records chat.completions.create(**kwargs)."""
 
-    def fake_completions_parse(**kwargs):
+    def fake_completions_create(**kwargs):
         captured.update(kwargs)
         return types.SimpleNamespace(
             usage=None,
-            choices=[types.SimpleNamespace(message=types.SimpleNamespace(parsed=parsed))],
+            choices=[types.SimpleNamespace(message=types.SimpleNamespace(content="{}"))],
         )
 
     return types.SimpleNamespace(
-        beta=types.SimpleNamespace(
-            chat=types.SimpleNamespace(
-                completions=types.SimpleNamespace(parse=fake_completions_parse)
-            )
+        chat=types.SimpleNamespace(
+            completions=types.SimpleNamespace(create=fake_completions_create)
         )
     )
 
@@ -417,9 +415,8 @@ def test_parse_forwards_effort_via_openrouter_reasoning_extra_body(monkeypatch):
     captured = {}
     monkeypatch.setattr(llm, "client", lambda: _fake_openai_client(captured))
 
-    out = llm._parse("sys", "user", _DummySchema, "some/model", 1234, effort="high")
+    llm._parse("sys", "user", _DummySchema, "some/model", 1234, effort="high")
 
-    assert out == "PARSED"
     assert captured["extra_body"] == {"reasoning": {"effort": "high"}}
 
 
@@ -436,7 +433,7 @@ def test_parse_forwards_effort_none_string_to_disable_reasoning(monkeypatch):
 
     llm._parse("sys", "user", _DummySchema, "some/model", 1234, effort="none")
 
-    assert captured["extra_body"] == {"reasoning": {"effort": "none"}}
+    assert captured.get("extra_body") == {"reasoning": {"effort": "none"}}
 
 
 def test_parse_omits_extra_body_when_effort_is_none(monkeypatch):
