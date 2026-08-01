@@ -96,7 +96,7 @@ For each underrepresented competency, emit one target with:
   verb, and the claimed scope. Push toward the JD's exact keyword surface.
 
   For tools NOT in the resume: claim DIRECT, first-person ownership of the tool
-  itself - "built in [tool]", "architected [tool] services", "migrated X to
+  itself - "built in [tool]", "Tuned [tool] to [parameter]", "migrated X to
   [tool]". Do NOT hedge with "experience with [tool]-class platforms" or
   "compatible with [tool] ecosystems" - adjacent/compatibility phrasing reads
   as a dodge and is docked by the Skeptic. Name the tool as owned, not orbited.
