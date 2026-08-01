@@ -34,12 +34,12 @@ def gap_analysis(state: PipelineState) -> dict:
     vector = state["jd_vector"]
     role = effective_gap()
     log.info(
-        "gap_analysis | %d roles vs %d JD skills → sending to %s (effort=%s, temp=%s)",
+        "gap_analysis | %d roles vs %d JD skills → sending to %s (effort=%s, params=%s)",
         len(struct.roles),
         len(vector.weighted_skills),
         role.model,
         role.effort,
-        role.temperature,
+        role.extra_params,
     )
     user_msg = build_user_message(struct, vector)
     wrapper = parse_gap(GAP_SYSTEM, user_msg, GapTargets)

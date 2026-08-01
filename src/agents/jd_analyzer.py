@@ -22,12 +22,21 @@ def analyze_jd(state: PipelineState) -> dict:
     the web path uses for vault retrieval) so ``jd_domains`` is available to
     every graph run - CLI or web - not just the web job path. It never raises,
     so a tagger failure degrades to an empty envelope rather than failing the run.
+
+    When the caller already classified this exact JD and seeded ``jd_domains``
+    onto the initial state (the web path does this - it needs the split before
+    the graph even starts, to resolve vault retrieval/tuning, and does so
+    inside its own model_context so the call honors the job's configured
+    Parser model), that value is reused verbatim instead of calling
+    ``classify_jd_type`` a second, independent time - two calls could
+    otherwise disagree since each resolves against whatever model_context is
+    active for its own call site.
     """
     jd_raw = state["jd_raw"]
     role = effective_fast()
     log.info(
-        "analyze_jd  | sending %d chars to %s (effort=%s, temp=%s)",
-        len(jd_raw), role.model, role.effort, role.temperature,
+        "analyze_jd  | sending %d chars to %s (effort=%s, params=%s)",
+        len(jd_raw), role.model, role.effort, role.extra_params,
     )
     vector = parse_fast(JD_SYSTEM, jd_raw, JDVector)
     log.info(
@@ -53,10 +62,19 @@ def analyze_jd(state: PipelineState) -> dict:
         len(vector.must_mirror),
         " | ".join(vector.must_mirror),
     )
-    classification = classify_jd_type(jd_raw)
-    log.info(
-        "analyze_jd  | tagged domains (%d): %s",
-        len(classification.domains),
-        ", ".join(classification.domains),
-    )
-    return {"jd_vector": vector, "jd_domains": classification.domains}
+    seeded_domains = state.get("jd_domains")
+    if seeded_domains is not None:
+        log.info(
+            "analyze_jd  | jd_domains seeded (%d): %s - skipping classify_jd_type call",
+            len(seeded_domains), ", ".join(seeded_domains),
+        )
+        domains = seeded_domains
+    else:
+        classification = classify_jd_type(jd_raw)
+        domains = classification.domains
+        log.info(
+            "analyze_jd  | tagged domains (%d): %s",
+            len(domains),
+            ", ".join(domains),
+        )
+    return {"jd_vector": vector, "jd_domains": domains}

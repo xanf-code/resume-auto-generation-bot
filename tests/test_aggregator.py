@@ -200,14 +200,14 @@ def test_aggregator_fail_path_logs_the_actual_model_context_override(monkeypatch
             strong="s",
             scoring="deepseek/deepseek-v4-flash",
             effort_scoring="xhigh",
-            temp_scoring=0.2,
+            extra_scoring={"temperature": 0.2},
         ):
             aggregator.aggregator({"panel_scores": _failing_scores()})
 
     log_text = " ".join(caplog.messages)
     assert "deepseek/deepseek-v4-flash" in log_text
     assert "effort=xhigh" in log_text
-    assert "temp=0.2" in log_text
+    assert "temperature': 0.2" in log_text
 
 
 def test_aggregator_pass_path_never_calls_llm(monkeypatch):

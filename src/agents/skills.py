@@ -59,8 +59,8 @@ def generate_skills(state: PipelineState) -> dict:
 
     role = effective_skills()
     log.info(
-        "skills       | generating skill dump → %s (effort=%s, temp=%s)",
-        role.model, role.effort, role.temperature,
+        "skills       | generating skill dump → %s (effort=%s, params=%s)",
+        role.model, role.effort, role.extra_params,
     )
     try:
         msg = build_skills_user_message(struct, vector, targets)

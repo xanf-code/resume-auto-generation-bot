@@ -9,6 +9,7 @@ import {
   DEFAULT_MODELS,
   matchPreset,
   presetLabel,
+  toApiModels,
   type ModelsConfig,
 } from '../../lib/models';
 import { DEFAULT_TUNING, type Tuning } from '../../lib/tuning';
@@ -102,7 +103,7 @@ export function NewJobModal() {
         jd_text: jdText,
         enable_scoring: enableScoring,
         tuning,
-        models,
+        models: toApiModels(models),
         bullet_shapes: bulletShapes,
         obsidian_learn: !obsidianLearnOff,
       });

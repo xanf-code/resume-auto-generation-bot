@@ -202,8 +202,8 @@ def parse_resume(state: PipelineState) -> dict:
 
     role = effective_fast()
     log.info(
-        "parse_resume | sending %d chars to %s (effort=%s, temp=%s)",
-        len(resume_tex_raw), role.model, role.effort, role.temperature,
+        "parse_resume | sending %d chars to %s (effort=%s, params=%s)",
+        len(resume_tex_raw), role.model, role.effort, role.extra_params,
     )
     struct = parse_fast(PARSER_SYSTEM, resume_tex_raw, ResumeStruct)
     name = extract_name(resume_tex_raw)

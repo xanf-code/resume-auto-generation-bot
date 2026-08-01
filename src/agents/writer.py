@@ -260,13 +260,13 @@ def write_resume(state: PipelineState) -> dict:
     role = effective_strong()
     log.info(
         "writer       | iteration=%d  revision_notes=%s  compile_errors=%s  "
-        "→ sending to %s (effort=%s, temp=%s)",
+        "→ sending to %s (effort=%s, params=%s)",
         iteration,
         "yes" if has_revision else "no",
         "yes" if has_compile_err else "no",
         role.model,
         role.effort,
-        role.temperature,
+        role.extra_params,
     )
     user_msg = build_writer_user_message(state)
     output = parse_strong(WRITER_SYSTEM, user_msg, WriterOutput)

@@ -8,6 +8,7 @@ import {
   findCatalogModel,
   matchPreset,
   type CatalogModel,
+  type ExtraParamRow,
   type ModelPresetId,
   type ModelRoleKey,
   type ModelsConfig,
@@ -102,11 +103,33 @@ export function ModelControls({
     });
   };
 
-  const setTemperature = (role: ModelRoleKey, temperature: number | null) => {
+  const setExtraParams = (role: ModelRoleKey, extraParams: ExtraParamRow[]) => {
     onChange({
       ...models,
-      [role]: { ...models[role], temperature },
+      [role]: { ...models[role], extraParams },
     });
+  };
+
+  const addParamRow = (role: ModelRoleKey) => {
+    setExtraParams(role, [...models[role].extraParams, { key: '', value: '' }]);
+  };
+
+  const updateParamRow = (
+    role: ModelRoleKey,
+    index: number,
+    patch: Partial<ExtraParamRow>,
+  ) => {
+    const rows = models[role].extraParams.map((row, i) =>
+      i === index ? { ...row, ...patch } : row,
+    );
+    setExtraParams(role, rows);
+  };
+
+  const removeParamRow = (role: ModelRoleKey, index: number) => {
+    setExtraParams(
+      role,
+      models[role].extraParams.filter((_, i) => i !== index),
+    );
   };
 
   const visibleRoles = MODEL_ROLES.filter(
@@ -168,7 +191,6 @@ export function ModelControls({
                 const efforts = effortOptionsFor(entry?.reasoning);
                 const modelId = `${baseId}-${role}-model`;
                 const effortId = `${baseId}-${role}-effort`;
-                const temperatureId = `${baseId}-${role}-temperature`;
                 const label = ROLE_LABELS[role];
 
                 // Ensure the current selection appears even if missing from catalog
@@ -226,26 +248,49 @@ export function ModelControls({
                         </select>
                       </>
                     )}
-                    <label
-                      className="text-[12px] text-ink-soft mt-1"
-                      htmlFor={temperatureId}
-                    >
-                      {label} temperature
-                    </label>
-                    <input
-                      id={temperatureId}
-                      aria-label={`${label} temperature`}
-                      type="number"
-                      min={0}
-                      max={2}
-                      step={0.1}
-                      className={selectClass}
-                      value={cfg.temperature ?? ''}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        setTemperature(role, raw === '' ? null : Number(raw));
-                      }}
-                    />
+                    <div className="flex flex-col gap-1 mt-1">
+                      <span className="text-[12px] text-ink-soft">
+                        {label} parameters
+                      </span>
+                      {cfg.extraParams.map((row, index) => (
+                        <div key={index} className="flex gap-1.5 items-center">
+                          <input
+                            aria-label={`${label} parameter ${index + 1} name`}
+                            placeholder="name"
+                            className={`${selectClass} flex-1`}
+                            value={row.key}
+                            onChange={(e) =>
+                              updateParamRow(role, index, { key: e.target.value })
+                            }
+                          />
+                          <input
+                            aria-label={`${label} parameter ${index + 1} value`}
+                            placeholder="value"
+                            className={`${selectClass} flex-1`}
+                            value={row.value}
+                            onChange={(e) =>
+                              updateParamRow(role, index, { value: e.target.value })
+                            }
+                          />
+                          <button
+                            type="button"
+                            aria-label={`Remove ${label} parameter ${index + 1}`}
+                            onClick={() => removeParamRow(role, index)}
+                            className="text-[13px] text-ink-faint hover:text-fail px-1.5"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        aria-label={`Add ${label} parameter`}
+                        onClick={() => addParamRow(role)}
+                        className="self-start text-[12px] px-2 py-1 rounded-[2px] border border-rule text-ink-soft hover:border-ink-faint hover:text-ink"
+                      >
+                        + Add parameter
+                      </button>
+                    </div>
                   </div>
                 );
               })}

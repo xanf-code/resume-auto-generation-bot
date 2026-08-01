@@ -152,13 +152,13 @@ def test_generate_skills_logs_the_actual_model_context_override(monkeypatch, cap
             fast="f",
             strong="s",
             skills="qwen/qwen3-30b-a3b-instruct-2507",
-            temp_skills=0.2,
+            extra_skills={"temperature": 0.2},
         ):
             skills_mod.generate_skills(_first_iteration_state())
 
     log_text = " ".join(caplog.messages)
     assert "qwen/qwen3-30b-a3b-instruct-2507" in log_text
-    assert "temp=0.2" in log_text
+    assert "temperature': 0.2" in log_text
 
 
 def test_generate_skills_idempotent_when_dump_already_present(monkeypatch):

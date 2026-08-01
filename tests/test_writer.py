@@ -302,14 +302,14 @@ def test_write_resume_logs_the_actual_model_context_override(monkeypatch, caplog
             fast="f",
             strong="anthropic/claude-sonnet-5",
             effort_strong="medium",
-            temp_strong=0.7,
+            extra_strong={"temperature": 0.7},
         ):
             writer.write_resume(_first_iteration_state())
 
     log_text = " ".join(caplog.messages)
     assert "anthropic/claude-sonnet-5" in log_text
     assert "effort=medium" in log_text
-    assert "temp=0.7" in log_text
+    assert "temperature': 0.7" in log_text
 
 
 def test_write_resume_strips_char_annotations(monkeypatch):

@@ -105,13 +105,13 @@ def test_parse_resume_logs_the_actual_model_context_override(monkeypatch, caplog
 
     with caplog.at_level(logging.INFO, logger="src.agents.parser"):
         with model_context(
-            fast="google/gemini-2.5-flash-lite", strong="s", temp_fast=0.0
+            fast="google/gemini-2.5-flash-lite", strong="s", extra_fast={"temperature": 0.0}
         ):
             parser.parse_resume({"resume_tex_raw": SAMPLE_TEX})
 
     log_text = " ".join(caplog.messages)
     assert "google/gemini-2.5-flash-lite" in log_text
-    assert "temp=0.0" in log_text
+    assert "temperature': 0.0" in log_text
 
 
 def test_parse_resume_does_not_mutate_input_state(monkeypatch):

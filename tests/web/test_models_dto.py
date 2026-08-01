@@ -7,8 +7,10 @@ from pydantic import ValidationError
 from src.db.repository import InMemoryResumeRepository
 
 
-def _role(model: str, effort: str | None = None, temperature: float | None = None) -> dict:
-    return {"model": model, "effort": effort, "temperature": temperature}
+def _role(
+    model: str, effort: str | None = None, extra_params: dict | None = None
+) -> dict:
+    return {"model": model, "effort": effort, "extra_params": extra_params}
 
 
 def _models(**over) -> dict:
@@ -61,40 +63,43 @@ def test_models_dto_to_pipeline_models():
     assert pm.scoring.model == "openai/gpt-4o-mini"
 
 
-def test_models_dto_to_pipeline_models_preserves_temperature():
+def test_models_dto_to_pipeline_models_preserves_extra_params():
     from src.web.schemas import ModelsDTO
 
     dto = ModelsDTO(
         **_models(
-            writer=_role("anthropic/claude-sonnet-5", "medium", 0.7),
-            parser=_role("openai/gpt-4o-mini", None, 0.0),
-            gap=_role("anthropic/claude-opus-5", "medium", 0.5),
-            skills=_role("openai/gpt-4o-mini", None, 0.2),
-            scoring=_role("openai/gpt-4o-mini", None, 0.2),
+            writer=_role("anthropic/claude-sonnet-5", "medium", {"temperature": 0.7}),
+            parser=_role("openai/gpt-4o-mini", None, {"temperature": 0.0}),
+            gap=_role(
+                "anthropic/claude-opus-5", "medium",
+                {"temperature": 0.5, "top_k": 40},
+            ),
+            skills=_role("openai/gpt-4o-mini", None, {"temperature": 0.2}),
+            scoring=_role("openai/gpt-4o-mini", None, {"temperature": 0.2}),
         )
     )
     pm = dto.to_pipeline_models()
-    assert pm.writer.temperature == 0.7
-    assert pm.parser.temperature == 0.0
-    assert pm.gap.temperature == 0.5
-    assert pm.skills.temperature == 0.2
-    assert pm.scoring.temperature == 0.2
+    assert pm.writer.extra_params == {"temperature": 0.7}
+    assert pm.parser.extra_params == {"temperature": 0.0}
+    assert pm.gap.extra_params == {"temperature": 0.5, "top_k": 40}
+    assert pm.skills.extra_params == {"temperature": 0.2}
+    assert pm.scoring.extra_params == {"temperature": 0.2}
 
 
-def test_models_dto_to_pipeline_models_temperature_defaults_to_none():
+def test_models_dto_to_pipeline_models_extra_params_defaults_to_none():
     from src.web.schemas import ModelsDTO
 
     dto = ModelsDTO(**_models())
     pm = dto.to_pipeline_models()
-    assert pm.writer.temperature is None
-    assert pm.parser.temperature is None
-    assert pm.gap.temperature is None
-    assert pm.skills.temperature is None
-    assert pm.scoring.temperature is None
+    assert pm.writer.extra_params is None
+    assert pm.parser.extra_params is None
+    assert pm.gap.extra_params is None
+    assert pm.skills.extra_params is None
+    assert pm.scoring.extra_params is None
 
 
-def test_models_dto_skills_omitted_falls_back_to_none_temperature():
-    """Older payloads without skills still convert; skills.temperature is None."""
+def test_models_dto_skills_omitted_falls_back_to_none_extra_params():
+    """Older payloads without skills still convert; skills.extra_params is None."""
     from src.web.schemas import ModelsDTO
 
     payload = {
@@ -104,35 +109,46 @@ def test_models_dto_skills_omitted_falls_back_to_none_temperature():
         "scoring": _role("openai/gpt-4o-mini"),
     }
     pm = ModelsDTO(**payload).to_pipeline_models()
-    assert pm.skills.temperature is None
+    assert pm.skills.extra_params is None
 
 
-def test_model_role_rejects_temperature_above_two():
+def test_model_role_rejects_blank_extra_param_key():
     from src.web.schemas import ModelRoleDTO
 
     with pytest.raises(ValidationError):
-        ModelRoleDTO(model="anthropic/claude-opus-5", temperature=2.1)
+        ModelRoleDTO(model="anthropic/claude-opus-5", extra_params={"  ": 0.7})
 
 
-def test_model_role_rejects_negative_temperature():
+def test_model_role_rejects_reserved_extra_param_keys():
     from src.web.schemas import ModelRoleDTO
 
-    with pytest.raises(ValidationError):
-        ModelRoleDTO(model="anthropic/claude-opus-5", temperature=-0.1)
+    for reserved in ("effort", "reasoning", "model", "provider"):
+        with pytest.raises(ValidationError):
+            ModelRoleDTO(model="anthropic/claude-opus-5", extra_params={reserved: "x"})
 
 
-def test_model_role_accepts_boundary_temperatures():
+def test_model_role_accepts_arbitrary_extra_params():
     from src.web.schemas import ModelRoleDTO
 
-    assert ModelRoleDTO(model="anthropic/claude-opus-5", temperature=0.0).temperature == 0.0
-    assert ModelRoleDTO(model="anthropic/claude-opus-5", temperature=2.0).temperature == 2.0
+    dto = ModelRoleDTO(
+        model="anthropic/claude-opus-5",
+        extra_params={"temperature": 0.0, "top_k": 40, "top_p": 0.9, "seed": 7},
+    )
+    assert dto.extra_params == {"temperature": 0.0, "top_k": 40, "top_p": 0.9, "seed": 7}
 
 
-def test_model_role_temperature_defaults_to_none():
+def test_model_role_extra_params_defaults_to_none():
     from src.web.schemas import ModelRoleDTO
 
     dto = ModelRoleDTO(model="anthropic/claude-opus-5")
-    assert dto.temperature is None
+    assert dto.extra_params is None
+
+
+def test_model_role_treats_empty_extra_params_as_none():
+    from src.web.schemas import ModelRoleDTO
+
+    dto = ModelRoleDTO(model="anthropic/claude-opus-5", extra_params={})
+    assert dto.extra_params is None
 
 
 def test_models_dto_skills_defaults_when_omitted():
@@ -218,12 +234,12 @@ def test_runner_wraps_pipeline_in_model_context():
     from src.pipeline.llm import (
         _ctx_effort_skills,
         _ctx_effort_strong,
+        _ctx_extra_scoring,
+        _ctx_extra_strong,
         _ctx_model_fast,
         _ctx_model_scoring,
         _ctx_model_skills,
         _ctx_model_strong,
-        _ctx_temp_scoring,
-        _ctx_temp_strong,
     )
     from src.pipeline.models import ModelRole, PipelineModels
     from src.web.config import WebSettings
@@ -248,8 +264,8 @@ def test_runner_wraps_pipeline_in_model_context():
         captured["scoring"] = _ctx_model_scoring.get()
         captured["effort_strong"] = _ctx_effort_strong.get()
         captured["effort_skills"] = _ctx_effort_skills.get()
-        captured["temp_strong"] = _ctx_temp_strong.get()
-        captured["temp_scoring"] = _ctx_temp_scoring.get()
+        captured["extra_strong"] = _ctx_extra_strong.get()
+        captured["extra_scoring"] = _ctx_extra_scoring.get()
         return {
             "best_latex": "x",
             "aggregate_score": 80.0,
@@ -262,11 +278,11 @@ def test_runner_wraps_pipeline_in_model_context():
     job.jd_raw = "j"
     job.jd_name = "X"
     job.models = PipelineModels(
-        writer=ModelRole("anthropic/claude-opus-5", "high", 0.7),
+        writer=ModelRole("anthropic/claude-opus-5", "high", {"temperature": 0.7}),
         parser=ModelRole("openai/gpt-4o-mini", None),
         gap=ModelRole("anthropic/claude-opus-5", "medium"),
         skills=ModelRole("deepseek/deepseek-v4-flash", None),
-        scoring=ModelRole("openai/gpt-4o-mini", "low", 0.2),
+        scoring=ModelRole("openai/gpt-4o-mini", "low", {"temperature": 0.2}),
     )
 
     with patch.object(
@@ -288,8 +304,8 @@ def test_runner_wraps_pipeline_in_model_context():
     assert captured["scoring"] == "openai/gpt-4o-mini"
     assert captured["effort_strong"] == "high"
     assert captured["effort_skills"] is None
-    assert captured["temp_strong"] == 0.7
-    assert captured["temp_scoring"] == 0.2
+    assert captured["extra_strong"] == {"temperature": 0.7}
+    assert captured["extra_scoring"] == {"temperature": 0.2}
 
     loop.call_soon_threadsafe(loop.stop)
 
@@ -304,15 +320,15 @@ def test_pipeline_models_defaults_include_skills():
     assert pm.scoring.model == settings.MODEL_SCORING
 
 
-def test_pipeline_models_defaults_leave_temperature_none():
-    """No config.settings TEMPERATURE_* constants exist - defaults() omits
-    temperature for every role, matching parse_*'s "no override -> not sent"
+def test_pipeline_models_defaults_leave_extra_params_none():
+    """No config.settings constants exist for extra params - defaults() omits
+    them for every role, matching parse_*'s "no override -> not sent"
     behavior. Only explicit per-run overrides (e.g. from the frontend) set it."""
     from src.pipeline.models import PipelineModels
 
     pm = PipelineModels.defaults()
-    assert pm.writer.temperature is None
-    assert pm.parser.temperature is None
-    assert pm.gap.temperature is None
-    assert pm.skills.temperature is None
-    assert pm.scoring.temperature is None
+    assert pm.writer.extra_params is None
+    assert pm.parser.extra_params is None
+    assert pm.gap.extra_params is None
+    assert pm.skills.extra_params is None
+    assert pm.scoring.extra_params is None

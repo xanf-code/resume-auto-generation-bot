@@ -7,6 +7,8 @@ import {
   matchPreset,
   modelsEqual,
   presetLabel,
+  serializeExtraParams,
+  toApiModels,
   type ModelReasoning,
   type ModelsConfig,
 } from '../lib/models';
@@ -82,63 +84,160 @@ describe('model presets', () => {
   it('returns custom when any role differs', () => {
     const custom: ModelsConfig = {
       ...DEFAULT_MODELS,
-      writer: { model: 'openai/gpt-4o-mini', effort: null, temperature: 0 },
+      writer: { model: 'openai/gpt-4o-mini', effort: null, extraParams: [] },
     };
     expect(matchPreset(custom)).toBe('custom');
     expect(presetLabel('custom')).toBe('Custom');
   });
 
-  it('returns custom when only temperature differs', () => {
+  it('returns custom when only an extra param differs', () => {
     const custom: ModelsConfig = {
       ...DEFAULT_MODELS,
-      writer: { ...DEFAULT_MODELS.writer, temperature: 0.99 },
+      writer: {
+        ...DEFAULT_MODELS.writer,
+        extraParams: [{ key: 'temperature', value: '0.99' }],
+      },
     };
     expect(matchPreset(custom)).toBe('custom');
+  });
+
+  it('treats differently-ordered but equivalent param rows as the same config', () => {
+    const reordered: ModelsConfig = {
+      ...DEFAULT_MODELS,
+      writer: {
+        ...DEFAULT_MODELS.writer,
+        extraParams: [{ key: 'temperature', value: '0.7' }, { key: '', value: '' }],
+      },
+    };
+    expect(matchPreset(reordered)).toBe('balanced');
   });
 });
 
 describe('DEFAULT_MODELS', () => {
-  it('matches the specified per-role model/effort/temperature defaults', () => {
+  it('matches the specified per-role model/effort/extraParams defaults', () => {
     expect(DEFAULT_MODELS.writer).toEqual({
       model: 'anthropic/claude-sonnet-5',
       effort: 'medium',
-      temperature: 0.7,
+      extraParams: [{ key: 'temperature', value: '0.7' }],
     });
     expect(DEFAULT_MODELS.parser).toEqual({
       model: 'google/gemini-2.5-flash-lite',
       effort: null,
-      temperature: 0,
+      extraParams: [{ key: 'temperature', value: '0' }],
     });
     expect(DEFAULT_MODELS.gap).toEqual({
       model: 'z-ai/glm-5.2',
       effort: 'high',
-      temperature: 0.5,
+      extraParams: [{ key: 'temperature', value: '0.5' }],
     });
     expect(DEFAULT_MODELS.skills).toEqual({
       model: 'qwen/qwen3-30b-a3b-instruct-2507',
       effort: null,
-      temperature: 0.2,
+      extraParams: [{ key: 'temperature', value: '0.2' }],
     });
     expect(DEFAULT_MODELS.scoring).toEqual({
       model: 'deepseek/deepseek-v4-flash',
       effort: 'xhigh',
-      temperature: 0.2,
+      extraParams: [{ key: 'temperature', value: '0.2' }],
     });
   });
 });
 
-describe('preset temperature bundles', () => {
+describe('preset extraParams bundles', () => {
   it('sets temperature 0 for every role in the Fast preset', () => {
     const fast = MODEL_PRESETS.find((p) => p.id === 'fast')!.models;
     for (const role of ['writer', 'parser', 'gap', 'skills', 'scoring'] as const) {
-      expect(fast[role].temperature).toBe(0);
+      expect(serializeExtraParams(fast[role].extraParams)).toEqual({ temperature: 0 });
     }
   });
 
-  it('reuses Balanced per-role temperatures in the Best preset', () => {
+  it('reuses Balanced per-role extraParams in the Best preset', () => {
     const best = MODEL_PRESETS.find((p) => p.id === 'best')!.models;
     for (const role of ['writer', 'parser', 'gap', 'skills', 'scoring'] as const) {
-      expect(best[role].temperature).toBe(DEFAULT_MODELS[role].temperature);
+      expect(best[role].extraParams).toEqual(DEFAULT_MODELS[role].extraParams);
     }
+  });
+});
+
+describe('serializeExtraParams', () => {
+  it('trims keys and drops blank-key rows', () => {
+    expect(
+      serializeExtraParams([
+        { key: '  temperature  ', value: '0.7' },
+        { key: '   ', value: 'ignored' },
+      ]),
+    ).toEqual({ temperature: 0.7 });
+  });
+
+  it('coerces numeric-looking values to numbers', () => {
+    expect(serializeExtraParams([{ key: 'top_k', value: '40' }])).toEqual({ top_k: 40 });
+    expect(serializeExtraParams([{ key: 'temperature', value: '0' }])).toEqual({
+      temperature: 0,
+    });
+  });
+
+  it('coerces true/false (case-insensitive) to booleans', () => {
+    expect(serializeExtraParams([{ key: 'stream', value: 'true' }])).toEqual({
+      stream: true,
+    });
+    expect(serializeExtraParams([{ key: 'stream', value: 'FALSE' }])).toEqual({
+      stream: false,
+    });
+  });
+
+  it('keeps non-numeric, non-boolean values as strings', () => {
+    expect(serializeExtraParams([{ key: 'reasoning_mode', value: 'deep' }])).toEqual({
+      reasoning_mode: 'deep',
+    });
+  });
+
+  it('keeps an explicit empty value as an empty string, not zero', () => {
+    expect(serializeExtraParams([{ key: 'stop', value: '' }])).toEqual({ stop: '' });
+  });
+
+  it('last row wins for duplicate keys', () => {
+    expect(
+      serializeExtraParams([
+        { key: 'temperature', value: '0.7' },
+        { key: 'temperature', value: '0.9' },
+      ]),
+    ).toEqual({ temperature: 0.9 });
+  });
+
+  it('returns an empty object for an empty row list', () => {
+    expect(serializeExtraParams([])).toEqual({});
+  });
+});
+
+describe('toApiModels', () => {
+  it('converts each role into the wire shape, omitting extra_params when empty', () => {
+    const config: ModelsConfig = {
+      ...DEFAULT_MODELS,
+      parser: { model: 'openai/gpt-4o-mini', effort: null, extraParams: [] },
+    };
+    const api = toApiModels(config);
+    expect(api.writer).toEqual({
+      model: 'anthropic/claude-sonnet-5',
+      effort: 'medium',
+      extra_params: { temperature: 0.7 },
+    });
+    expect(api.parser).toEqual({ model: 'openai/gpt-4o-mini', effort: null });
+    expect(api.parser).not.toHaveProperty('extra_params');
+  });
+
+  it('forwards arbitrary parameter names, not just temperature', () => {
+    const config: ModelsConfig = {
+      ...DEFAULT_MODELS,
+      gap: {
+        model: 'z-ai/glm-5.2',
+        effort: 'high',
+        extraParams: [
+          { key: 'temperature', value: '0.5' },
+          { key: 'top_k', value: '40' },
+        ],
+      },
+    };
+    const api = toApiModels(config);
+    expect(api.gap.extra_params).toEqual({ temperature: 0.5, top_k: 40 });
   });
 });

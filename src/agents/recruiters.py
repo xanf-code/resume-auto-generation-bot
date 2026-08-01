@@ -188,8 +188,8 @@ def recruiter_panel(state: PipelineState) -> dict:
 
     role = effective_scoring()
     log.info(
-        "recruiter    | spawning 4 %s personas concurrently… (effort=%s, temp=%s)",
-        role.model, role.effort, role.temperature,
+        "recruiter    | spawning 4 %s personas concurrently… (effort=%s, params=%s)",
+        role.model, role.effort, role.extra_params,
     )
     scores = asyncio.run(run_panel(state))
     for s in scores:

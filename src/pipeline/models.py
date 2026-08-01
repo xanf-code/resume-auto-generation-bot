@@ -8,6 +8,7 @@ optional reasoning effort) without mutating globals.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from config import settings
 
@@ -19,11 +20,18 @@ KNOWN_EFFORTS: frozenset[str] = frozenset(
 
 @dataclass(frozen=True)
 class ModelRole:
-    """One pipeline role's model slug, optional reasoning effort, and temperature."""
+    """One pipeline role's model slug, optional reasoning effort, and extra params.
+
+    ``extra_params`` is an open, Postman-style bag of additional OpenRouter
+    request fields (temperature, top_k, top_p, ...) the caller wants to
+    forward verbatim. Unlike ``effort``, which OpenRouter nests under a
+    dedicated ``reasoning`` object, every key here rides straight into the
+    request body via ``extra_body`` - see ``src.pipeline.llm._parse``.
+    """
 
     model: str
     effort: str | None = None
-    temperature: float | None = None
+    extra_params: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

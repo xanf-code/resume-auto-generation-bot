@@ -417,7 +417,10 @@ def test_parse_forwards_effort_via_openrouter_reasoning_extra_body(monkeypatch):
 
     llm._parse("sys", "user", _DummySchema, "some/model", 1234, effort="high")
 
-    assert captured["extra_body"] == {"reasoning": {"effort": "high"}}
+    assert captured["extra_body"] == {
+        "reasoning": {"effort": "high"},
+        "provider": {"require_parameters": True},
+    }
 
 
 def test_parse_forwards_effort_none_string_to_disable_reasoning(monkeypatch):
@@ -433,7 +436,10 @@ def test_parse_forwards_effort_none_string_to_disable_reasoning(monkeypatch):
 
     llm._parse("sys", "user", _DummySchema, "some/model", 1234, effort="none")
 
-    assert captured.get("extra_body") == {"reasoning": {"effort": "none"}}
+    assert captured.get("extra_body") == {
+        "reasoning": {"effort": "none"},
+        "provider": {"require_parameters": True},
+    }
 
 
 def test_parse_omits_extra_body_when_effort_is_none(monkeypatch):
@@ -639,29 +645,58 @@ def test_model_context_resets_effort_vars():
     assert _ctx_effort_skills.get() is _UNSET
 
 
-# --- per-tier temperature -----------------------------------------------------
+# --- per-tier extra_params (Postman-style dynamic OpenRouter parameters) ------
 #
-# temperature is a native OpenAI/OpenRouter chat-completions parameter (unlike
-# `effort`, which OpenRouter only accepts via extra_body). No role has a
-# config.settings default - it stays None (omitted, provider default) unless a
-# caller passes an explicit value or model_context sets a temp_* override.
-# 0 is a legitimate override and must never be treated as falsy/unset.
+# extra_params is an open dict of additional OpenRouter request fields
+# (temperature, top_k, top_p, ...) the New Application UI lets users attach
+# per role via a key/value editor - see docs on ModelRoleDTO.extra_params.
+# Unlike `effort`, none of these are native OpenAI SDK kwargs, so every key
+# rides through `extra_body` verbatim. No role has a config.settings default -
+# it stays None (omitted) unless a caller passes an explicit dict or
+# model_context sets an extra_* override. An empty dict is treated the same
+# as None (nothing to forward).
 
 
-def test_parse_forwards_temperature_as_native_kwarg(monkeypatch):
-    """_parse must pass temperature straight through - no extra_body wrapping."""
+def test_parse_forwards_extra_params_via_extra_body(monkeypatch):
+    """_parse must merge extra_params straight into extra_body (no native kwargs)."""
     import src.pipeline.llm as llm
 
     captured = {}
     monkeypatch.setattr(llm, "client", lambda: _fake_openai_client(captured))
 
-    llm._parse("sys", "user", _DummySchema, "some/model", 1234, temperature=0.7)
+    llm._parse(
+        "sys", "user", _DummySchema, "some/model", 1234,
+        extra_params={"temperature": 0.7, "top_k": 40},
+    )
 
-    assert captured["temperature"] == 0.7
-    assert "extra_body" not in captured
+    assert captured["extra_body"] == {
+        "temperature": 0.7,
+        "top_k": 40,
+        "provider": {"require_parameters": True},
+    }
+    assert "temperature" not in captured
+    assert "top_k" not in captured
 
 
-def test_parse_omits_temperature_when_none(monkeypatch):
+def test_parse_merges_effort_and_extra_params_in_extra_body(monkeypatch):
+    import src.pipeline.llm as llm
+
+    captured = {}
+    monkeypatch.setattr(llm, "client", lambda: _fake_openai_client(captured))
+
+    llm._parse(
+        "sys", "user", _DummySchema, "some/model", 1234,
+        effort="high", extra_params={"temperature": 0.5},
+    )
+
+    assert captured["extra_body"] == {
+        "reasoning": {"effort": "high"},
+        "temperature": 0.5,
+        "provider": {"require_parameters": True},
+    }
+
+
+def test_parse_omits_extra_params_when_none(monkeypatch):
     import src.pipeline.llm as llm
 
     captured = {}
@@ -669,55 +704,69 @@ def test_parse_omits_temperature_when_none(monkeypatch):
 
     llm._parse("sys", "user", _DummySchema, "some/model", 1234)
 
-    assert "temperature" not in captured
+    assert "extra_body" not in captured
 
 
-def test_parse_forwards_temperature_zero_not_treated_as_falsy(monkeypatch):
-    """0 is a legitimate temperature override - must not be dropped like None."""
+def test_parse_omits_extra_body_for_empty_extra_params_dict(monkeypatch):
     import src.pipeline.llm as llm
 
     captured = {}
     monkeypatch.setattr(llm, "client", lambda: _fake_openai_client(captured))
 
-    llm._parse("sys", "user", _DummySchema, "some/model", 1234, temperature=0.0)
+    llm._parse("sys", "user", _DummySchema, "some/model", 1234, extra_params={})
 
-    assert captured["temperature"] == 0.0
+    assert "extra_body" not in captured
 
 
-def test_model_context_sets_and_resets_temperature_vars():
+def test_parse_forwards_extra_param_zero_not_treated_as_falsy(monkeypatch):
+    """0 is a legitimate value (e.g. temperature=0) - must not be dropped."""
+    import src.pipeline.llm as llm
+
+    captured = {}
+    monkeypatch.setattr(llm, "client", lambda: _fake_openai_client(captured))
+
+    llm._parse(
+        "sys", "user", _DummySchema, "some/model", 1234,
+        extra_params={"temperature": 0.0},
+    )
+
+    assert captured["extra_body"]["temperature"] == 0.0
+
+
+def test_model_context_sets_and_resets_extra_params_vars():
     from src.pipeline.llm import (
         _UNSET,
-        _ctx_temp_fast,
-        _ctx_temp_gap,
-        _ctx_temp_scoring,
-        _ctx_temp_skills,
-        _ctx_temp_strong,
+        _ctx_extra_fast,
+        _ctx_extra_gap,
+        _ctx_extra_scoring,
+        _ctx_extra_skills,
+        _ctx_extra_strong,
         model_context,
     )
 
     with model_context(
         fast="f",
         strong="s",
-        temp_fast=0.0,
-        temp_strong=0.7,
-        temp_gap=0.5,
-        temp_scoring=0.2,
-        temp_skills=0.2,
+        extra_fast={"temperature": 0.0},
+        extra_strong={"temperature": 0.7},
+        extra_gap={"temperature": 0.5},
+        extra_scoring={"temperature": 0.2},
+        extra_skills={"temperature": 0.2},
     ):
-        assert _ctx_temp_fast.get() == 0.0
-        assert _ctx_temp_strong.get() == 0.7
-        assert _ctx_temp_gap.get() == 0.5
-        assert _ctx_temp_scoring.get() == 0.2
-        assert _ctx_temp_skills.get() == 0.2
+        assert _ctx_extra_fast.get() == {"temperature": 0.0}
+        assert _ctx_extra_strong.get() == {"temperature": 0.7}
+        assert _ctx_extra_gap.get() == {"temperature": 0.5}
+        assert _ctx_extra_scoring.get() == {"temperature": 0.2}
+        assert _ctx_extra_skills.get() == {"temperature": 0.2}
 
-    assert _ctx_temp_fast.get() is _UNSET
-    assert _ctx_temp_strong.get() is _UNSET
-    assert _ctx_temp_gap.get() is _UNSET
-    assert _ctx_temp_scoring.get() is _UNSET
-    assert _ctx_temp_skills.get() is _UNSET
+    assert _ctx_extra_fast.get() is _UNSET
+    assert _ctx_extra_strong.get() is _UNSET
+    assert _ctx_extra_gap.get() is _UNSET
+    assert _ctx_extra_scoring.get() is _UNSET
+    assert _ctx_extra_skills.get() is _UNSET
 
 
-def test_parse_strong_omits_temperature_by_default(monkeypatch):
+def test_parse_strong_omits_extra_params_by_default(monkeypatch):
     import src.pipeline.llm as llm
 
     captured = {}
@@ -730,10 +779,10 @@ def test_parse_strong_omits_temperature_by_default(monkeypatch):
 
     llm.parse_strong("sys", "user", _DummySchema)
 
-    assert "temperature" not in captured
+    assert "extra_params" not in captured
 
 
-def test_parse_strong_forwards_explicit_temperature_kwarg(monkeypatch):
+def test_parse_strong_forwards_explicit_extra_params_kwarg(monkeypatch):
     import src.pipeline.llm as llm
 
     captured = {}
@@ -744,12 +793,12 @@ def test_parse_strong_forwards_explicit_temperature_kwarg(monkeypatch):
 
     monkeypatch.setattr(llm, "_parse", fake_parse)
 
-    llm.parse_strong("sys", "user", _DummySchema, temperature=0.7)
+    llm.parse_strong("sys", "user", _DummySchema, extra_params={"temperature": 0.7})
 
-    assert captured["temperature"] == 0.7
+    assert captured["extra_params"] == {"temperature": 0.7}
 
 
-def test_parse_strong_forwards_temperature_from_context_override(monkeypatch):
+def test_parse_strong_forwards_extra_params_from_context_override(monkeypatch):
     import src.pipeline.llm as llm
 
     captured = {}
@@ -760,13 +809,13 @@ def test_parse_strong_forwards_temperature_from_context_override(monkeypatch):
 
     monkeypatch.setattr(llm, "_parse", fake_parse)
 
-    with llm.model_context(fast="f", strong="s", temp_strong=0.9):
+    with llm.model_context(fast="f", strong="s", extra_strong={"temperature": 0.9}):
         llm.parse_strong("sys", "user", _DummySchema)
 
-    assert captured["temperature"] == 0.9
+    assert captured["extra_params"] == {"temperature": 0.9}
 
 
-def test_parse_strong_explicit_temperature_wins_over_context(monkeypatch):
+def test_parse_strong_explicit_extra_params_wins_over_context(monkeypatch):
     import src.pipeline.llm as llm
 
     captured = {}
@@ -777,14 +826,13 @@ def test_parse_strong_explicit_temperature_wins_over_context(monkeypatch):
 
     monkeypatch.setattr(llm, "_parse", fake_parse)
 
-    with llm.model_context(fast="f", strong="s", temp_strong=0.9):
-        llm.parse_strong("sys", "user", _DummySchema, temperature=0.1)
+    with llm.model_context(fast="f", strong="s", extra_strong={"temperature": 0.9}):
+        llm.parse_strong("sys", "user", _DummySchema, extra_params={"temperature": 0.1})
 
-    assert captured["temperature"] == 0.1
+    assert captured["extra_params"] == {"temperature": 0.1}
 
 
-def test_parse_fast_forwards_temperature_zero_from_context(monkeypatch):
-    """0 is a legitimate override for parse_fast - must not be dropped as falsy."""
+def test_parse_fast_forwards_extra_params_from_context(monkeypatch):
     import src.pipeline.llm as llm
 
     captured = {}
@@ -795,13 +843,13 @@ def test_parse_fast_forwards_temperature_zero_from_context(monkeypatch):
 
     monkeypatch.setattr(llm, "_parse", fake_parse)
 
-    with llm.model_context(fast="f", strong="s", temp_fast=0.0):
+    with llm.model_context(fast="f", strong="s", extra_fast={"temperature": 0.0, "top_p": 0.9}):
         llm.parse_fast("sys", "user", _DummySchema)
 
-    assert captured["temperature"] == 0.0
+    assert captured["extra_params"] == {"temperature": 0.0, "top_p": 0.9}
 
 
-def test_parse_gap_forwards_temperature_from_context(monkeypatch):
+def test_parse_gap_forwards_extra_params_from_context(monkeypatch):
     import src.pipeline.llm as llm
 
     captured = {}
@@ -812,13 +860,13 @@ def test_parse_gap_forwards_temperature_from_context(monkeypatch):
 
     monkeypatch.setattr(llm, "_parse", fake_parse)
 
-    with llm.model_context(fast="f", strong="s", temp_gap=0.5):
+    with llm.model_context(fast="f", strong="s", extra_gap={"temperature": 0.5}):
         llm.parse_gap("sys", "user", _DummySchema)
 
-    assert captured["temperature"] == 0.5
+    assert captured["extra_params"] == {"temperature": 0.5}
 
 
-def test_parse_scoring_forwards_temperature_from_context(monkeypatch):
+def test_parse_scoring_forwards_extra_params_from_context(monkeypatch):
     import src.pipeline.llm as llm
 
     captured = {}
@@ -829,13 +877,13 @@ def test_parse_scoring_forwards_temperature_from_context(monkeypatch):
 
     monkeypatch.setattr(llm, "_parse", fake_parse)
 
-    with llm.model_context(fast="f", strong="s", temp_scoring=0.2):
+    with llm.model_context(fast="f", strong="s", extra_scoring={"temperature": 0.2}):
         llm.parse_scoring("sys", "user", _DummySchema)
 
-    assert captured["temperature"] == 0.2
+    assert captured["extra_params"] == {"temperature": 0.2}
 
 
-def test_parse_skills_forwards_temperature_from_context(monkeypatch):
+def test_parse_skills_forwards_extra_params_from_context(monkeypatch):
     import src.pipeline.llm as llm
 
     captured = {}
@@ -846,13 +894,13 @@ def test_parse_skills_forwards_temperature_from_context(monkeypatch):
 
     monkeypatch.setattr(llm, "_parse", fake_parse)
 
-    with llm.model_context(fast="f", strong="s", temp_skills=0.2):
+    with llm.model_context(fast="f", strong="s", extra_skills={"temperature": 0.2}):
         llm.parse_skills("sys", "user", _DummySchema)
 
-    assert captured["temperature"] == 0.2
+    assert captured["extra_params"] == {"temperature": 0.2}
 
 
-def test_parse_skills_forwards_explicit_temperature_kwarg(monkeypatch):
+def test_parse_skills_forwards_explicit_extra_params_kwarg(monkeypatch):
     import src.pipeline.llm as llm
 
     captured = {}
@@ -863,39 +911,90 @@ def test_parse_skills_forwards_explicit_temperature_kwarg(monkeypatch):
 
     monkeypatch.setattr(llm, "_parse", fake_parse)
 
-    llm.parse_skills("sys", "user", _DummySchema, temperature=0.3)
+    llm.parse_skills("sys", "user", _DummySchema, extra_params={"temperature": 0.3})
 
-    assert captured["temperature"] == 0.3
+    assert captured["extra_params"] == {"temperature": 0.3}
+
+
+# --- outgoing OpenRouter request logging ---------------------------------------
+#
+# Every _parse() call is the single choke point that actually talks to
+# OpenRouter. It must log the full outgoing request (model, max_tokens,
+# effort, extra_params) at INFO before issuing the call, so operators can see
+# exactly what was sent for any run without needing to reproduce it.
+
+
+def test_parse_logs_outgoing_request(monkeypatch, caplog):
+    import logging
+
+    import src.pipeline.llm as llm
+
+    monkeypatch.setattr(llm, "client", lambda: _fake_openai_client({}))
+
+    with caplog.at_level(logging.INFO, logger="src.pipeline.llm"):
+        llm._parse(
+            "sys", "user", _DummySchema, "some/model", 1234,
+            effort="high", extra_params={"temperature": 0.7, "top_k": 40},
+        )
+
+    log_text = " ".join(caplog.messages)
+    assert "some/model" in log_text
+    assert "1234" in log_text
+    assert "high" in log_text
+    assert "temperature" in log_text and "0.7" in log_text
+    assert "top_k" in log_text and "40" in log_text
+    # The request log must reflect the ACTUAL body sent, including the
+    # provider.require_parameters guard - otherwise the log would omit a real
+    # part of the outgoing request.
+    assert "require_parameters=True" in log_text
+
+
+def test_parse_logs_outgoing_request_with_no_effort_or_extra_params(monkeypatch, caplog):
+    import logging
+
+    import src.pipeline.llm as llm
+
+    monkeypatch.setattr(llm, "client", lambda: _fake_openai_client({}))
+
+    with caplog.at_level(logging.INFO, logger="src.pipeline.llm"):
+        llm._parse("sys", "user", _DummySchema, "some/model", 1234)
+
+    log_text = " ".join(caplog.messages)
+    assert "some/model" in log_text
+    assert "1234" in log_text
+    assert "require_parameters=False" in log_text
 
 
 # --- effective_* introspection (for accurate "sending to X" logging) -----------
 #
-# Agent node files log "sending to <model> (effort=..., temp=...)" BEFORE
+# Agent node files log "sending to <model> (effort=..., params=...)" BEFORE
 # calling parse_*. That line must reflect what parse_* will ACTUALLY use for
 # THIS run - not the static config.settings constants - or the log lies
 # whenever a per-job model_context override is active. effective_* returns
-# the same (model, effort, temperature) resolution parse_* itself would use.
+# the same (model, effort, extra_params) resolution parse_* itself would use.
 
 
-def test_effective_fast_defaults_to_settings_model_and_no_effort_or_temp():
+def test_effective_fast_defaults_to_settings_model_and_no_effort_or_params():
     import src.pipeline.llm as llm
 
     role = llm.effective_fast()
 
     assert role.model == llm.MODEL_FAST
     assert role.effort is None
-    assert role.temperature is None
+    assert role.extra_params is None
 
 
 def test_effective_fast_reflects_context_overrides():
     import src.pipeline.llm as llm
 
-    with llm.model_context(fast="f", strong="s", effort_fast="low", temp_fast=0.3):
+    with llm.model_context(
+        fast="f", strong="s", effort_fast="low", extra_fast={"temperature": 0.3}
+    ):
         role = llm.effective_fast()
 
     assert role.model == "f"
     assert role.effort == "low"
-    assert role.temperature == 0.3
+    assert role.extra_params == {"temperature": 0.3}
 
 
 def test_effective_strong_defaults_to_settings_model_and_effort():
@@ -905,20 +1004,20 @@ def test_effective_strong_defaults_to_settings_model_and_effort():
 
     assert role.model == llm.MODEL_STRONG
     assert role.effort == llm.EFFORT_STRONG
-    assert role.temperature is None
+    assert role.extra_params is None
 
 
 def test_effective_strong_reflects_context_overrides():
     import src.pipeline.llm as llm
 
     with llm.model_context(
-        fast="f", strong="s", effort_strong="max", temp_strong=0.7
+        fast="f", strong="s", effort_strong="max", extra_strong={"temperature": 0.7}
     ):
         role = llm.effective_strong()
 
     assert role.model == "s"
     assert role.effort == "max"
-    assert role.temperature == 0.7
+    assert role.extra_params == {"temperature": 0.7}
 
 
 def test_effective_gap_defaults_to_settings_model_and_effort():
@@ -928,20 +1027,21 @@ def test_effective_gap_defaults_to_settings_model_and_effort():
 
     assert role.model == llm.MODEL_GAP
     assert role.effort == llm.EFFORT_GAP
-    assert role.temperature is None
+    assert role.extra_params is None
 
 
 def test_effective_gap_reflects_context_overrides():
     import src.pipeline.llm as llm
 
     with llm.model_context(
-        fast="f", strong="s", gap="z-ai/glm-5.2", effort_gap="high", temp_gap=0.5
+        fast="f", strong="s", gap="z-ai/glm-5.2", effort_gap="high",
+        extra_gap={"temperature": 0.5},
     ):
         role = llm.effective_gap()
 
     assert role.model == "z-ai/glm-5.2"
     assert role.effort == "high"
-    assert role.temperature == 0.5
+    assert role.extra_params == {"temperature": 0.5}
 
 
 def test_effective_scoring_defaults_to_settings_model_and_no_effort():
@@ -951,7 +1051,7 @@ def test_effective_scoring_defaults_to_settings_model_and_no_effort():
 
     assert role.model == llm.MODEL_SCORING
     assert role.effort is None
-    assert role.temperature is None
+    assert role.extra_params is None
 
 
 def test_effective_scoring_reflects_context_overrides():
@@ -962,13 +1062,13 @@ def test_effective_scoring_reflects_context_overrides():
         strong="s",
         scoring="deepseek/deepseek-v4-flash",
         effort_scoring="xhigh",
-        temp_scoring=0.2,
+        extra_scoring={"temperature": 0.2},
     ):
         role = llm.effective_scoring()
 
     assert role.model == "deepseek/deepseek-v4-flash"
     assert role.effort == "xhigh"
-    assert role.temperature == 0.2
+    assert role.extra_params == {"temperature": 0.2}
 
 
 def test_effective_skills_defaults_to_settings_model_and_no_effort():
@@ -978,7 +1078,7 @@ def test_effective_skills_defaults_to_settings_model_and_no_effort():
 
     assert role.model == llm.MODEL_SKILLS
     assert role.effort is None
-    assert role.temperature is None
+    assert role.extra_params is None
 
 
 def test_effective_skills_reflects_context_overrides():
@@ -989,10 +1089,100 @@ def test_effective_skills_reflects_context_overrides():
         strong="s",
         skills="qwen/qwen3-30b-a3b-instruct-2507",
         effort_skills="medium",
-        temp_skills=0.2,
+        extra_skills={"temperature": 0.2},
     ):
         role = llm.effective_skills()
 
     assert role.model == "qwen/qwen3-30b-a3b-instruct-2507"
     assert role.effort == "medium"
-    assert role.temperature == 0.2
+    assert role.extra_params == {"temperature": 0.2}
+
+
+# --- provider.require_parameters guard (OpenRouter option 1) -------------------
+#
+# Without this, OpenRouter may silently route a request carrying `effort` or
+# `extra_params` to a provider that doesn't actually support one of those
+# fields, dropping it instead of erroring - so what we logged as "sent" would
+# not be what the provider actually honored. Setting
+# extra_body["provider"] = {"require_parameters": True} whenever either is
+# present forces OpenRouter to only pick providers that support every
+# parameter in the request, turning a silent mismatch into a loud, visible
+# error instead.
+
+
+def test_parse_sets_require_parameters_when_effort_is_set(monkeypatch):
+    import src.pipeline.llm as llm
+
+    captured = {}
+    monkeypatch.setattr(llm, "client", lambda: _fake_openai_client(captured))
+
+    llm._parse("sys", "user", _DummySchema, "some/model", 1234, effort="high")
+
+    assert captured["extra_body"]["provider"] == {"require_parameters": True}
+
+
+def test_parse_sets_require_parameters_for_effort_none_string(monkeypatch):
+    """effort='none' (explicit disable) still counts as a set effort - OpenRouter
+    must not silently route to a provider that ignores the disable request."""
+    import src.pipeline.llm as llm
+
+    captured = {}
+    monkeypatch.setattr(llm, "client", lambda: _fake_openai_client(captured))
+
+    llm._parse("sys", "user", _DummySchema, "some/model", 1234, effort="none")
+
+    assert captured["extra_body"]["provider"] == {"require_parameters": True}
+
+
+def test_parse_sets_require_parameters_when_extra_params_present(monkeypatch):
+    import src.pipeline.llm as llm
+
+    captured = {}
+    monkeypatch.setattr(llm, "client", lambda: _fake_openai_client(captured))
+
+    llm._parse(
+        "sys", "user", _DummySchema, "some/model", 1234,
+        extra_params={"top_k": 40},
+    )
+
+    assert captured["extra_body"]["provider"] == {"require_parameters": True}
+
+
+def test_parse_sets_require_parameters_when_both_effort_and_extra_params_present(
+    monkeypatch,
+):
+    import src.pipeline.llm as llm
+
+    captured = {}
+    monkeypatch.setattr(llm, "client", lambda: _fake_openai_client(captured))
+
+    llm._parse(
+        "sys", "user", _DummySchema, "some/model", 1234,
+        effort="high", extra_params={"top_k": 40},
+    )
+
+    assert captured["extra_body"]["provider"] == {"require_parameters": True}
+
+
+def test_parse_omits_provider_block_when_no_effort_and_no_extra_params(monkeypatch):
+    import src.pipeline.llm as llm
+
+    captured = {}
+    monkeypatch.setattr(llm, "client", lambda: _fake_openai_client(captured))
+
+    llm._parse("sys", "user", _DummySchema, "some/model", 1234)
+
+    assert "extra_body" not in captured
+
+
+def test_parse_omits_provider_block_when_extra_params_is_empty_dict(monkeypatch):
+    """An empty extra_params dict means 'nothing to forward' - no provider
+    guard is needed since the request carries no extra parameters at all."""
+    import src.pipeline.llm as llm
+
+    captured = {}
+    monkeypatch.setattr(llm, "client", lambda: _fake_openai_client(captured))
+
+    llm._parse("sys", "user", _DummySchema, "some/model", 1234, extra_params={})
+
+    assert "extra_body" not in captured

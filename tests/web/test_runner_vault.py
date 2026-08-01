@@ -451,6 +451,115 @@ def test_run_job_retrieval_error_falls_back_gracefully(tmp_path, monkeypatch):
     assert captured.get("proven_examples") is None
 
 
+# ---------------------------------------------------------------------------
+# classify_jd_type must run inside model_context, and its result must be
+# threaded into stream_pipeline as jd_domains (not recomputed by analyze_jd)
+# ---------------------------------------------------------------------------
+#
+# Regression: classify_jd_type() used to be called before model_context was
+# entered, so it always fell back to config.settings.MODEL_FAST regardless of
+# the job's configured Parser model/effort/params - and analyze_jd's node
+# independently called classify_jd_type a second time (inside model_context),
+# duplicating the LLM call and risking disagreement between the two results.
+
+
+def test_run_job_seeds_jd_domains_from_classification_into_pipeline(tmp_path, monkeypatch):
+    """The classification computed for role/domain tagging must be handed to
+    stream_pipeline as jd_domains, so analyze_jd's node reuses it instead of
+    calling classify_jd_type a second, independent time."""
+    monkeypatch.setenv("RESUME_VAULT_DIR", str(tmp_path))
+
+    manager = _make_manager(out_root=str(tmp_path / "out"))
+    job = _seed_job(manager)
+
+    captured: dict = {}
+    fake = _fake_pipeline(_WRITER_STATE, captured)
+
+    with patch.object(runner_module.main_module, "stream_pipeline", side_effect=fake), \
+         patch.object(
+             runner_module,
+             "classify_jd_type",
+             return_value=JdClassification(role="backend", domains=["fintech", "ai"]),
+         ):
+        run_job(job, manager)
+
+    assert job.status == JobStatus.DONE
+    assert captured["jd_domains"] == ["fintech", "ai"]
+
+
+def test_run_job_seeds_empty_jd_domains_list_into_pipeline(tmp_path, monkeypatch):
+    """An explicit empty list (JD tagged no domains) must still be forwarded -
+    analyze_jd distinguishes an empty seeded list from the key being absent."""
+    monkeypatch.setenv("RESUME_VAULT_DIR", str(tmp_path))
+
+    manager = _make_manager(out_root=str(tmp_path / "out"))
+    job = _seed_job(manager)
+
+    captured: dict = {}
+    fake = _fake_pipeline(_WRITER_STATE, captured)
+
+    with patch.object(runner_module.main_module, "stream_pipeline", side_effect=fake), \
+         patch.object(
+             runner_module,
+             "classify_jd_type",
+             return_value=JdClassification(role="backend", domains=[]),
+         ):
+        run_job(job, manager)
+
+    assert job.status == JobStatus.DONE
+    assert captured["jd_domains"] == []
+
+
+def test_run_job_classify_jd_type_respects_model_context_override(tmp_path, monkeypatch):
+    """classify_jd_type's underlying parse_fast call must resolve against the
+    job's configured Parser model/effort/extra_params - not the bare
+    config.settings.MODEL_FAST default - because it now runs inside the same
+    model_context as the rest of the pipeline.
+
+    This module's autouse ``_no_real_jd_tagging`` fixture (tests/web/conftest.py)
+    stubs ``runner_module.classify_jd_type`` for every other test in this file
+    to keep them hermetic; this test explicitly restores the real
+    implementation since it's the one place that needs to exercise its actual
+    model resolution.
+    """
+    import src.agents.jd_tagger as jd_tagger_module
+    from src.pipeline.llm import effective_fast
+    from src.pipeline.models import ModelRole, PipelineModels
+    from src.pipeline.schemas import JDTags
+
+    monkeypatch.setenv("RESUME_VAULT_DIR", str(tmp_path))
+    monkeypatch.setattr(runner_module, "classify_jd_type", jd_tagger_module.classify_jd_type)
+
+    manager = _make_manager(out_root=str(tmp_path / "out"))
+    job = _seed_job(manager)
+    job.models = PipelineModels(
+        writer=ModelRole("anthropic/claude-opus-5", "high"),
+        parser=ModelRole("openai/gpt-oss-20b", "low", {"temperature": 0.0}),
+        gap=ModelRole("anthropic/claude-opus-5", "medium"),
+        skills=ModelRole("deepseek/deepseek-v4-flash", None),
+        scoring=ModelRole("openai/gpt-4o-mini", None),
+    )
+
+    captured_role: dict = {}
+
+    def fake_parse_fast(system, user, schema, **kwargs):
+        captured_role["role"] = effective_fast()
+        return JDTags(role="backend", domains=[])
+
+    monkeypatch.setattr(jd_tagger_module, "parse_fast", fake_parse_fast)
+
+    captured: dict = {}
+    fake = _fake_pipeline(_WRITER_STATE, captured)
+
+    with patch.object(runner_module.main_module, "stream_pipeline", side_effect=fake):
+        run_job(job, manager)
+
+    assert job.status == JobStatus.DONE
+    assert captured_role["role"].model == "openai/gpt-oss-20b"
+    assert captured_role["role"].effort == "low"
+    assert captured_role["role"].extra_params == {"temperature": 0.0}
+
+
 def test_run_job_disabled_vault_still_computes_role_and_writes_no_note(tmp_path, monkeypatch):
     """RESUME_VAULT_DIR unset - the vault is a no-op, but tagging still runs."""
     monkeypatch.delenv("RESUME_VAULT_DIR", raising=False)

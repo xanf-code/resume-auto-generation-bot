@@ -128,14 +128,14 @@ def test_recruiter_panel_logs_the_actual_model_context_override(monkeypatch, cap
             strong="s",
             scoring="deepseek/deepseek-v4-flash",
             effort_scoring="xhigh",
-            temp_scoring=0.2,
+            extra_scoring={"temperature": 0.2},
         ):
             recruiters.recruiter_panel(_state())
 
     log_text = " ".join(caplog.messages)
     assert "deepseek/deepseek-v4-flash" in log_text
     assert "effort=xhigh" in log_text
-    assert "temp=0.2" in log_text
+    assert "temperature': 0.2" in log_text
 
 
 def test_skeptic_sees_source_evidence_but_ats_does_not(monkeypatch):

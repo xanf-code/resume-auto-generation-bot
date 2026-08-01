@@ -2,7 +2,7 @@
 // Only models (writer/parser/gap/skills/scoring + effort + temperature) and
 // tuning (rubric weights/thresholds/iterations) are remembered; bullet shapes
 // and the scoring/Obsidian toggles reset to their defaults on every new job.
-import type { ModelsConfig } from './models';
+import { normalizeModelsConfig, type ModelsConfig } from './models';
 import type { Tuning } from './tuning';
 
 export const REMEMBERED_CONFIG_STORAGE_KEY = 'resume-desk:remembered-run-config';
@@ -24,7 +24,8 @@ export function loadRememberedConfig(): RememberedConfig | null {
     const raw = localStorage.getItem(REMEMBERED_CONFIG_STORAGE_KEY);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    return isRememberedConfig(parsed) ? parsed : null;
+    if (!isRememberedConfig(parsed)) return null;
+    return { ...parsed, models: normalizeModelsConfig(parsed.models) };
   } catch {
     return null;
   }

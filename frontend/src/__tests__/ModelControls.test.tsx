@@ -179,7 +179,7 @@ describe('ModelControls', () => {
   it('sets default effort when switching to a reasoning model', async () => {
     const models: ModelsConfig = {
       ...DEFAULT_MODELS,
-      parser: { model: 'openai/gpt-4o-mini', effort: null, temperature: 0 },
+      parser: { model: 'openai/gpt-4o-mini', effort: null, extraParams: [] },
     };
     const { onChange } = setup(models);
     await waitFor(() => {
@@ -212,7 +212,7 @@ describe('ModelControls', () => {
   it('hides none when reasoning is mandatory', async () => {
     const models: ModelsConfig = {
       ...DEFAULT_MODELS,
-      writer: { model: 'acme/mandatory-reasoner', effort: 'high', temperature: 0.7 },
+      writer: { model: 'acme/mandatory-reasoner', effort: 'high', extraParams: [] },
     };
     (listModels as unknown as Mock).mockResolvedValue({
       models: [
@@ -242,7 +242,7 @@ describe('ModelControls', () => {
   it('hides effort when the model has reasoning but no supported_efforts key', async () => {
     const models: ModelsConfig = {
       ...DEFAULT_MODELS,
-      writer: { model: 'google/gemini-2.5-pro', effort: null, temperature: 0.7 },
+      writer: { model: 'google/gemini-2.5-pro', effort: null, extraParams: [] },
     };
     setup(models);
     await waitFor(() => {
@@ -251,59 +251,94 @@ describe('ModelControls', () => {
     expect(screen.queryByLabelText('Writer reasoning')).not.toBeInTheDocument();
   });
 
-  it('renders a temperature input for each role, prefilled with the current value', async () => {
+  // --- Postman-style dynamic parameter editor ---------------------------------
+  //
+  // There is no fixed "temperature" knob. Every role gets an open key/value
+  // editor ("+ Add parameter") so users can attach whatever OpenRouter fields
+  // the chosen model supports (temperature, top_k, top_p, ...) - the editor
+  // itself never changes shape based on the selected model, only the
+  // conditional effort dropdown does.
+
+  it('renders the configured extra parameters for each role, prefilled', async () => {
     setup();
     await waitFor(() => {
       expect(screen.getByLabelText('Writer model')).toBeInTheDocument();
     });
-    expect(screen.getByLabelText('Writer temperature')).toHaveValue(0.7);
-    expect(screen.getByLabelText('Parser temperature')).toHaveValue(0);
-    expect(screen.getByLabelText('Gap analyzer temperature')).toHaveValue(0.5);
-    expect(screen.getByLabelText('Skills temperature')).toHaveValue(0.2);
-    expect(screen.getByLabelText('Scoring temperature')).toHaveValue(0.2);
+    expect(screen.getByLabelText('Writer parameter 1 name')).toHaveValue('temperature');
+    expect(screen.getByLabelText('Writer parameter 1 value')).toHaveValue('0.7');
+    expect(screen.getByLabelText('Parser parameter 1 value')).toHaveValue('0');
+    expect(screen.getByLabelText('Gap analyzer parameter 1 value')).toHaveValue('0.5');
+    expect(screen.getByLabelText('Skills parameter 1 value')).toHaveValue('0.2');
+    expect(screen.getByLabelText('Scoring parameter 1 value')).toHaveValue('0.2');
   });
 
-  it('updates temperature via onChange while preserving model and effort', async () => {
+  it('adds a blank parameter row when + Add parameter is clicked', async () => {
     const { onChange } = setup();
     await waitFor(() => {
-      expect(screen.getByLabelText('Writer temperature')).toBeInTheDocument();
+      expect(screen.getByLabelText('Add Writer parameter')).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText('Writer temperature'), {
-      target: { value: '1.1' },
+    fireEvent.click(screen.getByLabelText('Add Writer parameter'));
+
+    const arg = onChange.mock.calls.at(-1)![0] as ModelsConfig;
+    expect(arg.writer.extraParams).toEqual([
+      { key: 'temperature', value: '0.7' },
+      { key: '', value: '' },
+    ]);
+  });
+
+  it('updates a parameter name via onChange while preserving its value', async () => {
+    const { onChange } = setup();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Writer parameter 1 name')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Writer parameter 1 name'), {
+      target: { value: 'top_k' },
     });
 
     const arg = onChange.mock.calls.at(-1)![0] as ModelsConfig;
-    expect(arg.writer.temperature).toBe(1.1);
+    expect(arg.writer.extraParams).toEqual([{ key: 'top_k', value: '0.7' }]);
     expect(arg.writer.model).toBe(DEFAULT_MODELS.writer.model);
     expect(arg.writer.effort).toBe(DEFAULT_MODELS.writer.effort);
   });
 
-  it('sets temperature to null when the input is cleared', async () => {
+  it('updates a parameter value via onChange while preserving its name', async () => {
     const { onChange } = setup();
     await waitFor(() => {
-      expect(screen.getByLabelText('Writer temperature')).toBeInTheDocument();
+      expect(screen.getByLabelText('Writer parameter 1 value')).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText('Writer temperature'), {
-      target: { value: '' },
+    fireEvent.change(screen.getByLabelText('Writer parameter 1 value'), {
+      target: { value: '1.1' },
     });
 
     const arg = onChange.mock.calls.at(-1)![0] as ModelsConfig;
-    expect(arg.writer.temperature).toBeNull();
+    expect(arg.writer.extraParams).toEqual([{ key: 'temperature', value: '1.1' }]);
   });
 
-  it('accepts a temperature of exactly 0 without treating it as empty', async () => {
+  it('removes a parameter row when its remove button is clicked', async () => {
     const { onChange } = setup();
     await waitFor(() => {
-      expect(screen.getByLabelText('Gap analyzer temperature')).toBeInTheDocument();
+      expect(screen.getByLabelText('Remove Writer parameter 1')).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText('Gap analyzer temperature'), {
-      target: { value: '0' },
-    });
+    fireEvent.click(screen.getByLabelText('Remove Writer parameter 1'));
 
     const arg = onChange.mock.calls.at(-1)![0] as ModelsConfig;
-    expect(arg.gap.temperature).toBe(0);
+    expect(arg.writer.extraParams).toEqual([]);
+  });
+
+  it('never shows a fixed temperature knob - only effort is model-conditional', async () => {
+    const models: ModelsConfig = {
+      ...DEFAULT_MODELS,
+      writer: { model: 'z-ai/glm-5.2', effort: 'high', extraParams: [] },
+    };
+    setup(models);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Writer reasoning')).toBeInTheDocument();
+    });
+    expect(screen.queryByLabelText('Writer temperature')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Add Writer parameter')).toBeInTheDocument();
   });
 });

@@ -88,15 +88,28 @@ _KNOWN_EFFORTS = frozenset(
     {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
 )
 
+# Keys the dedicated `effort` field (or _parse's own request-shaping logic)
+# already owns - reject them from extra_params so there's exactly one way to
+# set them, with no risk of an extra_params entry silently overriding/
+# shadowing a field the backend manages itself. `provider` is reserved because
+# _parse always sets provider.require_parameters=True whenever effort or
+# extra_params is present - see src.pipeline.llm._parse.
+_RESERVED_PARAM_KEYS = frozenset({"effort", "reasoning", "model", "provider"})
+
 
 class ModelRoleDTO(BaseModel):
-    """One LLM role: OpenRouter model slug + optional reasoning effort + temperature."""
+    """One LLM role: OpenRouter model slug + optional reasoning effort + params.
+
+    ``extra_params`` is a Postman-style, open bag of additional OpenRouter
+    request fields (temperature, top_k, top_p, seed, ...) the New Application
+    UI lets users attach per role via a key/value editor. Every entry rides
+    straight into the outgoing request body - see
+    ``src.pipeline.llm._parse``.
+    """
 
     model: str
     effort: str | None = None
-    # None omits the parameter entirely (provider default) - same convention
-    # as effort=None. 0 is a legitimate, meaningful value, not "unset".
-    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    extra_params: dict[str, float | int | str | bool] | None = None
 
     @field_validator("model")
     @classmethod
@@ -116,6 +129,26 @@ class ModelRoleDTO(BaseModel):
                 f"effort must be one of {sorted(_KNOWN_EFFORTS)}, got {v!r}"
             )
         return v
+
+    @field_validator("extra_params")
+    @classmethod
+    def _extra_params_valid(
+        cls, v: dict[str, float | int | str | bool] | None
+    ) -> dict[str, float | int | str | bool] | None:
+        if not v:
+            return None
+        cleaned: dict[str, float | int | str | bool] = {}
+        for key, value in v.items():
+            stripped = key.strip()
+            if not stripped:
+                raise ValueError("extra_params keys must not be blank")
+            if stripped in _RESERVED_PARAM_KEYS:
+                raise ValueError(
+                    f"extra_params key {stripped!r} is reserved; "
+                    "use the dedicated field instead"
+                )
+            cleaned[stripped] = value
+        return cleaned
 
 
 class ModelsDTO(BaseModel):
@@ -138,11 +171,11 @@ class ModelsDTO(BaseModel):
 
         skills = self.skills or ModelRoleDTO(model=settings.MODEL_SKILLS, effort=None)
         return PipelineModels(
-            writer=ModelRole(self.writer.model, self.writer.effort, self.writer.temperature),
-            parser=ModelRole(self.parser.model, self.parser.effort, self.parser.temperature),
-            gap=ModelRole(self.gap.model, self.gap.effort, self.gap.temperature),
-            skills=ModelRole(skills.model, skills.effort, skills.temperature),
-            scoring=ModelRole(self.scoring.model, self.scoring.effort, self.scoring.temperature),
+            writer=ModelRole(self.writer.model, self.writer.effort, self.writer.extra_params),
+            parser=ModelRole(self.parser.model, self.parser.effort, self.parser.extra_params),
+            gap=ModelRole(self.gap.model, self.gap.effort, self.gap.extra_params),
+            skills=ModelRole(skills.model, skills.effort, skills.extra_params),
+            scoring=ModelRole(self.scoring.model, self.scoring.effort, self.scoring.extra_params),
         )
 
 

@@ -4,6 +4,7 @@ Uses the OpenAI-compatible API at https://openrouter.ai/api/v1.
 Importable with no API key present - the client is instantiated lazily and
 cached, so ``require_api_key`` only fires on the first real call.
 """
+import logging
 from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import lru_cache
@@ -23,6 +24,8 @@ from config.settings import (
     require_api_key,
 )
 from src.pipeline.models import ModelRole
+
+log = logging.getLogger(__name__)
 
 SchemaT = TypeVar("SchemaT", bound=BaseModel)
 
@@ -54,14 +57,15 @@ _ctx_effort_gap: ContextVar[Any] = ContextVar("effort_gap", default=_UNSET)
 _ctx_effort_scoring: ContextVar[Any] = ContextVar("effort_scoring", default=_UNSET)
 _ctx_effort_skills: ContextVar[Any] = ContextVar("effort_skills", default=_UNSET)
 
-# Per-run temperature overrides. Default _UNSET → no config.settings default exists
-# for any role (unlike effort); temperature is omitted (provider default) unless a
-# caller passes an explicit value or model_context sets a temp_* override here.
-_ctx_temp_fast: ContextVar[Any] = ContextVar("temp_fast", default=_UNSET)
-_ctx_temp_strong: ContextVar[Any] = ContextVar("temp_strong", default=_UNSET)
-_ctx_temp_gap: ContextVar[Any] = ContextVar("temp_gap", default=_UNSET)
-_ctx_temp_scoring: ContextVar[Any] = ContextVar("temp_scoring", default=_UNSET)
-_ctx_temp_skills: ContextVar[Any] = ContextVar("temp_skills", default=_UNSET)
+# Per-run extra-params overrides (Postman-style dynamic OpenRouter fields, e.g.
+# temperature/top_k/top_p). Default _UNSET → no config.settings default exists
+# for any role; params are omitted (provider default) unless a caller passes an
+# explicit dict or model_context sets an extra_* override here.
+_ctx_extra_fast: ContextVar[Any] = ContextVar("extra_fast", default=_UNSET)
+_ctx_extra_strong: ContextVar[Any] = ContextVar("extra_strong", default=_UNSET)
+_ctx_extra_gap: ContextVar[Any] = ContextVar("extra_gap", default=_UNSET)
+_ctx_extra_scoring: ContextVar[Any] = ContextVar("extra_scoring", default=_UNSET)
+_ctx_extra_skills: ContextVar[Any] = ContextVar("extra_skills", default=_UNSET)
 
 # Accumulates raw usage dicts [{model, input_tokens, output_tokens}] when set.
 _ctx_usage: ContextVar[list | None] = ContextVar("usage", default=None)
@@ -80,13 +84,13 @@ def model_context(
     effort_gap: str | None | Any = _UNSET,
     effort_scoring: str | None | Any = _UNSET,
     effort_skills: str | None | Any = _UNSET,
-    temp_fast: float | None | Any = _UNSET,
-    temp_strong: float | None | Any = _UNSET,
-    temp_gap: float | None | Any = _UNSET,
-    temp_scoring: float | None | Any = _UNSET,
-    temp_skills: float | None | Any = _UNSET,
+    extra_fast: dict[str, Any] | None | Any = _UNSET,
+    extra_strong: dict[str, Any] | None | Any = _UNSET,
+    extra_gap: dict[str, Any] | None | Any = _UNSET,
+    extra_scoring: dict[str, Any] | None | Any = _UNSET,
+    extra_skills: dict[str, Any] | None | Any = _UNSET,
 ) -> Generator[list[dict], None, None]:
-    """Inject model (and optional effort/temperature) overrides for one pipeline run.
+    """Inject model (and optional effort/extra-params) overrides for one pipeline run.
 
     Args:
         fast: Model for extraction (parser, JD analyzer).
@@ -99,10 +103,11 @@ def model_context(
                 Defaults to ``MODEL_SKILLS`` (config constant) if not provided.
         effort_*: Optional reasoning effort per role. Omit to keep role defaults;
             pass ``None`` to suppress the reasoning parameter entirely.
-        temp_*: Optional sampling temperature per role. Omit to keep role
+        extra_*: Optional Postman-style dict of additional OpenRouter request
+            fields per role (temperature, top_k, top_p, ...). Omit to keep role
             defaults (no config.settings default exists for any role - the
-            parameter is omitted entirely, letting the provider pick); pass an
-            explicit float (including ``0``) to override.
+            parameters are omitted entirely, letting the provider pick); pass
+            an explicit dict to override.
 
     Usage::
 
@@ -112,7 +117,7 @@ def model_context(
                            scoring="openai/gpt-4o-mini",
                            skills="openai/gpt-4o-mini",
                            effort_strong="high",
-                           temp_strong=0.7) as usage:
+                           extra_strong={"temperature": 0.7}) as usage:
             run_pipeline(...)
         cost = compute_cost(usage)
     """
@@ -126,11 +131,11 @@ def model_context(
     t_eg = _ctx_effort_gap.set(effort_gap)
     t_esc = _ctx_effort_scoring.set(effort_scoring)
     t_esk = _ctx_effort_skills.set(effort_skills)
-    t_tf = _ctx_temp_fast.set(temp_fast)
-    t_ts = _ctx_temp_strong.set(temp_strong)
-    t_tg = _ctx_temp_gap.set(temp_gap)
-    t_tsc = _ctx_temp_scoring.set(temp_scoring)
-    t_tsk = _ctx_temp_skills.set(temp_skills)
+    t_xf = _ctx_extra_fast.set(extra_fast)
+    t_xs = _ctx_extra_strong.set(extra_strong)
+    t_xg = _ctx_extra_gap.set(extra_gap)
+    t_xsc = _ctx_extra_scoring.set(extra_scoring)
+    t_xsk = _ctx_extra_skills.set(extra_skills)
     usage: list[dict] = []
     t_usage = _ctx_usage.set(usage)
     try:
@@ -146,11 +151,11 @@ def model_context(
         _ctx_effort_gap.reset(t_eg)
         _ctx_effort_scoring.reset(t_esc)
         _ctx_effort_skills.reset(t_esk)
-        _ctx_temp_fast.reset(t_tf)
-        _ctx_temp_strong.reset(t_ts)
-        _ctx_temp_gap.reset(t_tg)
-        _ctx_temp_scoring.reset(t_tsc)
-        _ctx_temp_skills.reset(t_tsk)
+        _ctx_extra_fast.reset(t_xf)
+        _ctx_extra_strong.reset(t_xs)
+        _ctx_extra_gap.reset(t_xg)
+        _ctx_extra_scoring.reset(t_xsc)
+        _ctx_extra_skills.reset(t_xsk)
         _ctx_usage.reset(t_usage)
 
 
@@ -187,7 +192,7 @@ def _parse(
     model: str,
     max_tokens: int,
     effort: str | None = None,
-    temperature: float | None = None,
+    extra_params: dict[str, Any] | None = None,
 ) -> SchemaT:
     extra_body: dict = {}
     if effort is not None:
@@ -197,9 +202,26 @@ def _parse(
         # OpenRouter disables reasoning. Python None (omit this block) is for
         # non-reasoning models.
         extra_body["reasoning"] = {"effort": effort}
+    if extra_params:
+        # Postman-style dynamic params (temperature, top_k, top_p, ...) from the
+        # New Application UI. None of these are native OpenAI SDK kwargs, so
+        # every key rides through extra_body verbatim, merged alongside reasoning.
+        extra_body.update(extra_params)
+    require_parameters = effort is not None or bool(extra_params)
+    if require_parameters:
+        # Without this, OpenRouter may silently route to a provider that
+        # doesn't support one of the fields above and just drop it - so what
+        # we log as "sent" wouldn't be what the provider actually honored.
+        # require_parameters forces OpenRouter to only pick providers that
+        # support every parameter in this request, turning a silent mismatch
+        # into a visible error instead.
+        extra_body["provider"] = {"require_parameters": True}
     extra_kwargs: dict = {"extra_body": extra_body} if extra_body else {}
-    if temperature is not None:
-        extra_kwargs["temperature"] = temperature
+    log.info(
+        "openrouter request | model=%s max_tokens=%d effort=%s extra_params=%s "
+        "require_parameters=%s",
+        model, max_tokens, effort, extra_params or {}, require_parameters,
+    )
     # Use chat.completions.create() with an explicit json_schema response_format
     # instead of beta.chat.completions.parse(). OpenRouter honors the json_schema
     # type natively across all providers; beta.parse() is an OpenAI-SDK abstraction
@@ -259,25 +281,27 @@ def _resolve_effort(explicit: Any, ctx_var: ContextVar[Any], default: str | None
     return default
 
 
-def _resolve_temperature(
-    explicit: Any, ctx_var: ContextVar[Any], default: float | None
-) -> float | None:
-    """Resolve temperature: explicit kwarg > context override > role default.
+def _resolve_extra_params(
+    explicit: Any, ctx_var: ContextVar[Any], default: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    """Resolve extra_params: explicit kwarg > context override > role default.
 
     Mirrors ``_resolve_effort``'s precedence. No role currently has a
-    non-None ``default`` (temperature isn't a config.settings constant), but
+    non-None ``default`` (extra_params isn't a config.settings constant), but
     the signature stays symmetric with ``_resolve_effort`` for consistency.
     """
     if explicit is not _UNSET:
         return explicit  # type: ignore[return-value]
     ctx = ctx_var.get()
     if ctx is not _UNSET:
-        return ctx  # may be None or 0 - both are meaningful, not "unset"
+        return ctx  # may be None or {} - both mean "nothing to forward"
     return default
 
 
-def _optional_kwargs(effort: str | None, temperature: float | None) -> dict[str, Any]:
-    """Build the effort/temperature kwargs for `_parse`, omitting unset (None) values.
+def _optional_kwargs(
+    effort: str | None, extra_params: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Build the effort/extra_params kwargs for `_parse`, omitting unset values.
 
     Centralizes the "only forward what's actually set" rule so every parse_*
     role resolves the same way, whether the role has a reasoning default or not.
@@ -285,8 +309,8 @@ def _optional_kwargs(effort: str | None, temperature: float | None) -> dict[str,
     kwargs: dict[str, Any] = {}
     if effort is not None:
         kwargs["effort"] = effort
-    if temperature is not None:
-        kwargs["temperature"] = temperature
+    if extra_params:
+        kwargs["extra_params"] = extra_params
     return kwargs
 
 
@@ -302,47 +326,47 @@ def _optional_kwargs(effort: str | None, temperature: float | None) -> dict[str,
 
 
 def effective_fast() -> ModelRole:
-    """The (model, effort, temperature) parse_fast will use for this run."""
+    """The (model, effort, extra_params) parse_fast will use for this run."""
     return ModelRole(
         model=_ctx_model_fast.get() or MODEL_FAST,
         effort=_resolve_effort(_UNSET, _ctx_effort_fast, None),
-        temperature=_resolve_temperature(_UNSET, _ctx_temp_fast, None),
+        extra_params=_resolve_extra_params(_UNSET, _ctx_extra_fast, None),
     )
 
 
 def effective_strong() -> ModelRole:
-    """The (model, effort, temperature) parse_strong will use for this run."""
+    """The (model, effort, extra_params) parse_strong will use for this run."""
     return ModelRole(
         model=_ctx_model_strong.get() or MODEL_STRONG,
         effort=_resolve_effort(_UNSET, _ctx_effort_strong, EFFORT_STRONG),
-        temperature=_resolve_temperature(_UNSET, _ctx_temp_strong, None),
+        extra_params=_resolve_extra_params(_UNSET, _ctx_extra_strong, None),
     )
 
 
 def effective_gap() -> ModelRole:
-    """The (model, effort, temperature) parse_gap will use for this run."""
+    """The (model, effort, extra_params) parse_gap will use for this run."""
     return ModelRole(
         model=_ctx_model_gap.get() or MODEL_GAP,
         effort=_resolve_effort(_UNSET, _ctx_effort_gap, EFFORT_GAP),
-        temperature=_resolve_temperature(_UNSET, _ctx_temp_gap, None),
+        extra_params=_resolve_extra_params(_UNSET, _ctx_extra_gap, None),
     )
 
 
 def effective_scoring() -> ModelRole:
-    """The (model, effort, temperature) parse_scoring will use for this run."""
+    """The (model, effort, extra_params) parse_scoring will use for this run."""
     return ModelRole(
         model=_ctx_model_scoring.get() or MODEL_SCORING,
         effort=_resolve_effort(_UNSET, _ctx_effort_scoring, None),
-        temperature=_resolve_temperature(_UNSET, _ctx_temp_scoring, None),
+        extra_params=_resolve_extra_params(_UNSET, _ctx_extra_scoring, None),
     )
 
 
 def effective_skills() -> ModelRole:
-    """The (model, effort, temperature) parse_skills will use for this run."""
+    """The (model, effort, extra_params) parse_skills will use for this run."""
     return ModelRole(
         model=_ctx_model_skills.get() or MODEL_SKILLS,
         effort=_resolve_effort(_UNSET, _ctx_effort_skills, None),
-        temperature=_resolve_temperature(_UNSET, _ctx_temp_skills, None),
+        extra_params=_resolve_extra_params(_UNSET, _ctx_extra_skills, None),
     )
 
 
@@ -351,13 +375,13 @@ def parse_fast(
     user: str,
     schema: type[SchemaT],
     max_tokens: int = DEFAULT_MAX_TOKENS,
-    temperature: Any = _UNSET,
+    extra_params: Any = _UNSET,
 ) -> SchemaT:
     """Structured parse on the fast model. Returns a ``schema`` instance."""
     model = _ctx_model_fast.get() or MODEL_FAST
     effort = _resolve_effort(_UNSET, _ctx_effort_fast, None)
-    temp = _resolve_temperature(temperature, _ctx_temp_fast, None)
-    return _parse(system, user, schema, model, max_tokens, **_optional_kwargs(effort, temp))
+    extra = _resolve_extra_params(extra_params, _ctx_extra_fast, None)
+    return _parse(system, user, schema, model, max_tokens, **_optional_kwargs(effort, extra))
 
 
 def parse_strong(
@@ -366,7 +390,7 @@ def parse_strong(
     schema: type[SchemaT],
     effort: Any = _UNSET,
     max_tokens: int = REASONING_MAX_TOKENS,
-    temperature: Any = _UNSET,
+    extra_params: Any = _UNSET,
 ) -> SchemaT:
     """Structured parse on the strong model.
 
@@ -374,13 +398,13 @@ def parse_strong(
     ``model_context`` override) and is forwarded to OpenRouter's unified
     reasoning parameter. Pass ``None`` to suppress reasoning entirely.
 
-    ``temperature`` has no config.settings default - omit to let the provider
-    pick, or pass an explicit value (or set ``temp_strong`` in model_context).
+    ``extra_params`` has no config.settings default - omit to let the provider
+    pick, or pass an explicit dict (or set ``extra_strong`` in model_context).
     """
     model = _ctx_model_strong.get() or MODEL_STRONG
     resolved = _resolve_effort(effort, _ctx_effort_strong, EFFORT_STRONG)
-    temp = _resolve_temperature(temperature, _ctx_temp_strong, None)
-    return _parse(system, user, schema, model, max_tokens, **_optional_kwargs(resolved, temp))
+    extra = _resolve_extra_params(extra_params, _ctx_extra_strong, None)
+    return _parse(system, user, schema, model, max_tokens, **_optional_kwargs(resolved, extra))
 
 
 def parse_gap(
@@ -389,7 +413,7 @@ def parse_gap(
     schema: type[SchemaT],
     effort: Any = _UNSET,
     max_tokens: int = REASONING_MAX_TOKENS,
-    temperature: Any = _UNSET,
+    extra_params: Any = _UNSET,
 ) -> SchemaT:
     """Structured parse on the gap analyzer model.
 
@@ -398,14 +422,14 @@ def parse_gap(
     more capable model than the parser/JD analyzer.
 
     ``effort`` defaults to ``config.settings.EFFORT_GAP`` (or a
-    ``model_context`` override). ``temperature`` has no settings default -
-    omit to let the provider pick, or pass an explicit value (or set
-    ``temp_gap`` in model_context).
+    ``model_context`` override). ``extra_params`` has no settings default -
+    omit to let the provider pick, or pass an explicit dict (or set
+    ``extra_gap`` in model_context).
     """
     model = _ctx_model_gap.get() or MODEL_GAP
     resolved = _resolve_effort(effort, _ctx_effort_gap, EFFORT_GAP)
-    temp = _resolve_temperature(temperature, _ctx_temp_gap, None)
-    return _parse(system, user, schema, model, max_tokens, **_optional_kwargs(resolved, temp))
+    extra = _resolve_extra_params(extra_params, _ctx_extra_gap, None)
+    return _parse(system, user, schema, model, max_tokens, **_optional_kwargs(resolved, extra))
 
 
 def parse_scoring(
@@ -413,7 +437,7 @@ def parse_scoring(
     user: str,
     schema: type[SchemaT],
     max_tokens: int = DEFAULT_MAX_TOKENS,
-    temperature: Any = _UNSET,
+    extra_params: Any = _UNSET,
 ) -> SchemaT:
     """Structured parse on the scoring model (recruiter panel + aggregator).
 
@@ -422,8 +446,8 @@ def parse_scoring(
     """
     model = _ctx_model_scoring.get() or MODEL_SCORING
     effort = _resolve_effort(_UNSET, _ctx_effort_scoring, None)
-    temp = _resolve_temperature(temperature, _ctx_temp_scoring, None)
-    return _parse(system, user, schema, model, max_tokens, **_optional_kwargs(effort, temp))
+    extra = _resolve_extra_params(extra_params, _ctx_extra_scoring, None)
+    return _parse(system, user, schema, model, max_tokens, **_optional_kwargs(effort, extra))
 
 
 def parse_skills(
@@ -432,7 +456,7 @@ def parse_skills(
     schema: type[SchemaT],
     effort: Any = _UNSET,
     max_tokens: int = DEFAULT_MAX_TOKENS,
-    temperature: Any = _UNSET,
+    extra_params: Any = _UNSET,
 ) -> SchemaT:
     """Structured parse on the skills model (categorized skill dump).
 
@@ -445,5 +469,5 @@ def parse_skills(
     """
     model = _ctx_model_skills.get() or MODEL_SKILLS
     resolved = _resolve_effort(effort, _ctx_effort_skills, None)
-    temp = _resolve_temperature(temperature, _ctx_temp_skills, None)
-    return _parse(system, user, schema, model, max_tokens, **_optional_kwargs(resolved, temp))
+    extra = _resolve_extra_params(extra_params, _ctx_extra_skills, None)
+    return _parse(system, user, schema, model, max_tokens, **_optional_kwargs(resolved, extra))

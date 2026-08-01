@@ -137,6 +137,7 @@ def stream_pipeline(
     bullet_shapes: list[str] | None = None,
     write_files: bool = True,
     proven_examples: str | None = None,
+    jd_domains: list[str] | None = None,
 ) -> dict:
     """Run the pipeline from raw content, streaming per-node progress.
 
@@ -160,6 +161,12 @@ def stream_pipeline(
     ``proven_examples`` - when given - is seeded onto the state so the Writer's
     prompt includes the PROVEN EXAMPLES section; every revision back-edge
     re-enters at ``writer``, so the value persists across the loop for free.
+
+    ``jd_domains`` - when given - lets a caller that already classified this
+    exact JD (e.g. the web path, which needs the role/domains split before the
+    graph even starts, to resolve vault retrieval and tuning overrides) skip
+    ``analyze_jd``'s own redundant classification call. Omit (the CLI path) to
+    let ``analyze_jd`` compute it itself, unchanged.
     """
     require_api_key()  # fail fast before any node runs
 
@@ -185,6 +192,8 @@ def stream_pipeline(
         initial_state["bullet_shapes"] = bullet_shapes
     if proven_examples is not None:
         initial_state["proven_examples"] = proven_examples
+    if jd_domains is not None:
+        initial_state["jd_domains"] = jd_domains
 
     graph = build_graph(enable_scoring=enable_scoring)
     recursion_limit = effective_tuning.max_iterations * 12 + 20

@@ -197,6 +197,68 @@ def test_stream_pipeline_omits_proven_examples_key_when_none():
     assert "proven_examples" not in captured
 
 
+def test_stream_pipeline_seeds_jd_domains_when_set():
+    """The web path pre-computes the JD role/domain classification once
+    (inside its own model_context, so it honors the job's Parser config) and
+    hands the result down here - analyze_jd's node reuses it instead of
+    calling classify_jd_type a second, independent time."""
+    captured: dict = {}
+
+    def capture_stream(state, config, stream_mode):
+        captured.update(state)
+        return iter([])
+
+    from src.main import stream_pipeline
+    g = MagicMock()
+    g.stream = capture_stream
+    with patch("src.main.require_api_key", return_value="key"), \
+         patch("src.main.build_graph", return_value=g):
+        stream_pipeline("r", "j", out_dir="out", jd_name="acme",
+                        jd_domains=["fintech", "ai"])
+
+    assert captured["jd_domains"] == ["fintech", "ai"]
+
+
+def test_stream_pipeline_omits_jd_domains_key_when_none():
+    """CLI callers that don't pre-classify must not seed the key at all -
+    analyze_jd's ``state.get("jd_domains")`` check needs it truly absent (not
+    an empty list) to know it should compute the classification itself."""
+    captured: dict = {}
+
+    def capture_stream(state, config, stream_mode):
+        captured.update(state)
+        return iter([])
+
+    from src.main import stream_pipeline
+    g = MagicMock()
+    g.stream = capture_stream
+    with patch("src.main.require_api_key", return_value="key"), \
+         patch("src.main.build_graph", return_value=g):
+        stream_pipeline("r", "j", out_dir="out", jd_name="acme")
+
+    assert "jd_domains" not in captured
+
+
+def test_stream_pipeline_seeds_jd_domains_empty_list_when_explicitly_set():
+    """An explicit empty list (JD tagged no domains) must still be seeded -
+    distinct from None/omitted, mirroring the None-vs-0 distinction used
+    elsewhere in this codebase for "unset" vs "meaningfully empty"."""
+    captured: dict = {}
+
+    def capture_stream(state, config, stream_mode):
+        captured.update(state)
+        return iter([])
+
+    from src.main import stream_pipeline
+    g = MagicMock()
+    g.stream = capture_stream
+    with patch("src.main.require_api_key", return_value="key"), \
+         patch("src.main.build_graph", return_value=g):
+        stream_pipeline("r", "j", out_dir="out", jd_name="acme", jd_domains=[])
+
+    assert captured["jd_domains"] == []
+
+
 def test_stream_pipeline_forwards_cached_struct_and_ledger():
     captured: dict = {}
 

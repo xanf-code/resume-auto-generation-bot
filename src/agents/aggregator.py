@@ -142,8 +142,8 @@ def aggregator(state: PipelineState) -> dict:
     if not passed:
         role = effective_scoring()
         log.info(
-            "aggregator   | distilling revision notes via %s… (effort=%s, temp=%s)",
-            role.model, role.effort, role.temperature,
+            "aggregator   | distilling revision notes via %s… (effort=%s, params=%s)",
+            role.model, role.effort, role.extra_params,
         )
         result["revision_notes"] = distill_revision_notes(scores)
         log.info("aggregator   | %d revision directives ready", len(result["revision_notes"]))

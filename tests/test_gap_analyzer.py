@@ -170,7 +170,7 @@ def test_gap_analysis_logs_the_actual_model_context_override(monkeypatch, caplog
 
     with caplog.at_level(logging.INFO, logger="src.agents.gap_analyzer"):
         with model_context(
-            fast="f", strong="s", gap="z-ai/glm-5.2", effort_gap="high", temp_gap=0.5
+            fast="f", strong="s", gap="z-ai/glm-5.2", effort_gap="high", extra_gap={"temperature": 0.5}
         ):
             gap_analyzer.gap_analysis(
                 {"resume_struct": _resume_struct(), "jd_vector": _jd_vector()}
@@ -179,7 +179,7 @@ def test_gap_analysis_logs_the_actual_model_context_override(monkeypatch, caplog
     log_text = " ".join(caplog.messages)
     assert "z-ai/glm-5.2" in log_text
     assert "effort=high" in log_text
-    assert "temp=0.5" in log_text
+    assert "temperature': 0.5" in log_text
     # The stale settings constant must NOT appear as the "sending to" model.
     assert "sending to anthropic/claude-sonnet-5" not in log_text
 

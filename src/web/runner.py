@@ -116,49 +116,60 @@ def run_job(job: Job, manager: "JobManager") -> None:
         if event is not None:
             manager._emit(job, event)
 
-    # JD tagging always runs - the run note needs the role/domains split
-    # regardless of the learning toggle. classify_jd_type never raises
-    # (JdClassification(role=None, domains=[]) on failure).
     vault_settings = VaultSettings.load()
-    classification = classify_jd_type(job.jd_raw)
-    job.role = classification.role
-    job.domains = classification.domains
-    _db_set_classification(job, manager, job.role, job.domains)
+    classification: JdClassification | None = None
 
-    # Retrieval + tuning-override resolution are opt-out via job.obsidian_learn.
-    # A vault error here must never fail the run - fall back to no examples and
-    # the explicit/default tuning, exactly like the learning-off path.
-    proven_examples: str | None = None
-    tuning = job.tuning
-    if job.obsidian_learn:
-        try:
-            proven_examples = retrieve_examples(
-                classification.role, classification.domains, settings=vault_settings
-            )
-            if vault_settings.enabled:
-                manager._emit(
-                    job, _vault_retrieval_event(job, classification, found=proven_examples is not None)
+    def _classify_and_stream() -> dict:
+        nonlocal classification
+        # JD tagging always runs - the run note needs the role/domains split
+        # regardless of the learning toggle. classify_jd_type never raises
+        # (JdClassification(role=None, domains=[]) on failure). Runs inside
+        # the same model_context as the rest of the pipeline (see the caller
+        # below) so it honors the job's configured Parser model/effort/params
+        # instead of always falling back to config.settings.MODEL_FAST.
+        classification = classify_jd_type(job.jd_raw)
+        job.role = classification.role
+        job.domains = classification.domains
+        _db_set_classification(job, manager, job.role, job.domains)
+
+        # Retrieval + tuning-override resolution are opt-out via job.obsidian_learn.
+        # A vault error here must never fail the run - fall back to no examples and
+        # the explicit/default tuning, exactly like the learning-off path.
+        proven_examples: str | None = None
+        tuning = job.tuning
+        if job.obsidian_learn:
+            try:
+                proven_examples = retrieve_examples(
+                    classification.role, classification.domains, settings=vault_settings
                 )
-            # Loop B UNCHANGED: resolve_tuning still takes one flat list.
-            # combined_tags = [role, *domains].
-            tuning, diff = resolve_tuning(classification.combined_tags, job.tuning, settings=vault_settings)
-            if diff:
-                manager._emit(job, _tuning_diff_event(job, classification.combined_tags, diff))
-        except Exception:
-            log.exception("Vault retrieval/tuning failed for job %s - continuing without", job.job_id)
-            proven_examples, tuning = None, job.tuning
+                if vault_settings.enabled:
+                    manager._emit(
+                        job, _vault_retrieval_event(job, classification, found=proven_examples is not None)
+                    )
+                # Loop B UNCHANGED: resolve_tuning still takes one flat list.
+                # combined_tags = [role, *domains].
+                tuning, diff = resolve_tuning(classification.combined_tags, job.tuning, settings=vault_settings)
+                if diff:
+                    manager._emit(job, _tuning_diff_event(job, classification.combined_tags, diff))
+            except Exception:
+                log.exception("Vault retrieval/tuning failed for job %s - continuing without", job.job_id)
+                proven_examples, tuning = None, job.tuning
 
-    # Forward the per-application tuning only when set - a None config keeps the
-    # call shape (and the pipeline's default behaviour) exactly as before.
-    extra: dict = {}
-    if tuning is not None:
-        extra["tuning"] = tuning
-    if job.bullet_shapes is not None:
-        extra["bullet_shapes"] = job.bullet_shapes
-    if proven_examples is not None:
-        extra["proven_examples"] = proven_examples
+        # Forward the per-application tuning only when set - a None config keeps the
+        # call shape (and the pipeline's default behaviour) exactly as before.
+        # jd_domains is always seeded with the classification computed above so
+        # analyze_jd's node reuses it instead of calling classify_jd_type a
+        # second, independent time (which used to run on whatever model that
+        # node's own model_context resolved parse_fast to - a redundant call
+        # that could disagree with this one).
+        extra: dict = {"jd_domains": classification.domains}
+        if tuning is not None:
+            extra["tuning"] = tuning
+        if job.bullet_shapes is not None:
+            extra["bullet_shapes"] = job.bullet_shapes
+        if proven_examples is not None:
+            extra["proven_examples"] = proven_examples
 
-    def _stream():
         return main_module.stream_pipeline(
             resume_tex_raw=job.resume_tex_raw,
             jd_raw=job.jd_raw,
@@ -183,15 +194,15 @@ def run_job(job: Job, manager: "JobManager") -> None:
                 effort_gap=job.models.gap.effort,
                 effort_scoring=job.models.scoring.effort,
                 effort_skills=job.models.skills.effort,
-                temp_fast=job.models.parser.temperature,
-                temp_strong=job.models.writer.temperature,
-                temp_gap=job.models.gap.temperature,
-                temp_scoring=job.models.scoring.temperature,
-                temp_skills=job.models.skills.temperature,
+                extra_fast=job.models.parser.extra_params,
+                extra_strong=job.models.writer.extra_params,
+                extra_gap=job.models.gap.extra_params,
+                extra_scoring=job.models.scoring.extra_params,
+                extra_skills=job.models.skills.extra_params,
             ):
-                final_state = _stream()
+                final_state = _classify_and_stream()
         else:
-            final_state = _stream()
+            final_state = _classify_and_stream()
     except JobCancelled:
         job.status = JobStatus.FAILED
         job.error = "You stopped this run before it finished."
