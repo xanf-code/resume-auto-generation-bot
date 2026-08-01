@@ -100,20 +100,6 @@ def test_compile_ok_detail_reports_single_page():
     assert "page" in ev.detail.lower()
 
 
-def test_compile_page_overflow_detail_mentions_bouncing_to_writer():
-    from src.web.events import build_progress_event
-    delta = {
-        "compile_ok": False,
-        "compile_errors": "PAGE OVERFLOW: the resume compiled to 2 pages…",
-    }
-    ev = build_progress_event("j", delta, {"iteration": 2})
-    assert ev.stage == "compile"
-    assert ev.detail is not None
-    d = ev.detail.lower()
-    assert "overflow" in d
-    assert "writer" in d
-
-
 def test_compile_error_detail_mentions_writer():
     from src.web.events import build_progress_event
     delta = {"compile_ok": False, "compile_errors": "! Undefined control sequence."}
@@ -164,15 +150,6 @@ def test_bookkeep_loop_detail_mentions_writer():
     assert ev.stage == "bookkeep"
     assert ev.detail is not None
     assert "writer" in ev.detail.lower()
-
-
-def test_writer_detail_reflects_page_overflow_retry():
-    from src.web.events import build_progress_event
-    state = {"iteration": 2, "compile_errors": "PAGE OVERFLOW: 2 pages…"}
-    ev = build_progress_event("j", {"writer_output": object()}, state)
-    assert ev.stage == "writer"
-    assert ev.detail is not None
-    assert "page" in ev.detail.lower()
 
 
 def test_writer_first_pass_detail():

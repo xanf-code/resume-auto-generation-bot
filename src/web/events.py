@@ -100,16 +100,13 @@ def activity_detail(stage: str, flat_delta: dict, state: dict) -> str | None:
 
     Pure: reads only the node's ``flat_delta`` and the accumulated ``state``.
     Surfaces the control-flow decisions the stepper hides - most importantly the
-    page-overflow / compile-fail bounces back to the writer.
+    compile-fail bounces back to the writer.
     """
     iteration = int(state.get("iteration", 1))
 
     if stage == "compile":
         if flat_delta.get("compile_ok"):
             return "Compiled to a single page ✓"
-        errors = flat_delta.get("compile_errors") or ""
-        if errors.startswith("PAGE OVERFLOW"):
-            return "Page overflow - resume spilled past 1 page, bouncing back to the writer"
         return "Compile failed - sending LaTeX errors back to the writer"
 
     if stage == "identity_check":
@@ -122,8 +119,6 @@ def activity_detail(stage: str, flat_delta: dict, state: dict) -> str | None:
 
     if stage == "writer":
         errors = state.get("compile_errors") or ""
-        if errors.startswith("PAGE OVERFLOW"):
-            return f"Rewriting to shed a page (iteration {iteration})"
         if errors:
             return f"Rewriting to fix compile errors (iteration {iteration})"
         if state.get("identity_violations"):

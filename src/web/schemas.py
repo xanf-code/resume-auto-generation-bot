@@ -253,8 +253,9 @@ class ProgressEvent(BaseModel):
     passed: bool | None = None
     persona_scores: list[PersonaScoreDTO] | None = None
     # A concrete, human-readable line describing what this node actually did -
-    # e.g. "Page overflow - bouncing back to the writer". Drives the live
-    # activity feed under the stepper; None when a node has nothing notable to say.
+    # e.g. "Compile failed - sending LaTeX errors back to the writer". Drives
+    # the live activity feed under the stepper; None when a node has nothing
+    # notable to say.
     detail: str | None = None
     # Populated only on a terminal ``failed`` frame so clients can surface the
     # reason (e.g. a user abort) directly from the stream.

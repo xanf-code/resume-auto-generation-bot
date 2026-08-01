@@ -94,7 +94,13 @@ def identity_check_node(state: PipelineState) -> dict:
 
 
 def compile_node(state: PipelineState) -> dict:
-    """Node: compile the rendered LaTeX to PDF, then enforce the 1-page hard cap."""
+    """Node: compile the rendered LaTeX to PDF.
+
+    Page overflow is not gated here - a resume that compiles to more than one
+    page is passed through as-is (logged for visibility only). This is an
+    edge case left for a human to fix directly in the LaTeX rather than
+    burning writer/compile-retry budget auto-shrinking content to fit.
+    """
     retries = state.get("compile_retries", 0)
     log.info("compile      | running tectonic (compile_retries=%d)…", retries)
     ok, pdf_path, errors = compile_tex(state["latex_rendered"])
@@ -102,23 +108,10 @@ def compile_node(state: PipelineState) -> dict:
         pages = count_pdf_pages(pdf_path)
         if pages > 1:
             log.warning(
-                "compile      | PAGE OVERFLOW - %d pages → bouncing to writer", pages
+                "compile      | %d pages (overflow, not gated) → %s", pages, pdf_path
             )
-            return {
-                "compile_ok": False,
-                "compile_errors": (
-                    f"PAGE OVERFLOW: the resume compiled to {pages} pages but MUST fit "
-                    f"exactly 1 page. Every bullet is locked to the 195-210 char band "
-                    f"and CANNOT be shortened below 195 - the lever is bullet COUNT, "
-                    f"not bullet length. ACTION: cut the lowest-value bullet(s) from the "
-                    f"role(s) carrying the most bullets (fixed budget: 8 total, "
-                    f"role 0 = exactly 4, role 1 = exactly 4). Do NOT add new content "
-                    f"and do NOT shorten bullets below 195."
-                ),
-                "pdf_path": "",
-                "compile_retries": retries + 1,
-            }
-        log.info("compile      | OK ✓ → %s  (pages=%d)", pdf_path, pages)
+        else:
+            log.info("compile      | OK ✓ → %s  (pages=%d)", pdf_path, pages)
         return {
             "compile_ok": True,
             "compile_errors": "",

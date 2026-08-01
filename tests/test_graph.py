@@ -253,28 +253,21 @@ def test_compile_node_single_page_passes(monkeypatch):
     assert result["compile_retries"] == 0
 
 
-def test_compile_node_page_overflow_bounces_with_count_remedy(monkeypatch):
-    """2-page compile bounces to writer with the count-based remedy.
+def test_compile_node_page_overflow_passes_through(monkeypatch):
+    """A 2-page compile is NOT gated - it passes through as compile_ok=True.
 
-    Bullets are locked to 195-210 and cannot be shortened below 195, so the
-    overflow remedy must target bullet COUNT, not bullet length - and must not
-    reference a summary (there is none anymore).
+    Page overflow is an edge case left for a human to fix directly in the
+    LaTeX; the pipeline no longer burns writer/compile-retry budget trying
+    to auto-shrink content to fit one page.
     """
     monkeypatch.setattr(graph_mod, "compile_tex", lambda latex: (True, "/tmp/x.pdf", []))
     monkeypatch.setattr(graph_mod, "count_pdf_pages", lambda p: 2)
 
     result = graph_mod.compile_node({"latex_rendered": "LATEX", "compile_retries": 1})
 
-    assert result["compile_ok"] is False
-    msg = result["compile_errors"]
-    # No summary concept remains.
-    assert "summary" not in msg.lower()
-    # The remedy is count-based and cites the 195-210 band.
-    assert "COUNT" in msg
-    assert "195-210" in msg
-    # Retry counter advanced; no pdf surfaced for an overflowing draft.
-    assert result["compile_retries"] == 2
-    assert result["pdf_path"] == ""
+    assert result["compile_ok"] is True
+    assert result["pdf_path"] == "/tmp/x.pdf"
+    assert result["compile_retries"] == 0
 
 
 # --- Gap 4: compile bounce does not reset length/identity budgets ------------
@@ -291,23 +284,6 @@ def test_compile_node_failure_does_not_touch_length_or_identity_retries(monkeypa
     monkeypatch.setattr(
         graph_mod, "compile_tex", lambda latex: (False, "", ["boom"])
     )
-    result = graph_mod.compile_node(
-        {
-            "latex_rendered": "LATEX",
-            "compile_retries": 0,
-            "length_retries": 2,
-            "identity_retries": 1,
-        }
-    )
-    assert "length_retries" not in result
-    assert "identity_retries" not in result
-
-
-def test_compile_node_page_overflow_does_not_touch_length_or_identity_retries(monkeypatch):
-    """Same invariant on the page-overflow bounce path."""
-    monkeypatch.setattr(graph_mod, "compile_tex", lambda latex: (True, "/tmp/x.pdf", []))
-    monkeypatch.setattr(graph_mod, "count_pdf_pages", lambda p: 2)
-
     result = graph_mod.compile_node(
         {
             "latex_rendered": "LATEX",

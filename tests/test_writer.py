@@ -453,19 +453,6 @@ def test_writer_system_caps_bullet_count_fixed():
     assert "5 per role" not in WRITER_SYSTEM
 
 
-def test_compile_overflow_note_matches_writer_bullet_budget():
-    """The page-overflow revision note must quote the same budget the Writer
-    prompt enforces - a stale 4+3 note would order the writer to cut below its
-    own hard floor and deadlock the compile loop."""
-    import inspect
-
-    from src.pipeline import graph as graph_module
-
-    source = inspect.getsource(graph_module.compile_node)
-    assert "fixed budget: 8 total" in source
-    assert "role 0 = exactly 4, role 1 = exactly 4" in source
-
-
 def test_writer_system_does_not_mention_summary():
     """Summary is removed from the app - the Writer must not emit one."""
     from src.prompts.writer import WRITER_SYSTEM
