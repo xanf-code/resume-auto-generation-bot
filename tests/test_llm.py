@@ -449,6 +449,84 @@ def test_parse_omits_extra_body_when_effort_is_none(monkeypatch):
     assert "extra_body" not in captured
 
 
+# --- tool-call fallback when message.content is empty --------------------------
+#
+# Some providers (Anthropic via OpenRouter, under extended thinking) emit
+# strict-json_schema output as a forced tool call instead of populating
+# message.content - the thinking block consumes the only text turn. _parse
+# must fall back to the first tool call's arguments before treating the
+# response as genuinely empty (which previously surfaced as "Empty response
+# content for WriterOutput - model returned nothing" on real writer runs).
+
+
+def _fake_client_with_tool_call(arguments: str, content: object = None):
+    """Stand-in whose response has empty message.content but a populated tool call."""
+
+    def fake_completions_create(**kwargs):
+        return types.SimpleNamespace(
+            usage=None,
+            choices=[
+                types.SimpleNamespace(
+                    message=types.SimpleNamespace(
+                        content=content,
+                        tool_calls=[
+                            types.SimpleNamespace(
+                                function=types.SimpleNamespace(arguments=arguments)
+                            )
+                        ],
+                    )
+                )
+            ],
+        )
+
+    return types.SimpleNamespace(
+        chat=types.SimpleNamespace(
+            completions=types.SimpleNamespace(create=fake_completions_create)
+        )
+    )
+
+
+def test_parse_falls_back_to_tool_call_arguments_when_content_empty(monkeypatch):
+    import src.pipeline.llm as llm
+
+    monkeypatch.setattr(
+        llm, "client", lambda: _fake_client_with_tool_call(arguments="{}")
+    )
+
+    out = llm._parse("sys", "user", _DummySchema, "some/model", 1234)
+
+    assert isinstance(out, _DummySchema)
+
+
+def test_parse_raises_when_content_and_tool_calls_both_empty(monkeypatch):
+    import pytest
+
+    import src.pipeline.llm as llm
+
+    def fake_completions_create(**kwargs):
+        return types.SimpleNamespace(
+            usage=None,
+            choices=[
+                types.SimpleNamespace(
+                    message=types.SimpleNamespace(content=None, tool_calls=None)
+                )
+            ],
+        )
+
+    monkeypatch.setattr(
+        llm,
+        "client",
+        lambda: types.SimpleNamespace(
+            chat=types.SimpleNamespace(
+                completions=types.SimpleNamespace(create=fake_completions_create)
+            )
+        ),
+    )
+
+    with pytest.raises(ValueError, match="Empty response content"):
+        llm._parse("sys", "user", _DummySchema, "some/model", 1234)
+
+
 def test_runner_forwards_effort_none_through_model_context():
     """When a role's effort is the string 'none', model_context must surface it."""
     from src.pipeline.llm import _ctx_effort_strong, model_context

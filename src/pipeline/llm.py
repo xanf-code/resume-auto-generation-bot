@@ -229,7 +229,18 @@ def _parse(
             "input_tokens": response.usage.prompt_tokens,
             "output_tokens": response.usage.completion_tokens,
         })
-    content = response.choices[0].message.content
+    message = response.choices[0].message
+    content = message.content
+    if not content:
+        # Some providers (notably Anthropic via OpenRouter, under extended
+        # thinking) emit strict-json_schema output as a forced tool call
+        # instead of populating message.content - the thinking block consumes
+        # the only text turn, leaving content empty even though the model did
+        # produce the structured payload. Fall back to the tool-call arguments
+        # before treating the response as genuinely empty.
+        tool_calls = getattr(message, "tool_calls", None)
+        if tool_calls:
+            content = tool_calls[0].function.arguments
     if not content:
         raise ValueError(
             f"Empty response content for {schema.__name__} — model returned nothing."
