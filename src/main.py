@@ -135,6 +135,7 @@ def stream_pipeline(
     on_step: Callable[[dict, dict], None] | None = None,
     tuning: PipelineTuning | None = None,
     bullet_shapes: list[str] | None = None,
+    role_bullet_counts: list[int] | None = None,
     write_files: bool = True,
     proven_examples: str | None = None,
     jd_domains: list[str] | None = None,
@@ -190,6 +191,8 @@ def stream_pipeline(
         initial_state["identity_ledger"] = identity_ledger
     if bullet_shapes is not None:
         initial_state["bullet_shapes"] = bullet_shapes
+    if role_bullet_counts is not None:
+        initial_state["role_bullet_counts"] = role_bullet_counts
     if proven_examples is not None:
         initial_state["proven_examples"] = proven_examples
     if jd_domains is not None:

@@ -11,6 +11,7 @@ import logging
 
 from src.pipeline.schemas import WriterOutput
 from src.pipeline.state import PipelineState
+from config.settings import DEFAULT_ROLE_BULLET_COUNTS
 
 log = logging.getLogger(__name__)
 
@@ -63,6 +64,42 @@ def validate_bullet_lengths(
     return violations
 
 
+def validate_bullet_counts(
+    output: WriterOutput,
+    counts: list[int] | None,
+) -> list[str]:
+    """Validate that each role's bullet count matches the expected value.
+
+    Only validates roles whose index appears in ``counts``; extra roles emitted
+    by the writer beyond the spec length are silently ignored (the writer may
+    produce 3 roles when only 2 were budgeted — we don't penalise the overage
+    beyond the covered indices).
+
+    Args:
+        output: The WriterOutput to validate.
+        counts: Expected bullet count per role index. None → DEFAULT_ROLE_BULLET_COUNTS.
+
+    Returns:
+        A list of violation strings (empty if all covered roles are in-budget).
+    """
+    effective = list(counts) if counts else DEFAULT_ROLE_BULLET_COUNTS
+    # Build a lookup for fast access; only roles in output are considered.
+    bullets_by_index: dict[int, int] = {r.index: len(r.bullets) for r in output.roles}
+    violations = []
+    for i, expected in enumerate(effective):
+        actual = bullets_by_index.get(i)
+        if actual is None:
+            continue  # role not present — length validator handles missing roles
+        if actual == expected:
+            continue
+        delta = actual - expected
+        hint = f"Remove {delta}" if delta > 0 else f"Add {-delta}"
+        violations.append(
+            f"Role {i}: {actual} bullets, expected EXACTLY {expected}. {hint}."
+        )
+    return violations
+
+
 def check_bullet_lengths(state: PipelineState) -> dict:
     """Node: validate bullet lengths and set ``length_violations`` if any fail.
 
@@ -79,37 +116,51 @@ def check_bullet_lengths(state: PipelineState) -> dict:
     present in the returned dict).
     """
     output = state["writer_output"]
-    violations = validate_bullet_lengths(output)
+    length_violations = validate_bullet_lengths(output)
+    count_violations = validate_bullet_counts(output, state.get("role_bullet_counts"))
 
     result: dict = {}
+
+    any_violations = length_violations or count_violations
 
     # Lock project bullets only on a clean first pass: if project_bullets not yet
     # in state, the writer produced project output, and no violations exist.
     # Locking before the violation check would freeze bad bullets and prevent the
     # writer from fixing them (subsequent passes skip ## SELECTED PROJECTS when
     # project_bullets is already in state).
-    if not violations and not state.get("project_bullets") and output.projects:
+    if not any_violations and not state.get("project_bullets") and output.projects:
         result["project_bullets"] = output.projects
 
     # Lock the invention ledger on the same clean-first-pass guard: freezing it
     # from a still-violating draft would prevent the writer from revising
     # bullets whose fabrications are about to change.
-    if not violations and not state.get("invented_stack") and output.invented_stack:
+    if not any_violations and not state.get("invented_stack") and output.invented_stack:
         result["invented_stack"] = output.invented_stack
 
-    if violations:
+    result["count_violations"] = count_violations if count_violations else None
+
+    if length_violations:
         retries = state.get("length_retries", 0) + 1
         log.warning(
-            "check_bullet_lengths | %d violation(s) detected (length_retries=%d) "
+            "check_bullet_lengths | %d length violation(s) detected (length_retries=%d) "
             "→ routing back to Writer",
-            len(violations), retries,
+            len(length_violations), retries,
         )
-        for v in violations:
+        for v in length_violations:
             log.warning("  - %s", v)
-        return {**result, "length_violations": violations, "length_retries": retries}
+        return {**result, "length_violations": length_violations, "length_retries": retries}
+
+    if count_violations:
+        log.warning(
+            "check_bullet_lengths | %d count violation(s) detected → routing back to Writer",
+            len(count_violations),
+        )
+        for v in count_violations:
+            log.warning("  - %s", v)
+        return {**result, "length_violations": None}
 
     log.info(
-        "check_bullet_lengths | all bullets within %d-%d chars ✓",
+        "check_bullet_lengths | all bullets within %d-%d chars, counts correct ✓",
         BULLET_LO, BULLET_HI,
     )
     return {**result, "length_violations": None}

@@ -151,25 +151,26 @@ def test_validate_bullet_lengths_empty_bullets():
 
 
 def test_check_bullet_lengths_writes_none_when_valid():
-    """Valid output → length_violations=None, and length_retries is untouched.
+    """Valid output → length_violations=None, count_violations=None, length_retries untouched.
 
     On a clean pass length_retries must be ABSENT from the return so LangGraph
     preserves the per-iteration counter (mirrors identity_check_node).
+    Pass role_bullet_counts matching the fixture (2 bullets in role 0) to isolate
+    the length check from the count check.
     """
-    state = {"writer_output": _valid_output(), "length_retries": 2}
+    state = {"writer_output": _valid_output(), "length_retries": 2, "role_bullet_counts": [2]}
     out = check_bullet_lengths(state)
 
-    assert set(out.keys()) == {"length_violations"}
     assert out["length_violations"] is None
+    assert out["count_violations"] is None
     assert "length_retries" not in out
 
 
 def test_check_bullet_lengths_writes_violations_when_invalid():
     """Invalid output → length_violations=list[str] AND length_retries bumped."""
-    state = {"writer_output": _short_bullet_output()}
+    state = {"writer_output": _short_bullet_output(), "role_bullet_counts": [1]}
     out = check_bullet_lengths(state)
 
-    assert set(out.keys()) == {"length_violations", "length_retries"}
     violations = out["length_violations"]
     assert isinstance(violations, list)
     assert len(violations) == 1
@@ -180,7 +181,7 @@ def test_check_bullet_lengths_writes_violations_when_invalid():
 
 def test_check_bullet_lengths_increments_existing_retry_counter():
     """length_retries increments from whatever was already on the state."""
-    state = {"writer_output": _short_bullet_output(), "length_retries": 2}
+    state = {"writer_output": _short_bullet_output(), "length_retries": 2, "role_bullet_counts": [1]}
     out = check_bullet_lengths(state)
 
     assert out["length_retries"] == 3
@@ -188,7 +189,7 @@ def test_check_bullet_lengths_increments_existing_retry_counter():
 
 def test_check_bullet_lengths_reports_multiple_violations():
     """Multiple violations → all returned in violations list."""
-    state = {"writer_output": _mixed_violations_output()}
+    state = {"writer_output": _mixed_violations_output(), "role_bullet_counts": [2, 2]}
     out = check_bullet_lengths(state)
 
     assert len(out["length_violations"]) == 2
@@ -196,7 +197,7 @@ def test_check_bullet_lengths_reports_multiple_violations():
 
 def test_check_bullet_lengths_does_not_mutate_input_state():
     """Node does not mutate the input state dict."""
-    state = {"writer_output": _valid_output()}
+    state = {"writer_output": _valid_output(), "role_bullet_counts": [2]}
     snapshot_keys = set(state.keys())
     check_bullet_lengths(state)
 

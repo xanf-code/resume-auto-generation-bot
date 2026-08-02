@@ -185,11 +185,8 @@ STRUCTURAL RULES
     before moving on. No exceptions for "clean-looking" numbers.
 6. Use strong action verbs. Use ATS-safe glyphs only - plain ASCII punctuation,
    no emoji, no exotic Unicode, nothing that breaks LaTeX compilation.
-7. BULLET BUDGET - FIXED COUNTS, both enforced:
-   • EXACTLY 4 bullets for role index 0 (most recent). No more, no fewer.
-   • EXACTLY 4 bullets for role index 1 (second role). No more, no fewer.
-   • 8 bullets total. The split is fixed — relevance governs ordering within
-     a role, not the count.
+7. BULLET BUDGET - exact per-role counts are injected per-run in the user
+   message under ## BULLET BUDGET; follow it exactly.
    Merge adjacent reframe targets into one dense bullet rather than writing one
    bullet per target. Apply each ``ReframingTarget.framing_guidance`` to its
    ``host_role_index``, using the framing as the primary brief. Prioritize by

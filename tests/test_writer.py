@@ -440,17 +440,18 @@ def test_writer_system_enforces_bullet_band():
     assert "195-210" in WRITER_SYSTEM, "Missing 195-210 bullet band"
 
 
-def test_writer_system_caps_bullet_count_fixed():
-    """Exactly 4 bullets per role for roles 0 and 1 - 8 total, uniform split."""
+def test_writer_system_bullet_budget_is_per_run_directive():
+    """Rule 7 defers to a per-run ## BULLET BUDGET injection instead of hardcoding counts."""
     from src.prompts.writer import WRITER_SYSTEM
 
-    assert "EXACTLY 4 bullets for role index 0" in WRITER_SYSTEM
-    assert "EXACTLY 4 bullets for role index 1" in WRITER_SYSTEM
-    assert "8 bullets total" in WRITER_SYSTEM
-    # Old lopsided 4+3 budget must be gone.
-    assert "EXACTLY 3 bullets for role index 1" not in WRITER_SYSTEM
-    assert "7 bullets total" not in WRITER_SYSTEM
-    assert "5 per role" not in WRITER_SYSTEM
+    # System prompt must NOT contain hardcoded counts — they live in the user message now.
+    assert "EXACTLY 4 bullets for role index 0" not in WRITER_SYSTEM
+    assert "EXACTLY 4 bullets for role index 1" not in WRITER_SYSTEM
+    assert "8 bullets total" not in WRITER_SYSTEM
+    # Rule 7 header must survive; only the digits moved to the user message.
+    assert "7. BULLET BUDGET" in WRITER_SYSTEM
+    # The deferral pointer must be present.
+    assert "BULLET BUDGET" in WRITER_SYSTEM
 
 
 def test_writer_system_does_not_mention_summary():

@@ -72,6 +72,8 @@ class Job:
     models: PipelineModels | None = None
     # Per-resume bullet shape selection. None → default rotation over all four.
     bullet_shapes: list[str] | None = None
+    # Per-role bullet budget. None → DEFAULT_ROLE_BULLET_COUNTS ([4, 4]).
+    role_bullet_counts: list[int] | None = None
     # JD classification (always computed by run_job; not user input).
     role: str | None = None
     domains: list[str] = field(default_factory=list)
@@ -124,6 +126,7 @@ def job_from_record(rec: "JobRecord", *, event_buffer_max: int = 500) -> Job:
         jd_name=rec.jd_name,
         enable_scoring=rec.enable_scoring,
         bullet_shapes=rec.bullet_shapes,
+        role_bullet_counts=rec.role_bullet_counts,
         role=rec.role,
         domains=rec.domains or [],
         best_latex=rec.best_latex,

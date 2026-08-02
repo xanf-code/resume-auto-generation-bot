@@ -34,6 +34,10 @@ class PipelineState(TypedDict, total=False):
     # Per-resume bullet shape selection. None / absent → default rotation over
     # all four shapes. One name → use only that shape. Subset → rotate within it.
     bullet_shapes: list[str] | None
+    # Per-resume bullet budget. Each element is the exact count required for
+    # the role at that index (role_bullet_counts[0] → role index 0, etc.).
+    # None / absent → DEFAULT_ROLE_BULLET_COUNTS ([4, 4]).
+    role_bullet_counts: list[int] | None
     # Retrieved-examples prompt block (Phase 4's retrieval output, already
     # labelled). Absent/None → the Writer's PROVEN EXAMPLES section is omitted.
     proven_examples: str | None
@@ -79,6 +83,10 @@ class PipelineState(TypedDict, total=False):
     # channels that are not part of the state schema, which would make the gate
     # a no-op.
     length_violations: list[str]
+    # Recorded alongside length_violations by ``check_bullet_lengths`` when one
+    # or more roles have the wrong bullet count. Routes back to the writer via
+    # the same retry mechanism as length violations. MUST be declared here.
+    count_violations: list[str]
     # Per-iteration length-retry counter. Reset in ``bookkeep_node`` alongside
     # ``compile_retries`` so each revision iteration gets a fresh budget.
     length_retries: int
