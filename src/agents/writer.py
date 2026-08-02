@@ -19,6 +19,8 @@ from src.pipeline.state import PipelineState
 from src.prompts.jd_tagger import envelope_for
 from src.prompts.writer import BULLET_SHAPES, SHAPE_NAMES, WRITER_SYSTEM
 
+from config.settings import DEFAULT_ROLE_BULLET_COUNTS
+
 # The Writer prompt asks the model to self-verify length by appending a
 # ``[chars: N]`` tag to each bullet. Those tags are a model-only scratchpad -
 # they must be stripped before the length validator counts characters and
@@ -129,6 +131,28 @@ def build_shape_directive(shapes: list[str] | None) -> str:
     return "\n".join(lines).rstrip()
 
 
+def build_bullet_budget_directive(counts: list[int] | None) -> str:
+    """Compose the per-run bullet budget directive from the given counts.
+
+    - ``None`` / ``[]`` → default from ``DEFAULT_ROLE_BULLET_COUNTS`` ([4, 4]).
+    - Otherwise, each index maps to the writer's role index.
+
+    Pure and deterministic — the same input always gives the same string.
+    """
+    effective = list(counts) if counts else DEFAULT_ROLE_BULLET_COUNTS
+    lines = []
+    for i, n in enumerate(effective):
+        qualifier = "(most recent)" if i == 0 else ""
+        suffix = f" {qualifier}" if qualifier else ""
+        lines.append(f"  • EXACTLY {n} bullets for role index {i}{suffix}. No more, no fewer.")
+    total = sum(effective)
+    lines.append(
+        f"  • {total} bullets total. The split is fixed — relevance governs ordering"
+        " within a role, not the count."
+    )
+    return "\n".join(lines)
+
+
 def render_fabrication_envelope(domains: list[str] | None) -> str:
     """Render the ``## FABRICATION ENVELOPE`` block from the JD's tagged domains.
 
@@ -166,11 +190,15 @@ def build_writer_user_message(state: PipelineState) -> str:
     ) + "\n]" if targets else "[]"
 
     shape_directive = build_shape_directive(state.get("bullet_shapes"))
+    budget_directive = build_bullet_budget_directive(state.get("role_bullet_counts"))
     fabrication_envelope = render_fabrication_envelope(state.get("jd_domains"))
 
     sections = [
         "## BULLET SHAPE DIRECTIVE",
         shape_directive,
+        "",
+        "## BULLET BUDGET (exact counts — follow exactly, no more, no fewer)",
+        budget_directive,
         "",
         "## FABRICATION ENVELOPE (the ONLY legal fabrication vocabulary - "
         "plus anything already in the source)",
@@ -217,6 +245,15 @@ def build_writer_user_message(state: PipelineState) -> str:
         sections += [
             "",
             "## LENGTH VIOLATIONS (fix ONLY these bullets to 195-210 chars, keep the rest)",
+            violations_text,
+        ]
+
+    count_violations = state.get("count_violations")
+    if count_violations:
+        violations_text = "\n".join(count_violations)
+        sections += [
+            "",
+            "## BULLET COUNT VIOLATIONS (fix ONLY these roles to match the BULLET BUDGET above)",
             violations_text,
         ]
 

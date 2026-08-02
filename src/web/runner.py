@@ -167,6 +167,8 @@ def run_job(job: Job, manager: "JobManager") -> None:
             extra["tuning"] = tuning
         if job.bullet_shapes is not None:
             extra["bullet_shapes"] = job.bullet_shapes
+        if job.role_bullet_counts is not None:
+            extra["role_bullet_counts"] = job.role_bullet_counts
         if proven_examples is not None:
             extra["proven_examples"] = proven_examples
 

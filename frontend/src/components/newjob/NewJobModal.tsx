@@ -4,6 +4,7 @@ import { FileOrPasteField } from './FileOrPasteField';
 import { ModelControls } from './ModelControls';
 import { TuningControls } from './TuningControls';
 import { BulletShapeControls } from './BulletShapeControls';
+import { BulletCountControls } from './BulletCountControls';
 import { createJob } from '../../api/jobs';
 import {
   DEFAULT_MODELS,
@@ -14,6 +15,7 @@ import {
 } from '../../lib/models';
 import { DEFAULT_TUNING, type Tuning } from '../../lib/tuning';
 import { DEFAULT_BULLET_SHAPES, type BulletShape } from '../../lib/bulletShapes';
+import { DEFAULT_BULLET_COUNTS } from '../../lib/bulletCounts';
 import { loadRememberedConfig, saveRememberedConfig } from '../../lib/rememberedConfig';
 import { useStore } from '../../store';
 
@@ -37,6 +39,7 @@ export function NewJobModal() {
     () => loadRememberedConfig()?.models ?? DEFAULT_MODELS,
   );
   const [bulletShapes, setBulletShapes] = useState<BulletShape[]>(DEFAULT_BULLET_SHAPES);
+  const [bulletCounts, setBulletCounts] = useState<[number, number]>(DEFAULT_BULLET_COUNTS);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<MobilePane>('inputs');
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +108,7 @@ export function NewJobModal() {
         tuning,
         models: toApiModels(models),
         bullet_shapes: bulletShapes,
+        role_bullet_counts: bulletCounts,
         obsidian_learn: !obsidianLearnOff,
       });
       addJob({ job_id: job.job_id, label: job.label });
@@ -316,6 +320,13 @@ export function NewJobModal() {
                 <BulletShapeControls
                   shapes={bulletShapes}
                   onChange={setBulletShapes}
+                />
+              </div>
+
+              <div className="border-t border-rule pt-4">
+                <BulletCountControls
+                  counts={bulletCounts}
+                  onChange={setBulletCounts}
                 />
               </div>
             </aside>

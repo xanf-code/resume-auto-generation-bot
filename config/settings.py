@@ -25,6 +25,11 @@ MAX_IDENTITY_RETRIES = 2
 MAX_LENGTH_RETRIES = 3
 PLAUSIBILITY_FLOOR = 20
 
+# --- Bullet budget defaults --------------------------------------------------
+# Per-role bullet counts for the two roles the writer produces. Index matches
+# role index in WriterOutput.roles (0 = most recent). None → these defaults.
+DEFAULT_ROLE_BULLET_COUNTS: list[int] = [4, 4]
+
 # --- Rubric weights (must sum to 1.0) ----------------------------------------
 # Swapped plausibility ↔ keyword_match vs original design.
 # In fabrication mode, keyword coverage is the primary signal; plausibility

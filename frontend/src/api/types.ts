@@ -61,6 +61,8 @@ export interface CreateJobRequest {
   models?: ApiModelsConfig;
   // Bullet shape selection. Empty / omitted → default rotation over all four shapes.
   bullet_shapes?: string[];
+  // Per-role bullet count. Omitted → backend defaults to [4, 4]. Each value 2–5.
+  role_bullet_counts?: number[];
   // Obsidian vault "learning" toggle. Omitted → backend defaults to true.
   obsidian_learn?: boolean;
 }

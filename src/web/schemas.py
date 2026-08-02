@@ -189,6 +189,10 @@ class JobSubmitRequest(BaseModel):
     tuning: TuningDTO | None = None
     models: ModelsDTO | None = None
     bullet_shapes: list[str] | None = None
+    # Per-role bullet budget. Each element is the exact count required for the
+    # role at that index. None → DEFAULT_ROLE_BULLET_COUNTS ([4, 4]).
+    # Each count must be in [2, 5]; list must be non-empty when provided.
+    role_bullet_counts: list[int] | None = None
     # Obsidian vault "learning" toggle - when False, this run skips retrieval
     # of proven examples and vault tuning overrides (the run note is still
     # always written). Defaults True; the UI exposes this as an opt-out.
@@ -207,6 +211,20 @@ class JobSubmitRequest(BaseModel):
     def _non_blank(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("must not be blank")
+        return v
+
+    @field_validator("role_bullet_counts")
+    @classmethod
+    def _validate_role_bullet_counts(cls, v: list[int] | None) -> list[int] | None:
+        if v is None:
+            return None
+        if len(v) == 0:
+            raise ValueError("role_bullet_counts must not be empty when provided")
+        for i, n in enumerate(v):
+            if not (2 <= n <= 5):
+                raise ValueError(
+                    f"role_bullet_counts[{i}]={n} is out of range; each count must be 2-5"
+                )
         return v
 
     @field_validator("bullet_shapes")

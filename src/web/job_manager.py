@@ -89,6 +89,7 @@ class JobManager:
             req.models.to_pipeline_models() if req.models is not None else None
         )
         job.bullet_shapes = req.bullet_shapes
+        job.role_bullet_counts = req.role_bullet_counts
         job.obsidian_learn = req.obsidian_learn
         job.out_dir = f"{self.settings.out_root}/{job.job_id}"
 
@@ -104,6 +105,7 @@ class JobManager:
             tuning=req.tuning.model_dump() if req.tuning is not None else None,
             models=req.models.model_dump() if req.models is not None else None,
             bullet_shapes=job.bullet_shapes,
+            role_bullet_counts=job.role_bullet_counts,
         )
         # Repository first — fail the request if persistence fails.
         self._repo.create(record)

@@ -35,6 +35,7 @@ class JobRecord:
     tuning: dict | None = None
     models: dict | None = None
     bullet_shapes: list | None = None
+    role_bullet_counts: list | None = None
 
     # --- JD classification (computed by run_job; not user input) ---
     role: str | None = None
@@ -85,6 +86,7 @@ def record_to_row(rec: JobRecord) -> dict:
         "tuning": rec.tuning,
         "models": rec.models,
         "bullet_shapes": rec.bullet_shapes,
+        "role_bullet_counts": rec.role_bullet_counts,
         "role": rec.role,
         "domains": rec.domains,
         "best_latex": rec.best_latex,
@@ -118,6 +120,7 @@ def row_to_record(row: dict) -> JobRecord:
         tuning=row.get("tuning"),
         models=row.get("models"),
         bullet_shapes=row.get("bullet_shapes"),
+        role_bullet_counts=row.get("role_bullet_counts"),
         role=row.get("role"),
         domains=row.get("domains"),
         best_latex=row.get("best_latex"),
